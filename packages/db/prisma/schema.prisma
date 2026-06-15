@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model agencies {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  clients         clients[]
+  content_sources content_sources[]
+  generations     generations[]
+  media_assets    media_assets[]
+  posts           posts[]
+  social_accounts social_accounts[]
+  source_items    source_items[]
+  users           users[]
+}
+
+model approvals {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id     String          @db.Uuid
+  reviewer_id String?         @db.Uuid
+  status      approval_status @default(pending)
+  comment     String?
+  created_at  DateTime        @default(now()) @db.Timestamptz(6)
+  posts       posts           @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users?          @relation(fields: [reviewer_id], references: [id], onUpdate: NoAction)
+
+  @@index([post_id], map: "idx_approvals_post")
+}
+
+model clients {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id       String            @db.Uuid
+  name            String
+  brand           Json              @default("{}")
+  is_active       Boolean           @default(true)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  agencies        agencies          @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  content_sources content_sources[]
+  posts           posts[]
+  social_accounts social_accounts[]
+  source_items    source_items[]
+
+  @@index([agency_id], map: "idx_clients_agency")
+}
+
+model content_sources {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id    String         @db.Uuid
+  client_id    String         @db.Uuid
+  type         source_type
+  name         String
+  config       Json           @default("{}")
+  min_score    Decimal?       @db.Decimal(3, 2)
+  is_active    Boolean        @default(true)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  agencies     agencies       @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clients      clients        @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  posts        posts[]
+  source_items source_items[]
+
+  @@index([client_id], map: "idx_sources_client")
+}
+
+model generations {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id    String            @db.Uuid
+  post_id      String?           @db.Uuid
+  kind         generation_kind
+  status       generation_status @default(pending)
+  prompt       String?
+  model        String?
+  output       Json?
+  media_id     String?           @db.Uuid
+  created_at   DateTime          @default(now()) @db.Timestamptz(6)
+  completed_at DateTime?         @db.Timestamptz(6)
+  agencies     agencies          @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  media_assets media_assets?     @relation(fields: [media_id], references: [id], onUpdate: NoAction)
+  posts        posts?            @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([post_id], map: "idx_gen_post")
+  @@index([status], map: "idx_gen_status")
+}
+
+model media_assets {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id   String        @db.Uuid
+  post_id     String?       @db.Uuid
+  type        media_type
+  source      media_source  @default(upload)
+  storage_url String
+  width       Int?
+  height      Int?
+  position    Int           @default(0)
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  generations generations[]
+  agencies    agencies      @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  posts       posts?        @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([post_id], map: "idx_media_post")
+}
+
+model post_targets {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id           String          @db.Uuid
+  social_account_id String          @db.Uuid
+  status            target_status   @default(pending)
+  platform_post_id  String?
+  error_message     String?
+  attempts          Int             @default(0)
+  published_at      DateTime?       @db.Timestamptz(6)
+  posts             posts           @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  social_accounts   social_accounts @relation(fields: [social_account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([post_id, social_account_id])
+  @@index([social_account_id], map: "idx_targets_account")
+  @@index([post_id], map: "idx_targets_post")
+}
+
+model posts {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id         String           @db.Uuid
+  client_id         String           @db.Uuid
+  created_by        String?          @db.Uuid
+  status            post_status      @default(draft)
+  caption           String?
+  hashtags          String[]
+  scheduled_at      DateTime?        @db.Timestamptz(6)
+  published_at      DateTime?        @db.Timestamptz(6)
+  created_at        DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime         @default(now()) @db.Timestamptz(6)
+  content_source_id String?          @db.Uuid
+  approvals         approvals[]
+  generations       generations[]
+  media_assets      media_assets[]
+  post_targets      post_targets[]
+  agencies          agencies         @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clients           clients          @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  content_sources   content_sources? @relation(fields: [content_source_id], references: [id], onUpdate: NoAction)
+  users             users?           @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  source_items      source_items[]
+
+  @@index([client_id], map: "idx_posts_client")
+  @@index([status, scheduled_at], map: "idx_posts_due")
+  @@index([content_source_id], map: "idx_posts_source")
+}
+
+model schema_migrations {
+  filename   String   @id
+  applied_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model social_accounts {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id           String          @db.Uuid
+  client_id           String          @db.Uuid
+  platform            social_platform
+  external_account_id String
+  username            String?
+  access_token_enc    Bytes
+  refresh_token_enc   Bytes?
+  token_expires_at    DateTime?       @db.Timestamptz(6)
+  scopes              String[]
+  is_active           Boolean         @default(true)
+  connected_at        DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @default(now()) @db.Timestamptz(6)
+  post_targets        post_targets[]
+  agencies            agencies        @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clients             clients         @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([platform, external_account_id])
+  @@index([client_id], map: "idx_social_client")
+  @@index([token_expires_at], map: "idx_social_expiry")
+}
+
+model source_items {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id        String          @db.Uuid
+  client_id        String          @db.Uuid
+  source_id        String          @db.Uuid
+  external_id      String
+  captured_at      DateTime?       @db.Timestamptz(6)
+  origin           String?
+  source_url       String?
+  title            String?
+  summary          String?
+  category         String?
+  sentiment        String?
+  sentiment_score  Decimal?        @db.Decimal(3, 2)
+  sentiment_reason String?
+  image_url        String?
+  copy_facebook    String?
+  copy_instagram   String?
+  copy_x           String?
+  hashtags         String[]
+  flagged_publish  Boolean         @default(false)
+  dedup_hash       String?
+  status           item_status     @default(new)
+  post_id          String?         @db.Uuid
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  agencies         agencies        @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clients          clients         @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  posts            posts?          @relation(fields: [post_id], references: [id], onUpdate: NoAction)
+  content_sources  content_sources @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([source_id, external_id])
+  @@index([dedup_hash], map: "idx_items_dedup")
+  @@index([sentiment_score], map: "idx_items_score")
+  @@index([source_id], map: "idx_items_source")
+  @@index([status], map: "idx_items_status")
+}
+
+model users {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id     String      @db.Uuid
+  email         String
+  full_name     String?
+  role          user_role   @default(manager)
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime    @default(now()) @db.Timestamptz(6)
+  password_hash String
+  approvals     approvals[]
+  posts         posts[]
+  agencies      agencies    @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([agency_id, email])
+  @@index([agency_id], map: "idx_users_agency")
+}
+
+enum approval_status {
+  pending
+  approved
+  rejected
+}
+
+enum generation_kind {
+  copy
+  image
+}
+
+enum generation_status {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum item_status {
+  new
+  pending_approval
+  approved
+  rejected
+  published
+  duplicate
+}
+
+enum media_source {
+  upload
+  ai_generated
+  canva
+}
+
+enum media_type {
+  image
+  video
+}
+
+enum post_status {
+  draft
+  pending_approval
+  approved
+  scheduled
+  publishing
+  published
+  failed
+  archived
+}
+
+enum social_platform {
+  instagram
+  facebook
+  tiktok
+  linkedin
+  x
+  youtube
+}
+
+enum source_type {
+  manual_calendar
+  news_radar
+  sheet
+  rss
+}
+
+enum target_status {
+  pending
+  publishing
+  published
+  failed
+}
+
+enum user_role {
+  owner
+  admin
+  manager
+  viewer
+}

@@ -1,0 +1,39 @@
+# Community Manager Automático — reglas del proyecto
+
+## Contexto
+SaaS multi-tenant para gestionar las redes sociales de varios clientes.
+La spec completa y el plan por fases están en docs/PROMPT_CURSOR_community_manager.md.
+La visión de producto está en docs/CONTEXTO_PRODUCTO.md.
+El estado de ejecución (bitácora) está en docs/Estado del Proyecto.md.
+Las instrucciones para otra máquina están en docs/Instrucciones de puesta en marcha.md.
+Léela antes de trabajar y sigue las fases EN ORDEN, deteniéndote al final de cada una para que la revise.
+
+## Stack
+- Monorepo con pnpm. Backend: NestJS + TypeScript. Frontend: Next.js + TypeScript + Tailwind.
+- PostgreSQL 16. Los archivos .sql en /migrations son la fuente de verdad del esquema:
+  NO redefinas el esquema a mano (usa Prisma por introspección o Drizzle).
+- Cola/scheduling: BullMQ + Redis. Media: almacenamiento S3-compatible.
+
+## Reglas no negociables
+- Multi-tenant: TODA consulta de datos de clientes se filtra por agency_id. Sin excepción.
+- Tokens OAuth cifrados (AES-256-GCM, clave desde variable de entorno) antes de guardar.
+  Nunca en texto plano, nunca en logs, nunca en el repo.
+- Solo APIs oficiales para publicar (Graph API de Meta). Nada de scraping ni automatización por navegador.
+- Publicar SIEMPRE requiere un registro de aprobación humana previo.
+- Sin secretos en el código ni en commits. Todo en .env (con un .env.example versionado, sin valores reales).
+- Migraciones inmutables: no edites una migración ya aplicada; crea una nueva.
+- Mantén la capa de IA y la de plataformas detrás de interfaces, para cambiar de proveedor o red sin reescribir el núcleo.
+
+## Cómo trabajar
+- Pide confirmación antes de: instalar dependencias pesadas no listadas, cambiar configuración persistente,
+  o cualquier acción externa con efectos (publicar, enviar, gastar).
+- Escribe tests para la lógica crítica: worker de publicación, cifrado y aislamiento multi-tenant.
+- Si algo es ambiguo, pregunta antes de asumir.
+
+## Documentación viva (obligatorio)
+- Mantén actualizado `docs/Estado del Proyecto.md` al terminar una tarea significativa o cerrar una fase:
+  fecha, qué se hizo, decisiones, criterio de aceptación (✅/⏳/❌) y pendientes. Actualiza el resumen rápido al inicio.
+- Si cambian requisitos de arranque (puertos, comandos, variables `.env`, Docker), actualiza también
+  `docs/Instrucciones de puesta en marcha.md`.
+- No dupliques la spec (`PROMPT_CURSOR_community_manager.md`) ni el contexto de producto (`CONTEXTO_PRODUCTO.md`):
+  Estado del Proyecto es bitácora de ejecución; Instrucciones es manual operativo para otra máquina.

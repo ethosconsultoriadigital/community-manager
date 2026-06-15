@@ -1,0 +1,28 @@
+{
+  "name": "community-manager-automatico",
+  "private": true,
+  "scripts": {
+    "migrate": "tsx migrations/run.ts",
+    "dev:api": "pnpm --filter @cm/api dev",
+    "dev:web": "pnpm --filter @cm/web dev",
+    "build": "pnpm db:generate && pnpm -r build",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r test",
+    "db:pull": "pnpm --filter @cm/db db:pull",
+    "db:generate": "pnpm --filter @cm/db db:generate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "dotenv": "^16.5.0",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "@types/pg": "^8.15.2",
+    "pg": "^8.16.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.1"
+  }
+}

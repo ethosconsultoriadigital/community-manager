@@ -1,0 +1,32 @@
+{
+  "name": "@cm/db",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@cm/shared": "workspace:*",
+    "@prisma/client": "^6.9.0"
+  },
+  "devDependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.5.0",
+    "prisma": "^6.9.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.1"
+  }
+}
