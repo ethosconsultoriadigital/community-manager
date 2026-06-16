@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-06-15
+**Última actualización:** 2026-06-16 (Fase 8)
 
 ---
 
@@ -11,10 +11,12 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | 5 — cerrada, pendiente de tu revisión |
-| **Fases completadas** | 0, 1, 2, 3, 4, 5 |
-| **Próximo paso** | Revisar Fase 5 → Fase 6 (generación IA + Canva) |
+| **Fase actual** | 8 — cerrada, pendiente de tu revisión |
+| **Fases completadas** | 0, 1, 2, 3, 4, 5, 6, 7, 8 |
+| **Próximo paso** | Revisar Fase 8 → primer hito MVP completo |
+| **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
+| **Web en local** | `http://localhost:3000` |
 
 ---
 
@@ -115,6 +117,119 @@
 
 ---
 
+## 2026-06-16 — Fase 6: Generación con IA (mocks) ✅
+
+**Implementado:**
+- Interfaces intercambiables: `LlmProvider`, `ImageProvider`, `CanvaProvider`
+- Mocks: `MockLlmProvider`, `MockImageProvider`, `MockCanvaProvider`
+- `GenerationsRepository` + `MediaAssetsRepository` (multi-tenant)
+- `ContentGenerationService` + `AiModule`
+- `POST /generations/from-brief` (JWT, roles manager/admin/owner)
+- Flujo: brief → copy (generación `copy`) → imagen mock → Canva mock → post `pending_approval` + `media_assets` + `approvals` pending
+- Tests: generaciones (2), content-generation (1)
+
+**Verificación (2026-06-16):**
+- `pnpm test`: 32 tests OK
+- E2E con cuenta meta-test: post `pending_approval`, 2 generaciones, media `canva`
+
+**Criterio de aceptación:** ✅ A partir de un brief, generar copy + imagen y dejar el post en `pending_approval`.
+
+**Prueba manual:**
+
+```powershell
+$login = Invoke-RestMethod -Uri "http://localhost:4000/auth/login" -Method POST `
+  -Body '{"email":"meta-test-1781556894@example.com","password":"TestMeta123!"}' -ContentType "application/json"
+$h = @{ Authorization = "Bearer $($login.accessToken)" }
+# Obtener clientId y socialAccountIds como en Fase 5, luego:
+Invoke-RestMethod -Uri "http://localhost:4000/generations/from-brief" -Method POST -Headers $h `
+  -Body (@{ clientId="<CLIENT_ID>"; brief="Promo verano"; socialAccountIds=@("<FB_ID>") } | ConvertTo-Json) `
+  -ContentType "application/json"
+```
+
+---
+
+## 2026-06-16 — Fase 7: Fuentes de contenido (sheet mock) ✅
+
+**Implementado:**
+- `ContentSourcesRepository` + `SourceItemsRepository` (upsert, dedup por `dedup_hash`, filtro `min_score`, approve, linkPost)
+- Interfaz `SheetIngestProvider` + `MockSheetIngestProvider` (fixture `example-sheet.json`, 3 filas)
+- `IngestionService`: ingesta → `source_items` con deduplicación y filtro por `min_score` de la fuente
+- `PromoteItemService`: item aprobado → post `pending_approval` + `media_assets` + `approvals` + destinos
+- Endpoints (JWT, roles manager/admin/owner):
+  - `POST /content-sources` — crear fuente (`type: sheet`, `minScore`)
+  - `GET /content-sources` — listar fuentes
+  - `GET /content-sources/:id/items?minScoreOnly=true` — listar items
+  - `POST /content-sources/:id/ingest` — ejecutar ingesta mock
+  - `POST /source-items/:id/approve` — aprobar item
+  - `POST /source-items/:id/promote` — promover a post (`socialAccountIds`)
+- Cambio mínimo en `PostsRepository.create`: `contentSourceId` opcional
+- Tests: source-items (2), ingestion (1)
+
+**Verificación (2026-06-16):**
+- `pnpm test`: 35 tests OK
+- `pnpm lint`: OK
+- Build `@cm/db` y `@cm/api`: OK
+- E2E meta-test: fuente → ingest (2 items ≥0.7) → approve → promote → post `pending_approval` con `content_source_id`; re-ingesta marca duplicados
+
+**Criterio de aceptación:** ✅ Ingesta sheet mock → items con dedup y filtro min_score → aprobar → promover a post.
+
+**Prueba manual:**
+
+```powershell
+$login = Invoke-RestMethod -Uri "http://localhost:4000/auth/login" -Method POST `
+  -Body '{"email":"meta-test-1781556894@example.com","password":"TestMeta123!"}' -ContentType "application/json"
+$h = @{ Authorization = "Bearer $($login.accessToken)" }
+$clientId = "b84f4c90-c415-499f-8a37-d8fd86ad99da"
+$fbId = "67f3c996-1fad-4640-ae55-ecb1493efd71"
+
+$source = Invoke-RestMethod -Uri "http://localhost:4000/content-sources" -Method POST -Headers $h `
+  -Body (@{ clientId=$clientId; type="sheet"; name="Mock Radar"; minScore=0.7 } | ConvertTo-Json) -ContentType "application/json"
+
+$ingest = Invoke-RestMethod -Uri "http://localhost:4000/content-sources/$($source.id)/ingest" -Method POST -Headers $h
+# Esperado: ingested=2, belowMinScore=1 (mock tiene 3 filas, 1 bajo 0.7)
+$item = ($ingest.items | Sort-Object sentiment_score -Descending | Select-Object -First 1)
+
+Invoke-RestMethod -Uri "http://localhost:4000/source-items/$($item.id)/approve" -Method POST -Headers $h
+Invoke-RestMethod -Uri "http://localhost:4000/source-items/$($item.id)/promote" -Method POST -Headers $h `
+  -Body (@{ socialAccountIds=@($fbId) } | ConvertTo-Json) -ContentType "application/json"
+
+# Re-ingesta (dedup): approve/promote ANTES de esto; si no, items pasan a status duplicate
+$ingest2 = Invoke-RestMethod -Uri "http://localhost:4000/content-sources/$($source.id)/ingest" -Method POST -Headers $h
+# Esperado: duplicates=2, ingested=0
+```
+
+---
+
+## 2026-06-16 — Fase 8: Aprobación y frontend mínimo ✅
+
+**Implementado:**
+- CORS en API (`FRONTEND_URL`, p. ej. `http://localhost:3000`)
+- Frontend Next.js con auth JWT (localStorage):
+  - `/login` — inicio de sesión
+  - `/composer` — crear borrador o enviar a aprobación
+  - `/approvals` — bandeja pendientes (aprobar/rechazar) + programar aprobados
+  - `/calendar` — posts programados agrupados por fecha + publicados recientes
+- Cliente API (`lib/api.ts`) + contexto de auth (`lib/auth.tsx`)
+- Sin cambios en endpoints existentes; reutiliza API de Fases 4–7
+
+**Verificación (2026-06-16):**
+- `pnpm test`: 35 tests OK
+- `pnpm lint`: OK
+- Build `@cm/api` y `@cm/web`: OK
+- E2E flujo UI (vía API + CORS): composer → aprobación → programación → calendario; regresión Fase 7 OK
+
+**Criterio de aceptación:** ✅ Aprobar/rechazar desde la UI; lo aprobado pasa al pipeline de publicación (programación + cola BullMQ).
+
+**Prueba manual en navegador:**
+
+1. `pnpm dev:api` y `pnpm dev:web`
+2. Abrir http://localhost:3000/login con cuenta meta-test
+3. Composer → crear post → «Enviar a aprobación»
+4. Aprobaciones → Aprobar → Programar (fecha futura)
+5. Calendario → verificar post programado
+
+---
+
 ## Flujo para probar publicación real (Fase 5)
 
 ```powershell
@@ -145,7 +260,9 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 ## Pendientes y bloqueos
 
-- [ ] Revisión humana de Fase 5 (incl. publicación real en cuenta de prueba Meta)
+- [ ] Revisión humana de Fase 8
+- [x] Revisión humana de Fase 7 (2026-06-16: E2E + regresión Fase 6 OK)
+- [ ] Sustituir mocks por proveedores reales (Claude, imagen, Canva, Google Sheets) cuando haya credenciales
 - [ ] Flujo de desconexión/revocación de cuentas
 - [ ] Subir repo a GitHub
 
@@ -155,9 +272,7 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 | Fase | Alcance |
 |------|---------|
-| 6 | Generación IA + Canva |
-| 7 | Fuentes de contenido (sheet/RSS) |
-| 8 | UI aprobación + calendario |
+| — | MVP núcleo (Fases 0–8) completado; extensiones: analítica, ads, proveedores reales |
 
 ---
 

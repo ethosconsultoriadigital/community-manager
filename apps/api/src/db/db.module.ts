@@ -3,10 +3,14 @@ import {
   AgenciesRepository,
   ApprovalsRepository,
   ClientsRepository,
+  ContentSourcesRepository,
   createPrismaClient,
   disconnectPrisma,
+  GenerationsRepository,
+  MediaAssetsRepository,
   PostsRepository,
   SocialAccountsRepository,
+  SourceItemsRepository,
   UsersRepository,
 } from '@cm/db';
 
@@ -55,6 +59,30 @@ export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
       useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
         new ApprovalsRepository(prisma),
     },
+    {
+      provide: GenerationsRepository,
+      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
+        new GenerationsRepository(prisma),
+    },
+    {
+      provide: MediaAssetsRepository,
+      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
+        new MediaAssetsRepository(prisma),
+    },
+    {
+      provide: ContentSourcesRepository,
+      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
+        new ContentSourcesRepository(prisma),
+    },
+    {
+      provide: SourceItemsRepository,
+      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
+        new SourceItemsRepository(prisma),
+    },
   ],
   exports: [
     PRISMA_CLIENT,
@@ -64,6 +92,10 @@ export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
     SocialAccountsRepository,
     PostsRepository,
     ApprovalsRepository,
+    GenerationsRepository,
+    MediaAssetsRepository,
+    ContentSourcesRepository,
+    SourceItemsRepository,
   ],
 })
 export class DbModule implements OnModuleDestroy {

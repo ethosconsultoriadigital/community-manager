@@ -37,3 +37,7 @@ packages/db/generated/
 # Misc
 *.tsbuildinfo
 .turbo/
+
+# Database backups (contienen datos sensibles; no versionar)
+backups/
+*.dump

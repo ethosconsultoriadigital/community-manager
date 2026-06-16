@@ -13,6 +13,7 @@ export type CreatePostData = {
   caption?: string;
   hashtags?: string[];
   socialAccountIds: string[];
+  contentSourceId?: string;
 };
 
 export type UpdatePostData = {
@@ -92,6 +93,9 @@ export class PostsRepository {
           status,
           agencies: { connect: { id: agencyId } },
           clients: { connect: { id: data.clientId } },
+          ...(data.contentSourceId
+            ? { content_sources: { connect: { id: data.contentSourceId } } }
+            : {}),
           ...(createdBy ? { users: { connect: { id: createdBy } } } : {}),
         },
       });

@@ -48,6 +48,7 @@ Editar `.env` y completar al menos:
 | `META_APP_SECRET` | Secret de Meta | Developer Dashboard |
 | `META_REDIRECT_URI` | Callback OAuth | `http://localhost:4000/oauth/meta/callback` |
 | `FRONTEND_URL` | Redirección tras OAuth | `http://localhost:3000` |
+| `NEXT_PUBLIC_API_URL` | URL de la API para el frontend | `http://localhost:4000` |
 
 **Importante:**
 - Sin espacios después del `=` en `.env` (ej. `META_APP_ID=123`, no `META_APP_ID= 123`).
@@ -125,7 +126,7 @@ pnpm dev:web
 Comprobación rápida:
 
 - API: http://localhost:4000/health → `{"status":"ok"}`
-- Web: http://localhost:3000
+- Web: http://localhost:3000 → login; tras autenticarse: composer, aprobaciones y calendario
 
 ---
 
@@ -204,12 +205,168 @@ El token debe verse como hex aleatorio, **no** como texto `EAAB...`.
 | API no arranca: `JWT_SECRET no está definida` | Completar `.env` |
 | `Invalid Scopes` en Facebook | Permisos no añadidos al use case en Meta Dashboard |
 | `401` en `/oauth/meta/connect` | Falta header `Authorization: Bearer <token>` |
-| `EADDRINUSE` puerto 4000 | Cerrar proceso anterior en ese puerto |
+| `EADDRINUSE` puerto 4000 | Cerrar proceso anterior en ese puerto (`Get-NetTCPConnection -LocalPort 4000`) o usar la API ya levantada |
 | `prisma generate` EPERM | Cerrar API/node que use el cliente Prisma |
+| Backup `.sql` de 0 bytes | Postgres no estaba levantado; verificar `docker compose ps` |
+| `database is being accessed` al restaurar | Parar la API antes de `DROP DATABASE` |
+| OAuth falla tras restore en otra PC | `TOKEN_ENCRYPTION_KEY` debe ser idéntica en `.env` |
 
 ---
 
-## 12. Estructura del monorepo (referencia)
+## 12. Backup y restauración de Postgres (desarrollo)
+
+Guía para **exportar** la base de datos de esta máquina e **importarla** en otra PC sin repetir OAuth ni recrear datos de prueba (p. ej. cuenta meta-test).
+
+### Contexto
+
+| Dato | Valor en local |
+|------|----------------|
+| Contenedor | `cm-postgres` |
+| Base de datos | `community_manager` |
+| Usuario | `postgres` |
+| Contraseña | `devpass` (solo desarrollo) |
+| Puerto en host | **5433** |
+
+Los backups incluyen **esquema + datos** (usuarios, clientes, cuentas Meta, posts, etc.).
+
+### Qué copiar a la otra PC
+
+1. **Archivo de backup** (`.sql` o `.dump`) desde la carpeta `backups/`.
+2. **`.env`** por separado (no va dentro del dump). Copiar manualmente o recrear desde `.env.example`.
+3. **Mismas claves críticas** en la otra máquina:
+   - `TOKEN_ENCRYPTION_KEY` → **debe ser idéntica** o los tokens OAuth cifrados dejarán de funcionar.
+   - `JWT_SECRET` → puede cambiar (solo invalida sesiones JWT antiguas; el login email/password sigue).
+   - Credenciales Meta (`META_APP_ID`, `META_APP_SECRET`, etc.).
+
+**No commitear backups en Git:** contienen datos sensibles. La carpeta `backups/` está en `.gitignore`.
+
+---
+
+### Exportar (generar backup)
+
+**Requisito:** Docker levantado y Postgres healthy (`docker compose up -d`).
+
+**PowerShell (Windows):**
+
+```powershell
+# Desde la raíz del proyecto
+New-Item -ItemType Directory -Force -Path backups
+
+# SQL plano (recomendado: portable, fácil de inspeccionar)
+docker compose exec -T postgres pg_dump -U postgres -d community_manager --no-owner --no-acl `
+  | Out-File -Encoding utf8 "backups\community_manager_$(Get-Date -Format 'yyyy-MM-dd').sql"
+```
+
+Verificar que el archivo no esté vacío:
+
+```powershell
+Get-Item backups\*.sql | Select-Object Name, Length, LastWriteTime
+```
+
+**Alternativa compacta** (formato custom, restaurar con `pg_restore`):
+
+```powershell
+docker compose exec -T postgres pg_dump -U postgres -d community_manager -Fc -f /tmp/backup.dump
+docker compose cp cm-postgres:/tmp/backup.dump "backups\community_manager_$(Get-Date -Format 'yyyy-MM-dd').dump"
+```
+
+**Linux / macOS (bash):**
+
+```bash
+mkdir -p backups
+docker compose exec -T postgres pg_dump -U postgres -d community_manager --no-owner --no-acl \
+  > "backups/community_manager_$(date +%Y-%m-%d).sql"
+```
+
+---
+
+### Restaurar en otra PC (máquina nueva)
+
+**Orden recomendado:**
+
+1. Clonar o copiar el repo.
+2. Copiar `.env` (o crearlo con las **mismas** claves de cifrado).
+3. Copiar el archivo de `backups/` al mismo path del proyecto.
+4. Levantar infra:
+
+```powershell
+docker compose up -d
+docker compose ps   # cm-postgres y cm-redis en healthy
+```
+
+5. **Parar la API** si está corriendo (libera conexiones a Postgres).
+6. Reemplazar la base vacía por el backup:
+
+```powershell
+# Sustituir YYYY-MM-DD por la fecha del archivo
+$backup = "backups\community_manager_YYYY-MM-DD.sql"
+
+docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS community_manager;"
+docker compose exec postgres psql -U postgres -c "CREATE DATABASE community_manager;"
+
+Get-Content $backup -Raw | docker compose exec -T postgres psql -U postgres -d community_manager
+```
+
+7. Verificar:
+
+```powershell
+docker compose exec postgres psql -U postgres -d community_manager -c "\dt"
+docker compose exec postgres psql -U postgres -d community_manager -c "SELECT email, role FROM users;"
+```
+
+8. Instalar dependencias y arrancar apps:
+
+```powershell
+pnpm install
+pnpm dev:api    # terminal 1 — solo una instancia en puerto 4000
+pnpm dev:web    # terminal 2
+```
+
+9. Probar login (cuenta de pruebas en `Estado del Proyecto.md`):
+
+- http://localhost:3000/login
+- `meta-test-1781556894@example.com` / `TestMeta123!`
+
+**Nota:** No hace falta `pnpm migrate` si el backup ya incluye el esquema completo. Si la DB ya tenía datos, usa siempre DROP/CREATE antes de importar.
+
+---
+
+### Restaurar formato `.dump` (custom)
+
+```powershell
+docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS community_manager;"
+docker compose exec postgres psql -U postgres -c "CREATE DATABASE community_manager;"
+
+docker compose cp "backups\community_manager_YYYY-MM-DD.dump" cm-postgres:/tmp/restore.dump
+docker compose exec postgres pg_restore -U postgres -d community_manager --no-owner --no-acl /tmp/restore.dump
+```
+
+---
+
+### Escenario alternativo: esquema vacío + solo datos
+
+Si en la máquina nueva prefieres aplicar migraciones y cargar solo datos:
+
+**En origen (exportar solo datos):**
+
+```powershell
+docker compose exec -T postgres pg_dump -U postgres -d community_manager --data-only --no-owner --no-acl `
+  | Out-File -Encoding utf8 "backups\community_manager_data_only.sql"
+```
+
+**En destino:**
+
+```powershell
+pnpm migrate
+Get-Content backups\community_manager_data_only.sql -Raw `
+  | docker compose exec -T postgres psql -U postgres -d community_manager
+```
+
+Útil cuando el esquema SQL del repo cambió y quieres migraciones frescas; para clonar el entorno de pruebas tal cual, el **dump completo** es más simple.
+
+---
+
+## 13. Estructura del monorepo (referencia)
 
 ```
 /apps/api          → NestJS (backend)
@@ -217,6 +374,7 @@ El token debe verse como hex aleatorio, **no** como texto `EAAB...`.
 /packages/db       → Prisma + repositorios
 /packages/shared   → Tipos + cifrado tokens
 /migrations        → SQL fuente de verdad + runner
+/backups           → Dumps locales de Postgres (no versionados)
 docker-compose.yml → Postgres + Redis
 .env.example       → Plantilla de variables (versionada)
 ```

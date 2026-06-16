@@ -3,6 +3,24 @@ export { ApprovalsRepository } from './repositories/approvals.repository';
 export { AgenciesRepository } from './repositories/agencies.repository';
 export { ClientsRepository } from './repositories/clients.repository';
 export {
+  ContentSourcesRepository,
+  ContentSourcesValidationError,
+  type CreateContentSourceData,
+} from './repositories/content-sources.repository';
+export {
+  SourceItemsRepository,
+  SourceItemsValidationError,
+  type UpsertSourceItemData,
+} from './repositories/source-items.repository';
+export {
+  GenerationsRepository,
+  type CreateGenerationData,
+} from './repositories/generations.repository';
+export {
+  MediaAssetsRepository,
+  type CreateMediaAssetData,
+} from './repositories/media-assets.repository';
+export {
   SocialAccountsRepository,
   type UpsertSocialAccountData,
 } from './repositories/social-accounts.repository';

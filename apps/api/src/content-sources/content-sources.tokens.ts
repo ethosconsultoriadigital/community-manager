@@ -1,0 +1,1 @@
+export const SHEET_INGEST_PROVIDER = Symbol('SHEET_INGEST_PROVIDER');

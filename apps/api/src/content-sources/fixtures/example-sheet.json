@@ -1,0 +1,50 @@
+[
+  {
+    "external_id": "noticia_001",
+    "captured_at": "2026-06-16T10:00:00.000Z",
+    "origin": "Mock News",
+    "source_url": "https://example.com/noticia-001",
+    "title": "Apertura de temporada en la costa",
+    "summary": "Turismo local reporta aumento de visitantes.",
+    "category": "Turismo",
+    "sentiment": "Positivo",
+    "sentiment_score": 0.82,
+    "sentiment_reason": "Noticia favorable para el sector",
+    "image_url": "https://picsum.photos/seed/noticia001/1080/1080",
+    "copy_facebook": "Temporada alta en la costa: buenas noticias para el turismo local.",
+    "copy_instagram": "La costa recibe más visitantes este verano.",
+    "hashtags": ["#turismo", "#verano"],
+    "flagged_publish": true
+  },
+  {
+    "external_id": "noticia_002",
+    "captured_at": "2026-06-16T11:00:00.000Z",
+    "origin": "Mock News",
+    "source_url": "https://example.com/noticia-002",
+    "title": "Alerta meteorológica menor",
+    "summary": "Se esperan lluvias aisladas sin mayor impacto.",
+    "category": "Clima",
+    "sentiment": "Neutral",
+    "sentiment_score": 0.45,
+    "sentiment_reason": "Impacto bajo",
+    "copy_facebook": "Lluvias aisladas: precaución en carretera.",
+    "hashtags": ["#clima"],
+    "flagged_publish": false
+  },
+  {
+    "external_id": "noticia_003",
+    "captured_at": "2026-06-16T12:00:00.000Z",
+    "origin": "Mock News",
+    "source_url": "https://example.com/noticia-003",
+    "title": "Nuevo festival gastronómico",
+    "summary": "Restaurantes locales participan en evento regional.",
+    "category": "Gastronomía",
+    "sentiment": "Positivo",
+    "sentiment_score": 0.91,
+    "sentiment_reason": "Alta relevancia para restaurantes",
+    "image_url": "https://picsum.photos/seed/noticia003/1080/1080",
+    "copy_facebook": "Festival gastronómico: una oportunidad para tu restaurante.",
+    "hashtags": ["#gastronomia", "#festival"],
+    "flagged_publish": true
+  }
+]
