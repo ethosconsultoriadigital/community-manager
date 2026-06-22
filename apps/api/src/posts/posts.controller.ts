@@ -9,8 +9,12 @@ import {
   Post,
   BadRequestException,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ApprovalsRepository, PostsRepository, PostsValidationError } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,6 +22,9 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PublishQueueService } from '../jobs/publish-queue.service';
+import { MAX_VIDEO_BYTES } from '../media/media.constants';
+import { MediaValidationError } from '../media/media-validation';
+import { MediaUploadService } from '../media/media-upload.service';
 
 class CreatePostDto {
   clientId!: string;
@@ -47,6 +54,7 @@ export class PostsController {
     private readonly posts: PostsRepository,
     private readonly approvals: ApprovalsRepository,
     private readonly publishQueue: PublishQueueService,
+    private readonly mediaUpload: MediaUploadService,
   ) {}
 
   @Post()
@@ -85,6 +93,28 @@ export class PostsController {
       return post;
     } catch (error) {
       if (error instanceof PostsValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post(':id/media')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_VIDEO_BYTES },
+    }),
+  )
+  async uploadMedia(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    try {
+      return await this.mediaUpload.uploadToPost(user.agencyId, id, file);
+    } catch (error) {
+      if (error instanceof MediaValidationError) {
         throw new BadRequestException(error.message);
       }
       throw error;

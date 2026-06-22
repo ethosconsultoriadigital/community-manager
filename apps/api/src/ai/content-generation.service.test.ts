@@ -81,7 +81,13 @@ describe('ContentGenerationService', () => {
 
     expect(llm.generateCopy).toHaveBeenCalled();
     expect(image.generateImage).toHaveBeenCalled();
-    expect(canva.composeFlyer).toHaveBeenCalled();
+    expect(canva.composeFlyer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brief: 'Promo verano',
+        agencyId: 'agency-1',
+        clientId: 'client-1',
+      }),
+    );
     expect(posts.create).toHaveBeenCalledWith(
       'agency-1',
       'user-1',

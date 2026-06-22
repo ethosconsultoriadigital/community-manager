@@ -10,15 +10,19 @@ import type { Response } from 'express';
 import type { AuthUser } from '@cm/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/current-user.decorator';
+import { CanvaOAuthService } from '../platforms/canva/canva-oauth.service';
 import { MetaOAuthService } from '../platforms/meta/meta-oauth.service';
 
-@Controller('oauth/meta')
+@Controller('oauth')
 export class OauthController {
-  constructor(private readonly metaOAuth: MetaOAuthService) {}
+  constructor(
+    private readonly metaOAuth: MetaOAuthService,
+    private readonly canvaOAuth: CanvaOAuthService,
+  ) {}
 
-  @Get('connect')
+  @Get('meta/connect')
   @UseGuards(JwtAuthGuard)
-  async connect(
+  async connectMeta(
     @CurrentUser() user: AuthUser,
     @Query('clientId') clientId: string,
     @Res() res: Response,
@@ -30,8 +34,8 @@ export class OauthController {
     return res.redirect(url);
   }
 
-  @Get('callback')
-  async callback(
+  @Get('meta/callback')
+  async callbackMeta(
     @Query('code') code: string,
     @Query('state') state: string,
     @Res() res: Response,
@@ -41,5 +45,31 @@ export class OauthController {
     }
     await this.metaOAuth.handleCallback(code, state);
     return res.redirect(this.metaOAuth.getSuccessRedirectUrl());
+  }
+
+  @Get('canva/connect-url')
+  @UseGuards(JwtAuthGuard)
+  async canvaConnectUrl(@CurrentUser() user: AuthUser) {
+    const url = await this.canvaOAuth.startConnect(user);
+    return { url };
+  }
+
+  @Get('canva/callback')
+  async callbackCanva(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    if (!code || !state) {
+      throw new UnauthorizedException('Parámetros OAuth de Canva incompletos');
+    }
+    await this.canvaOAuth.handleCallback(code, state);
+    return res.redirect(this.canvaOAuth.getSuccessRedirectUrl());
+  }
+
+  @Get('canva/status')
+  @UseGuards(JwtAuthGuard)
+  async canvaStatus(@CurrentUser() user: AuthUser) {
+    return this.canvaOAuth.getStatus(user.agencyId);
   }
 }

@@ -19,7 +19,7 @@ export function LoginForm() {
     setSubmitting(true);
     try {
       await login(email, password);
-      router.push('/approvals');
+      router.push('/inicio');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al iniciar sesión');
     } finally {

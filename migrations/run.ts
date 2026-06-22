@@ -7,6 +7,7 @@ const MIGRATIONS = [
   'schema_base.sql',
   'schema_content_sources.sql',
   'schema_auth_password.sql',
+  'schema_canva_oauth.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

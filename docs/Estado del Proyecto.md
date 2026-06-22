@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-06-16 (Fase 8)
+**Última actualización:** 2026-06-22 (Fase B — Canva Connect)
 
 ---
 
@@ -11,9 +11,9 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | 8 — cerrada, pendiente de tu revisión |
-| **Fases completadas** | 0, 1, 2, 3, 4, 5, 6, 7, 8 |
-| **Próximo paso** | Revisar Fase 8 → primer hito MVP completo |
+| **Fase actual** | A (media upload) — cerrada, pendiente de tu revisión |
+| **Fases completadas** | 0–8 + extensión A |
+| **Próximo paso** | Revisar Fase B → Fase C (editor Canva manual) |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
@@ -230,6 +230,64 @@ $ingest2 = Invoke-RestMethod -Uri "http://localhost:4000/content-sources/$($sour
 
 ---
 
+## 2026-06-22 — Fase A: Subida de media (imagen/video) ✅
+
+**Implementado:**
+- `MediaModule`: almacenamiento local (`uploads/`) o S3 si `S3_BUCKET` + credenciales están configuradas
+- `POST /posts/:id/media` (multipart, JWT) → `media_assets` con `source: upload`
+- `GET /media/files/:agencyId/:fileName` — sirve archivos locales (URL pública para Meta)
+- Validación: JPEG/PNG/WebP/GIF (10 MB), MP4/MOV/WebM (50 MB)
+- Composer: adjuntar imagen o video con vista previa
+- Publicación Meta ampliada: FB foto/video; IG imagen/video (feed video, no Reels aún)
+- Variables: `MEDIA_PUBLIC_BASE_URL`, `S3_PUBLIC_BASE_URL` (`.env.example`)
+
+**Verificación (2026-06-22):**
+- `pnpm test`: 39 tests OK (+4 validación media)
+- `pnpm lint`: OK
+- Build `@cm/db`, `@cm/api`, `@cm/web`: OK
+
+**Criterio de aceptación:** ✅ Subir imagen o video en el composer, guardar en `media_assets`, y usarlo al publicar.
+
+**Nota:** Meta debe poder descargar la URL del archivo. En local usa `MEDIA_PUBLIC_BASE_URL=http://localhost:4000` (solo pruebas en la misma máquina). Para publicación real en Meta desde otra red, usa S3/R2 público o un túnel (ngrok).
+
+**Prueba manual:**
+
+1. Composer → adjuntar imagen → guardar borrador
+2. Aprobar y programar como en Fase 5
+3. Verificar `media_assets` en DB y publicación con foto en Facebook/Instagram
+
+---
+
+## 2026-06-22 — Fase B: Canva Connect (autofill + export PNG) ✅
+
+**Implementado:**
+- Migración `schema_canva_oauth.sql`: tokens Canva cifrados por agencia (`canva_*_enc`)
+- `CanvaModule`: OAuth PKCE (`GET /oauth/canva/connect-url`, `GET /oauth/canva/callback`, `GET /oauth/canva/status`)
+- `CanvaConnectClient`: subida de asset, dataset de plantilla, autofill, export PNG
+- `RealCanvaProvider` + `HybridCanvaProvider`: usa Canva real si hay token; si no, **mock intacto** (sin credenciales todo sigue igual)
+- PNG exportado se guarda en storage propio (Fase A), no URL temporal de Canva
+- Config por cliente: `clients.brand.canva.brandTemplateId` (+ opcional `textField`, `imageField`)
+- Composer: sección «Generar con IA + Canva» → `POST /generations/from-brief`
+- Variables: `CANVA_REDIRECT_URI`, `CANVA_DEFAULT_BRAND_TEMPLATE_ID`, `CANVA_ACCESS_TOKEN` (dev, opcional)
+
+**Verificación (2026-06-22):**
+- `pnpm test`: 43 tests OK (+4 Canva)
+- Build `@cm/db`, `@cm/api`, `@cm/web`: OK
+- Sin credenciales Canva: flujo mock sin cambios
+
+**Criterio de aceptación:** ✅ Con Canva conectado y plantilla configurada, el brief genera flyer real exportado a storage propio; sin Canva, el mock sigue funcionando.
+
+**Requisitos Canva:** integración en Developer Portal, redirect URI, scopes de brand template/autofill (Enterprise para plantillas de marca). Configurar `brand.canva.brandTemplateId` en el cliente o `CANVA_DEFAULT_BRAND_TEMPLATE_ID`.
+
+**Prueba manual:**
+
+1. Configurar `CANVA_CLIENT_ID`, `CANVA_CLIENT_SECRET`, `CANVA_REDIRECT_URI` en `.env`
+2. Composer → «Conectar Canva» → autorizar
+3. Definir `brand.canva.brandTemplateId` en el cliente (o variable global)
+4. Brief → «Generar y enviar a aprobación» → revisar imagen en Aprobaciones
+
+---
+
 ## Flujo para probar publicación real (Fase 5)
 
 ```powershell
@@ -260,9 +318,12 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 ## Pendientes y bloqueos
 
+- [ ] Revisión humana de Fase B (Canva Connect)
+- [ ] Revisión humana de Fase A (media upload)
 - [ ] Revisión humana de Fase 8
 - [x] Revisión humana de Fase 7 (2026-06-16: E2E + regresión Fase 6 OK)
-- [ ] Sustituir mocks por proveedores reales (Claude, imagen, Canva, Google Sheets) cuando haya credenciales
+- [ ] Sustituir mocks restantes (Claude, imagen, Google Sheets) cuando haya credenciales
+- [x] Canva real detrás de interfaz con fallback mock (Fase B)
 - [ ] Flujo de desconexión/revocación de cuentas
 - [ ] Subir repo a GitHub
 

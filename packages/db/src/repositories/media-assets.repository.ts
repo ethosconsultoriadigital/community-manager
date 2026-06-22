@@ -21,6 +21,13 @@ export class MediaAssetsRepository {
     });
   }
 
+  async deleteByPost(agencyId: string, postId: string) {
+    const result = await this.prisma.media_assets.deleteMany({
+      where: scopedWhere(agencyId, { post_id: postId }),
+    });
+    return result.count;
+  }
+
   create(agencyId: string, data: CreateMediaAssetData) {
     return this.prisma.media_assets.create({
       data: {

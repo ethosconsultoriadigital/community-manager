@@ -6,6 +6,7 @@ export type PublishTargetInput = {
   accessToken: string;
   message: string;
   imageUrl?: string;
+  videoUrl?: string;
 };
 
 export type PublishResult = {

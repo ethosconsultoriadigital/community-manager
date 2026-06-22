@@ -47,3 +47,22 @@ export type Post = {
   content_source_id: string | null;
   post_targets: PostTarget[];
 };
+
+export type MediaAsset = {
+  id: string;
+  post_id: string | null;
+  type: 'image' | 'video';
+  source: string;
+  storage_url: string;
+  position: number;
+};
+
+export type CanvaStatus = {
+  configured: boolean;
+  connected: boolean;
+};
+
+export type GenerateFromBriefResult = {
+  post: Post;
+  media: MediaAsset[];
+};

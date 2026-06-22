@@ -90,14 +90,20 @@ export class ContentGenerationService {
       canvaExport = await this.canva.composeFlyer({
         brief: input.brief,
         imageUrl: rawImage.url,
+        agencyId,
+        clientId: input.clientId,
       });
+      const canvaModel =
+        canvaExport.provider === 'canva-connect' ? 'canva-connect' : 'mock-canva';
       await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {
         output: {
           rawImageUrl: rawImage.url,
           canvaUrl: canvaExport.url,
           templateId: canvaExport.templateId,
+          provider: canvaExport.provider ?? 'mock',
+          designId: canvaExport.designId,
         },
-        model: 'mock-canva',
+        model: canvaModel,
       });
     } catch (error) {
       await this.generations.updateStatus(agencyId, imageGen.id, 'failed', {
@@ -134,10 +140,12 @@ export class ContentGenerationService {
         rawImageUrl: rawImage.url,
         canvaUrl: canvaExport.url,
         templateId: canvaExport.templateId,
+        provider: canvaExport.provider ?? 'mock',
+        designId: canvaExport.designId,
       },
       mediaId: media.id,
       postId: post.id,
-      model: 'mock-canva',
+      model: canvaExport.provider === 'canva-connect' ? 'canva-connect' : 'mock-canva',
     });
     await this.generations.linkPost(agencyId, copyGen.id, post.id);
 

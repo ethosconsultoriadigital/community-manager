@@ -1,18 +1,36 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { ApiError, apiFetch } from '@/lib/api';
-import type { Client, Post, SocialAccount } from '@/lib/types';
+import { useSearchParams } from 'next/navigation';
+import { ApiError, apiFetch, apiUploadMedia } from '@/lib/api';
+import type {
+  CanvaStatus,
+  Client,
+  GenerateFromBriefResult,
+  MediaAsset,
+  Post,
+  SocialAccount,
+} from '@/lib/types';
+
+const ACCEPT_MEDIA =
+  'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm';
 
 export default function ComposerPage() {
+  const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [clientId, setClientId] = useState('');
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
+  const [aiBrief, setAiBrief] = useState('');
+  const [canvaStatus, setCanvaStatus] = useState<CanvaStatus | null>(null);
+  const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +46,26 @@ export default function ComposerPage() {
       .finally(() => setLoading(false));
   }, [loadClients]);
 
+  const loadCanvaStatus = useCallback(async () => {
+    try {
+      const status = await apiFetch<CanvaStatus>('/oauth/canva/status');
+      setCanvaStatus(status);
+    } catch {
+      setCanvaStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCanvaStatus();
+  }, [loadCanvaStatus]);
+
+  useEffect(() => {
+    if (searchParams.get('connected') === 'canva') {
+      setMessage('Canva conectado correctamente.');
+      loadCanvaStatus();
+    }
+  }, [searchParams, loadCanvaStatus]);
+
   useEffect(() => {
     if (!clientId) return;
     apiFetch<SocialAccount[]>(`/social-accounts?clientId=${clientId}`)
@@ -42,6 +80,81 @@ export default function ComposerPage() {
     setSelectedAccounts((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  }
+
+  function handleMediaChange(file: File | null) {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaFile(file);
+    if (!file) {
+      setMediaPreview(null);
+      return;
+    }
+    setMediaPreview(URL.createObjectURL(file));
+  }
+
+  function clearForm() {
+    setCaption('');
+    setHashtags('');
+    setAiBrief('');
+    setAiPreviewUrl(null);
+    handleMediaChange(null);
+  }
+
+  async function connectCanva() {
+    setError(null);
+    try {
+      const { url } = await apiFetch<{ url: string }>('/oauth/canva/connect-url');
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo iniciar conexión con Canva');
+    }
+  }
+
+  async function handleGenerateWithAi() {
+    if (!aiBrief.trim()) {
+      setError('Escribe un brief para generar con IA');
+      return;
+    }
+    if (selectedAccounts.length === 0) {
+      setError('Selecciona al menos un destino');
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setGeneratingAi(true);
+
+    try {
+      const result = await apiFetch<GenerateFromBriefResult>('/generations/from-brief', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          brief: aiBrief.trim(),
+          socialAccountIds: selectedAccounts,
+        }),
+      });
+
+      if (result.post.caption) setCaption(result.post.caption);
+      if (result.post.hashtags?.length) {
+        setHashtags(result.post.hashtags.join(' '));
+      }
+
+      const image = result.media.find((m) => m.type === 'image');
+      if (image?.storage_url) {
+        setAiPreviewUrl(image.storage_url);
+        handleMediaChange(null);
+      }
+
+      const provider =
+        canvaStatus?.connected && canvaStatus.configured ? 'Canva' : 'mock';
+      setMessage(
+        `Borrador generado con IA (${provider}) y enviado a aprobación (${result.post.id.slice(0, 8)}…)`,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al generar con IA');
+    } finally {
+      setGeneratingAi(false);
+    }
   }
 
   async function handleSubmit(e: FormEvent, sendToApproval: boolean) {
@@ -67,15 +180,22 @@ export default function ComposerPage() {
         }),
       });
 
-      if (sendToApproval) {
-        await apiFetch(`/posts/${post.id}/submit-for-approval`, { method: 'POST' });
-        setMessage(`Post enviado a aprobación (${post.id.slice(0, 8)}…)`);
-      } else {
-        setMessage(`Borrador guardado (${post.id.slice(0, 8)}…)`);
+      if (mediaFile) {
+        await apiUploadMedia<MediaAsset>(post.id, mediaFile);
       }
 
-      setCaption('');
-      setHashtags('');
+      if (sendToApproval) {
+        await apiFetch(`/posts/${post.id}/submit-for-approval`, { method: 'POST' });
+        setMessage(
+          `Post enviado a aprobación${mediaFile ? ' con adjunto' : ''} (${post.id.slice(0, 8)}…)`,
+        );
+      } else {
+        setMessage(
+          `Borrador guardado${mediaFile ? ' con adjunto' : ''} (${post.id.slice(0, 8)}…)`,
+        );
+      }
+
+      clearForm();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al crear el post');
     } finally {
@@ -92,11 +212,73 @@ export default function ComposerPage() {
       <div>
         <h1 className="text-xl font-semibold text-white">Composer</h1>
         <p className="text-sm text-slate-400">
-          Crea un borrador o envíalo directamente a la bandeja de aprobación.
+          Crea un borrador o envíalo a aprobación. Puedes adjuntar una imagen o un video.
         </p>
       </div>
 
       <form className="space-y-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+        <div className="rounded-md border border-indigo-900/50 bg-indigo-950/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-medium text-indigo-200">Generar con IA + Canva</h2>
+              <p className="text-xs text-slate-400">
+                Crea copy, imagen y flyer (mock o Canva real si está conectado) y envía a
+                aprobación.
+              </p>
+            </div>
+            {canvaStatus?.configured && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs ${
+                  canvaStatus.connected
+                    ? 'bg-emerald-900/50 text-emerald-300'
+                    : 'bg-amber-900/40 text-amber-200'
+                }`}
+              >
+                Canva {canvaStatus.connected ? 'conectado' : 'sin conectar'}
+              </span>
+            )}
+          </div>
+
+          <textarea
+            rows={3}
+            value={aiBrief}
+            onChange={(e) => setAiBrief(e.target.value)}
+            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+            placeholder="Brief: promo de verano, tono cercano, CTA reserva…"
+          />
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={generatingAi || submitting || selectedAccounts.length === 0}
+              onClick={handleGenerateWithAi}
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {generatingAi ? 'Generando…' : 'Generar y enviar a aprobación'}
+            </button>
+            {canvaStatus?.configured && !canvaStatus.connected && (
+              <button
+                type="button"
+                onClick={connectCanva}
+                className="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+              >
+                Conectar Canva
+              </button>
+            )}
+          </div>
+
+          {aiPreviewUrl && (
+            <div className="rounded-md border border-slate-700 bg-slate-900 p-2">
+              <img
+                src={aiPreviewUrl}
+                alt="Vista previa generada"
+                className="max-h-48 w-full rounded object-contain"
+              />
+              <p className="mt-1 text-xs text-slate-500">Imagen generada (ya guardada en el post)</p>
+            </div>
+          )}
+        </div>
+
         <div>
           <label htmlFor="client" className="mb-1 block text-sm text-slate-300">
             Cliente
@@ -141,6 +323,46 @@ export default function ComposerPage() {
             className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
             placeholder="#marca #promo"
           />
+        </div>
+
+        <div>
+          <label htmlFor="media" className="mb-1 block text-sm text-slate-300">
+            Imagen o video (opcional)
+          </label>
+          <input
+            id="media"
+            type="file"
+            accept={ACCEPT_MEDIA}
+            onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
+            className="w-full text-sm text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-slate-200"
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)
+          </p>
+          {mediaPreview && mediaFile && (
+            <div className="mt-3 rounded-md border border-slate-700 bg-slate-900 p-2">
+              {mediaFile.type.startsWith('video/') ? (
+                <video
+                  src={mediaPreview}
+                  controls
+                  className="max-h-48 w-full rounded object-contain"
+                />
+              ) : (
+                <img
+                  src={mediaPreview}
+                  alt="Vista previa del adjunto"
+                  className="max-h-48 w-full rounded object-contain"
+                />
+              )}
+              <button
+                type="button"
+                onClick={() => handleMediaChange(null)}
+                className="mt-2 text-xs text-red-400 hover:text-red-300"
+              >
+                Quitar adjunto
+              </button>
+            </div>
+          )}
         </div>
 
         <fieldset>

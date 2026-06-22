@@ -19,7 +19,7 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
 
   const service = new PublishPostService(
     config as never,
-    { ...posts, ...overrides.posts } as never,
+    { ...posts, ...(overrides.posts as Record<string, unknown> | undefined) } as never,
     approvals as never,
     socialAccounts as never,
     metaPublish as never,

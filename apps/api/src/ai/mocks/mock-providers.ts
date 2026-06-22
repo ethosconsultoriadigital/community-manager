@@ -53,6 +53,7 @@ export class MockCanvaProvider implements CanvaProvider {
     return {
       url: `https://mock-canva.local/export/${seed}.png`,
       templateId: 'mock-brand-template',
+      provider: 'mock',
     };
   }
 }

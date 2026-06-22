@@ -84,7 +84,11 @@ export class PublishPostService {
         this.requireEncryptionKey(),
       );
       const message = this.buildMessage(post.caption, post.hashtags);
-      const imageUrl = post.media_assets.find((m) => m.type === 'image')?.storage_url;
+      const primaryMedia = post.media_assets[0];
+      const imageUrl =
+        primaryMedia?.type === 'image' ? primaryMedia.storage_url : undefined;
+      const videoUrl =
+        primaryMedia?.type === 'video' ? primaryMedia.storage_url : undefined;
 
       const result = await this.metaPublish.publish({
         platform: account.platform as 'facebook' | 'instagram',
@@ -92,6 +96,7 @@ export class PublishPostService {
         accessToken,
         message,
         imageUrl,
+        videoUrl,
       });
 
       await this.posts.updateTargetStatus(agencyId, postId, targetId, {

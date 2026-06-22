@@ -79,6 +79,34 @@ export class MetaGraphClient {
     return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/feed`, params);
   }
 
+  async publishFacebookPhoto(
+    pageId: string,
+    accessToken: string,
+    imageUrl: string,
+    caption: string,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      url: imageUrl,
+      caption,
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/photos`, params);
+  }
+
+  async publishFacebookVideo(
+    pageId: string,
+    accessToken: string,
+    videoUrl: string,
+    description: string,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      file_url: videoUrl,
+      description,
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/videos`, params);
+  }
+
   async createInstagramMedia(
     igUserId: string,
     accessToken: string,
@@ -87,6 +115,24 @@ export class MetaGraphClient {
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       image_url: imageUrl,
+      caption,
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(
+      `${this.graphBase}/${igUserId}/media`,
+      params,
+    );
+  }
+
+  async createInstagramVideoMedia(
+    igUserId: string,
+    accessToken: string,
+    videoUrl: string,
+    caption: string,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      media_type: 'VIDEO',
+      video_url: videoUrl,
       caption,
       access_token: accessToken,
     });

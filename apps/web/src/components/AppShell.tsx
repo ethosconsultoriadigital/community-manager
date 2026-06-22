@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { EthosLogo } from '@/components/EthosLogo';
+import { SiteFooter } from '@/components/SiteFooter';
 import { useAuth } from '@/lib/auth';
 
 const NAV = [
+  { href: '/inicio', label: 'Inicio' },
   { href: '/composer', label: 'Composer' },
   { href: '/approvals', label: 'Aprobaciones' },
   { href: '/calendar', label: 'Calendario' },
@@ -29,14 +32,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-800 bg-slate-900/80">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-white">Community Manager</p>
-            <p className="text-xs text-slate-400">{agencyName}</p>
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <EthosLogo href="/inicio" compact />
+            <p className="hidden text-xs text-slate-400 sm:block">{agencyName}</p>
           </div>
-          <nav className="flex gap-1">
+          <nav className="flex flex-wrap gap-1">
             {NAV.map((item) => (
               <Link
                 key={item.href}
@@ -52,7 +55,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-slate-400 sm:inline">{user.email}</span>
+            <span className="hidden max-w-[140px] truncate text-xs text-slate-400 md:inline">
+              {user.email}
+            </span>
             <button
               type="button"
               onClick={() => {
@@ -66,7 +71,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      <SiteFooter />
     </div>
   );
 }

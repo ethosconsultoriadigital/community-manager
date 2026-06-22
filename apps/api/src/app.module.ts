@@ -11,6 +11,7 @@ import { GenerationsModule } from './generations/generations.module';
 import { ContentSourcesModule } from './content-sources/content-sources.module';
 import { JobsModule } from './jobs/jobs.module';
 import { OauthModule } from './oauth/oauth.module';
+import { MediaModule } from './media/media.module';
 import { PostsModule } from './posts/posts.module';
 import { SocialAccountsModule } from './social-accounts/social-accounts.module';
 
@@ -30,6 +31,7 @@ import { SocialAccountsModule } from './social-accounts/social-accounts.module';
     GenerationsModule,
     ContentSourcesModule,
     JobsModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

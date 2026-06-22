@@ -20,6 +20,26 @@ export class MetaPublishService implements PlatformPublisher {
   }
 
   private async publishFacebook(input: PublishTargetInput): Promise<PublishResult> {
+    if (input.videoUrl) {
+      const result = await this.meta.publishFacebookVideo(
+        input.externalAccountId,
+        input.accessToken,
+        input.videoUrl,
+        input.message,
+      );
+      return { platformPostId: result.id };
+    }
+
+    if (input.imageUrl) {
+      const result = await this.meta.publishFacebookPhoto(
+        input.externalAccountId,
+        input.accessToken,
+        input.imageUrl,
+        input.message,
+      );
+      return { platformPostId: result.id };
+    }
+
     const result = await this.meta.publishFacebookFeed(
       input.externalAccountId,
       input.accessToken,
@@ -29,8 +49,23 @@ export class MetaPublishService implements PlatformPublisher {
   }
 
   private async publishInstagram(input: PublishTargetInput): Promise<PublishResult> {
+    if (input.videoUrl) {
+      const container = await this.meta.createInstagramVideoMedia(
+        input.externalAccountId,
+        input.accessToken,
+        input.videoUrl,
+        input.message,
+      );
+      const published = await this.meta.publishInstagramMedia(
+        input.externalAccountId,
+        input.accessToken,
+        container.id,
+      );
+      return { platformPostId: published.id };
+    }
+
     if (!input.imageUrl) {
-      throw new Error('Instagram requiere una imagen (media_assets con URL pública)');
+      throw new Error('Instagram requiere una imagen o video (media_assets con URL pública)');
     }
 
     const container = await this.meta.createInstagramMedia(

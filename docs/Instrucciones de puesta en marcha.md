@@ -49,6 +49,8 @@ Editar `.env` y completar al menos:
 | `META_REDIRECT_URI` | Callback OAuth | `http://localhost:4000/oauth/meta/callback` |
 | `FRONTEND_URL` | Redirección tras OAuth | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | URL de la API para el frontend | `http://localhost:4000` |
+| `MEDIA_PUBLIC_BASE_URL` | URL base para media subida en local | `http://localhost:4000` |
+| `S3_PUBLIC_BASE_URL` | URL pública del bucket (si usas S3/R2) | Opcional |
 
 **Importante:**
 - Sin espacios después del `=` en `.env` (ej. `META_APP_ID=123`, no `META_APP_ID= 123`).
