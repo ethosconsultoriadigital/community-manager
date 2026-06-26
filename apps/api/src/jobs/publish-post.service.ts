@@ -89,6 +89,12 @@ export class PublishPostService {
         primaryMedia?.type === 'image' ? primaryMedia.storage_url : undefined;
       const videoUrl =
         primaryMedia?.type === 'video' ? primaryMedia.storage_url : undefined;
+      const videoFormat =
+        post.video_format === 'reel' ? ('reel' as const) : ('feed' as const);
+
+      if (videoFormat === 'reel' && !videoUrl) {
+        throw new Error('Publicar como Reel requiere un video adjunto');
+      }
 
       const result = await this.metaPublish.publish({
         platform: account.platform as 'facebook' | 'instagram',
@@ -97,6 +103,7 @@ export class PublishPostService {
         message,
         imageUrl,
         videoUrl,
+        videoFormat: videoUrl ? videoFormat : undefined,
       });
 
       await this.posts.updateTargetStatus(agencyId, postId, targetId, {
@@ -113,8 +120,6 @@ export class PublishPostService {
         errorMessage: message,
         incrementAttempts: true,
       });
-
-      throw error;
     }
   }
 

@@ -14,12 +14,14 @@ export type CreatePostData = {
   hashtags?: string[];
   socialAccountIds: string[];
   contentSourceId?: string;
+  videoFormat?: 'feed' | 'reel' | null;
 };
 
 export type UpdatePostData = {
   caption?: string;
   hashtags?: string[];
   socialAccountIds?: string[];
+  videoFormat?: 'feed' | 'reel' | null;
 };
 
 const postInclude = {
@@ -36,6 +38,7 @@ const postInclude = {
       },
     },
   },
+  media_assets: { orderBy: { position: 'asc' as const } },
 } satisfies Prisma.postsInclude;
 
 const publishInclude = {
@@ -59,6 +62,13 @@ export class PostsRepository {
     return this.prisma.posts.findFirst({
       where: scopedWhere(agencyId, { id }),
       include: postInclude,
+    });
+  }
+
+  findByIdForCanvaReturn(id: string) {
+    return this.prisma.posts.findUnique({
+      where: { id },
+      select: { id: true, agency_id: true, status: true },
     });
   }
 
@@ -90,6 +100,7 @@ export class PostsRepository {
         data: {
           caption: data.caption,
           hashtags: data.hashtags ?? [],
+          video_format: data.videoFormat ?? null,
           status,
           agencies: { connect: { id: agencyId } },
           clients: { connect: { id: data.clientId } },
@@ -135,6 +146,7 @@ export class PostsRepository {
         data: {
           ...(data.caption !== undefined ? { caption: data.caption } : {}),
           ...(data.hashtags !== undefined ? { hashtags: data.hashtags } : {}),
+          ...(data.videoFormat !== undefined ? { video_format: data.videoFormat } : {}),
           updated_at: new Date(),
         },
       });

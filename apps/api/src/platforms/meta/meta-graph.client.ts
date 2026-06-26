@@ -142,6 +142,26 @@ export class MetaGraphClient {
     );
   }
 
+  async createInstagramReelsMedia(
+    igUserId: string,
+    accessToken: string,
+    videoUrl: string,
+    caption: string,
+    shareToFeed = true,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      media_type: 'REELS',
+      video_url: videoUrl,
+      caption,
+      share_to_feed: shareToFeed ? 'true' : 'false',
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(
+      `${this.graphBase}/${igUserId}/media`,
+      params,
+    );
+  }
+
   async publishInstagramMedia(
     igUserId: string,
     accessToken: string,
@@ -155,6 +175,34 @@ export class MetaGraphClient {
       `${this.graphBase}/${igUserId}/media_publish`,
       params,
     );
+  }
+
+  async waitForInstagramContainer(
+    containerId: string,
+    accessToken: string,
+    maxAttempts = 40,
+    delayMs = 3000,
+  ): Promise<void> {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const params = new URLSearchParams({
+        fields: 'status_code',
+        access_token: accessToken,
+      });
+      const result = await this.getJson<{ status_code?: string }>(
+        `${this.graphBase}/${containerId}?${params}`,
+      );
+      const status = result.status_code;
+      if (status === 'FINISHED') return;
+      if (status === 'ERROR' || status === 'EXPIRED') {
+        throw new Error(`Contenedor Instagram en estado ${status}`);
+      }
+      await this.sleep(delayMs);
+    }
+    throw new Error('Tiempo de espera agotado procesando media en Instagram');
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private requireConfig(key: string): string {

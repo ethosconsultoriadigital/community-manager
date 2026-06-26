@@ -31,6 +31,9 @@ export default function ComposerPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [openingCanva, setOpeningCanva] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [publishAsReel, setPublishAsReel] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,22 +62,65 @@ export default function ComposerPage() {
     loadCanvaStatus();
   }, [loadCanvaStatus]);
 
+  const loadPostIntoForm = useCallback(async (postId: string) => {
+    const post = await apiFetch<Post>(`/posts/${postId}`);
+    setEditingPostId(post.id);
+    setClientId(post.client_id);
+    setCaption(post.caption ?? '');
+    setHashtags(post.hashtags?.join(' ') ?? '');
+    setSelectedAccounts(post.post_targets.map((t) => t.social_accounts.id));
+    setPublishAsReel(post.video_format === 'reel');
+
+    const image = post.media_assets?.find((m) => m.type === 'image');
+    const video = post.media_assets?.find((m) => m.type === 'video');
+    if (image?.storage_url) {
+      setAiPreviewUrl(image.storage_url);
+      setMediaFile(null);
+      setMediaPreview(null);
+    } else if (video?.storage_url) {
+      setAiPreviewUrl(null);
+      setMediaFile(null);
+      setMediaPreview(video.storage_url);
+    }
+  }, []);
+
   useEffect(() => {
     if (searchParams.get('connected') === 'canva') {
       setMessage('Canva conectado correctamente.');
       loadCanvaStatus();
     }
-  }, [searchParams, loadCanvaStatus]);
+
+    const canvaError = searchParams.get('canva_error');
+    if (canvaError) {
+      setError(decodeURIComponent(canvaError));
+      return;
+    }
+
+    const canvaReturn = searchParams.get('canva_return');
+    if (!canvaReturn) return;
+
+    loadPostIntoForm(canvaReturn)
+      .then(() => {
+        setMessage(
+          `Diseño Canva guardado en el post (${canvaReturn.slice(0, 8)}…). Puedes enviarlo a aprobación.`,
+        );
+      })
+      .catch(() => {
+        setError('No se pudo cargar el post tras volver de Canva');
+      });
+  }, [searchParams, loadCanvaStatus, loadPostIntoForm]);
 
   useEffect(() => {
     if (!clientId) return;
     apiFetch<SocialAccount[]>(`/social-accounts?clientId=${clientId}`)
       .then((data) => {
         setAccounts(data);
-        setSelectedAccounts(data.map((a) => a.id));
+        if (!editingPostId) {
+          setSelectedAccounts(data.map((a) => a.id));
+        }
       })
       .catch(() => setError('No se pudieron cargar las cuentas sociales'));
-  }, [clientId]);
+  }, [clientId, editingPostId]);
 
   function toggleAccount(id: string) {
     setSelectedAccounts((prev) =>
@@ -87,7 +133,11 @@ export default function ComposerPage() {
     setMediaFile(file);
     if (!file) {
       setMediaPreview(null);
+      setPublishAsReel(false);
       return;
+    }
+    if (!file.type.startsWith('video/')) {
+      setPublishAsReel(false);
     }
     setMediaPreview(URL.createObjectURL(file));
   }
@@ -97,7 +147,27 @@ export default function ComposerPage() {
     setHashtags('');
     setAiBrief('');
     setAiPreviewUrl(null);
+    setEditingPostId(null);
+    setPublishAsReel(false);
     handleMediaChange(null);
+  }
+
+  function hasVideoAttachment(): boolean {
+    if (mediaFile?.type.startsWith('video/')) return true;
+    return Boolean(mediaPreview && !mediaFile && !aiPreviewUrl);
+  }
+
+  function videoFormatPayload(): 'feed' | 'reel' | null {
+    if (!hasVideoAttachment()) return null;
+    return publishAsReel ? 'reel' : 'feed';
+  }
+
+  function parseHashtags(): string[] {
+    return hashtags
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => (t.startsWith('#') ? t : `#${t}`));
   }
 
   async function connectCanva() {
@@ -157,45 +227,122 @@ export default function ComposerPage() {
     }
   }
 
+  async function handleEditInCanva() {
+    if (!caption.trim()) {
+      setError('Escribe un caption antes de abrir Canva');
+      return;
+    }
+    if (selectedAccounts.length === 0) {
+      setError('Selecciona al menos un destino');
+      return;
+    }
+    if (!canvaStatus?.connected) {
+      setError('Conecta Canva primero');
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setOpeningCanva(true);
+
+    const tagList = parseHashtags();
+
+    try {
+      let postId = editingPostId;
+
+      if (postId) {
+        await apiFetch<Post>(`/posts/${postId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            caption,
+            hashtags: tagList,
+            socialAccountIds: selectedAccounts,
+            videoFormat: videoFormatPayload(),
+          }),
+        });
+        if (mediaFile) {
+          await apiUploadMedia<MediaAsset>(postId, mediaFile);
+        }
+      } else {
+        const post = await apiFetch<Post>('/posts', {
+          method: 'POST',
+          body: JSON.stringify({
+            clientId,
+            caption,
+            hashtags: tagList,
+            socialAccountIds: selectedAccounts,
+            videoFormat: videoFormatPayload(),
+          }),
+        });
+        postId = post.id;
+        if (mediaFile) {
+          await apiUploadMedia<MediaAsset>(postId, mediaFile);
+        }
+      }
+
+      const { editUrl } = await apiFetch<{ editUrl: string; designId: string }>(
+        `/posts/${postId}/canva/edit-url`,
+        { method: 'POST' },
+      );
+
+      window.location.href = editUrl;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo abrir el editor Canva');
+      setOpeningCanva(false);
+    }
+  }
+
   async function handleSubmit(e: FormEvent, sendToApproval: boolean) {
     e.preventDefault();
     setError(null);
     setMessage(null);
     setSubmitting(true);
 
-    const tagList = hashtags
-      .split(/[\s,]+/)
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .map((t) => (t.startsWith('#') ? t : `#${t}`));
+    const tagList = parseHashtags();
 
     try {
-      const post = await apiFetch<Post>('/posts', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId,
-          caption,
-          hashtags: tagList,
-          socialAccountIds: selectedAccounts,
-        }),
-      });
+      let postId = editingPostId;
 
-      if (mediaFile) {
-        await apiUploadMedia<MediaAsset>(post.id, mediaFile);
+      if (postId) {
+        await apiFetch<Post>(`/posts/${postId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            caption,
+            hashtags: tagList,
+            socialAccountIds: selectedAccounts,
+            videoFormat: videoFormatPayload(),
+          }),
+        });
+        if (mediaFile) {
+          await apiUploadMedia<MediaAsset>(postId, mediaFile);
+        }
+      } else {
+        const post = await apiFetch<Post>('/posts', {
+          method: 'POST',
+          body: JSON.stringify({
+            clientId,
+            caption,
+            hashtags: tagList,
+            socialAccountIds: selectedAccounts,
+            videoFormat: videoFormatPayload(),
+          }),
+        });
+        postId = post.id;
+        if (mediaFile) {
+          await apiUploadMedia<MediaAsset>(postId, mediaFile);
+        }
       }
 
       if (sendToApproval) {
-        await apiFetch(`/posts/${post.id}/submit-for-approval`, { method: 'POST' });
+        await apiFetch(`/posts/${postId}/submit-for-approval`, { method: 'POST' });
         setMessage(
-          `Post enviado a aprobación${mediaFile ? ' con adjunto' : ''} (${post.id.slice(0, 8)}…)`,
+          `Post enviado a aprobación${mediaFile || aiPreviewUrl ? ' con adjunto' : ''} (${postId.slice(0, 8)}…)`,
         );
+        clearForm();
       } else {
-        setMessage(
-          `Borrador guardado${mediaFile ? ' con adjunto' : ''} (${post.id.slice(0, 8)}…)`,
-        );
+        setEditingPostId(postId);
+        setMessage(`Borrador guardado (${postId.slice(0, 8)}…)`);
       }
-
-      clearForm();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al crear el post');
     } finally {
@@ -339,9 +486,9 @@ export default function ComposerPage() {
           <p className="mt-1 text-xs text-slate-500">
             Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)
           </p>
-          {mediaPreview && mediaFile && (
+          {mediaPreview && (
             <div className="mt-3 rounded-md border border-slate-700 bg-slate-900 p-2">
-              {mediaFile.type.startsWith('video/') ? (
+              {hasVideoAttachment() ? (
                 <video
                   src={mediaPreview}
                   controls
@@ -354,16 +501,56 @@ export default function ComposerPage() {
                   className="max-h-48 w-full rounded object-contain"
                 />
               )}
-              <button
-                type="button"
-                onClick={() => handleMediaChange(null)}
-                className="mt-2 text-xs text-red-400 hover:text-red-300"
-              >
-                Quitar adjunto
-              </button>
+              {mediaFile && (
+                <button
+                  type="button"
+                  onClick={() => handleMediaChange(null)}
+                  className="mt-2 text-xs text-red-400 hover:text-red-300"
+                >
+                  Quitar adjunto
+                </button>
+              )}
             </div>
           )}
+          {hasVideoAttachment() && (
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={publishAsReel}
+                onChange={(e) => setPublishAsReel(e.target.checked)}
+              />
+              Publicar como Reel en Instagram
+            </label>
+          )}
+          {hasVideoAttachment() && publishAsReel && (
+            <p className="mt-1 text-xs text-slate-500">
+              Facebook seguirá recibiendo el video en feed. Solo Instagram usa formato Reel.
+            </p>
+          )}
         </div>
+
+        {canvaStatus?.configured && canvaStatus.connected && (
+          <div className="rounded-md border border-slate-700 bg-slate-900/60 p-3 space-y-2">
+            <h2 className="text-sm font-medium text-slate-200">Editor Canva (manual)</h2>
+            <p className="text-xs text-slate-400">
+              Guarda un borrador y abre el editor de Canva. Al volver, la imagen exportada se
+              adjunta al post.
+            </p>
+            {editingPostId && (
+              <p className="text-xs text-indigo-300">
+                Borrador activo: {editingPostId.slice(0, 8)}…
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={openingCanva || submitting || selectedAccounts.length === 0}
+              onClick={handleEditInCanva}
+              className="rounded-md border border-indigo-600 px-4 py-2 text-sm text-indigo-200 hover:bg-indigo-950 disabled:opacity-50"
+            >
+              {openingCanva ? 'Abriendo Canva…' : 'Editar en Canva'}
+            </button>
+          </div>
+        )}
 
         <fieldset>
           <legend className="mb-2 text-sm text-slate-300">Destinos</legend>

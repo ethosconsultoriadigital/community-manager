@@ -45,7 +45,9 @@ export type Post = {
   created_at: string;
   updated_at: string;
   content_source_id: string | null;
+  video_format?: 'feed' | 'reel' | null;
   post_targets: PostTarget[];
+  media_assets?: MediaAsset[];
 };
 
 export type MediaAsset = {

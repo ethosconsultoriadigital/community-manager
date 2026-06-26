@@ -3,17 +3,23 @@ import { AuthModule } from '../../auth/auth.module';
 import { MediaModule } from '../../media/media.module';
 import { MockCanvaProvider } from '../../ai/mocks/mock-providers';
 import { CanvaConnectClient } from './canva-connect.client';
+import { CanvaEditorController } from './canva-editor.controller';
+import { CanvaEditorService } from './canva-editor.service';
 import { CanvaOAuthService } from './canva-oauth.service';
+import { CanvaReturnJwtService } from './canva-return-jwt.service';
 import { CanvaTokenService } from './canva-token.service';
 import { HybridCanvaProvider } from './hybrid-canva.provider';
 import { RealCanvaProvider } from './real-canva.provider';
 
 @Module({
   imports: [AuthModule, MediaModule],
+  controllers: [CanvaEditorController],
   providers: [
     CanvaConnectClient,
     CanvaTokenService,
     CanvaOAuthService,
+    CanvaReturnJwtService,
+    CanvaEditorService,
     MockCanvaProvider,
     RealCanvaProvider,
     HybridCanvaProvider,
@@ -22,6 +28,8 @@ import { RealCanvaProvider } from './real-canva.provider';
     CanvaConnectClient,
     CanvaTokenService,
     CanvaOAuthService,
+    CanvaReturnJwtService,
+    CanvaEditorService,
     HybridCanvaProvider,
     MockCanvaProvider,
     RealCanvaProvider,

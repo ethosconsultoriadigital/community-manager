@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CANVA_API_BASE,
+  type BrandTemplateField,
   type CanvaAssetUploadJob,
   type CanvaAutofillJob,
+  type CanvaDesign,
+  type CanvaDesignList,
   type CanvaExportJob,
   type CanvaTokenResponse,
-  type BrandTemplateField,
 } from './canva.types';
 
 type JsonRecord = Record<string, unknown>;
@@ -33,6 +35,54 @@ export class CanvaConnectClient {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     });
+  }
+
+  async createSocialDesign(
+    accessToken: string,
+    title: string,
+  ): Promise<CanvaDesign> {
+    const response = await fetch(`${CANVA_API_BASE}/designs`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        design_type: {
+          type: 'custom',
+          width: 1080,
+          height: 1080,
+        },
+        title: title.slice(0, 255),
+      }),
+    });
+
+    const body = (await this.readJson(response)) as { design?: CanvaDesign };
+    if (!response.ok || !body.design?.id) {
+      throw new Error(this.formatApiError('crear diseño', response.status, body));
+    }
+    return body.design;
+  }
+
+  async listDesigns(
+    accessToken: string,
+    limit = 10,
+  ): Promise<CanvaDesignList> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const response = await fetch(`${CANVA_API_BASE}/designs?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = (await this.readJson(response)) as CanvaDesignList;
+    if (!response.ok) {
+      throw new Error(this.formatApiError('listar diseños', response.status, body));
+    }
+    return body;
+  }
+
+  buildEditUrl(editUrl: string, correlationState: string): string {
+    const url = new URL(editUrl);
+    url.searchParams.set('correlation_state', correlationState.slice(0, 50));
+    return url.toString();
   }
 
   async uploadAsset(

@@ -143,6 +143,8 @@ Comprobación rápida:
 | `pnpm test` | Tests (`@cm/shared` + `@cm/db`) |
 | `pnpm lint` | ESLint |
 | `pnpm format` | Prettier |
+| `.\scripts\e2e-publish-with-photo.ps1` | Prueba E2E post con foto → Meta |
+| `.\scripts\start-media-tunnel.ps1` | Túnel HTTPS para `MEDIA_PUBLIC_BASE_URL` |
 
 ---
 
@@ -368,7 +370,81 @@ Get-Content backups\community_manager_data_only.sql -Raw `
 
 ---
 
-## 13. Estructura del monorepo (referencia)
+## 13. Prueba E2E: publicar post con foto en Meta
+
+Meta no puede descargar imágenes en `http://localhost:4000`. Para validar publicación con adjunto:
+
+1. `docker compose up -d` + `pnpm dev:api`
+2. `.\scripts\start-media-tunnel.ps1` → copiar URL en `.env` como `MEDIA_PUBLIC_BASE_URL`
+3. Reiniciar API
+4. `.\scripts\e2e-publish-with-photo.ps1`
+
+Con localhost el pipeline funciona pero Meta falla; con túnel público debería publicar.
+
+---
+
+## 15. Editor Canva manual (Fase C)
+
+Flujo: crear borrador → abrir editor Canva → volver a la app → imagen PNG en el post → enviar a aprobación.
+
+### Configuración en Canva Developer Portal
+
+1. Crear integración Connect con los mismos scopes que Fase B
+2. **OAuth redirect URI:** `http://localhost:4000/oauth/canva/callback`
+3. **Return navigation URL:** `http://localhost:4000/oauth/canva/return` (debe coincidir con `CANVA_RETURN_URL` en `.env`)
+
+### Variables `.env`
+
+```
+CANVA_CLIENT_ID=...
+CANVA_CLIENT_SECRET=...
+CANVA_REDIRECT_URI=http://localhost:4000/oauth/canva/callback
+CANVA_RETURN_URL=http://localhost:4000/oauth/canva/return
+```
+
+### Prueba manual
+
+1. `pnpm dev:api` + `pnpm dev:web`
+2. Login → Composer → **Conectar Canva** (si no está conectado)
+3. Escribe caption, selecciona destinos → **Editar en Canva**
+4. Edita el diseño en Canva → botón de retorno a la app
+5. El Composer carga el borrador con la imagen exportada
+6. **Enviar a aprobación** → Aprobaciones → programar → publicar
+
+Si el retorno falla, verás el error en el Composer (`canva_error` en la URL). Revisa logs de la API y que la Return URL del portal coincida exactamente.
+
+---
+
+## 16. Video y Reels en Meta (Fase D)
+
+### Composer
+
+1. Adjuntar un video (MP4, MOV o WebM, hasta 50 MB)
+2. Opcional: marcar **«Publicar como Reel en Instagram»**
+3. Flujo normal: borrador → aprobación → programación
+
+- **Feed (por defecto):** video en feed de Instagram y Facebook
+- **Reel:** Instagram usa `media_type: REELS`; Facebook sigue con video en feed
+
+### Requisito de URL pública
+
+Igual que con fotos: Meta debe descargar el video. Usa túnel o S3/R2:
+
+```powershell
+.\scripts\start-media-tunnel.ps1
+# → MEDIA_PUBLIC_BASE_URL en .env → reiniciar pnpm dev:api
+```
+
+### Script E2E
+
+```powershell
+.\scripts\e2e-publish-with-video.ps1 -VideoPath C:\ruta\test.mp4
+.\scripts\e2e-publish-with-video.ps1 -VideoPath C:\ruta\test.mp4 -AsReel
+```
+
+---
+
+## 14. Estructura del monorepo (referencia)
 
 ```
 /apps/api          → NestJS (backend)

@@ -137,9 +137,7 @@ describe('PublishPostService', () => {
     });
     metaPublish.publish.mockRejectedValue(new Error('Graph API down'));
 
-    await expect(
-      service.publishPost({ agencyId: 'a1', postId: 'post-1' }),
-    ).rejects.toThrow('Graph API down');
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
 
     expect(posts.updateTargetStatus).toHaveBeenCalledWith(
       'a1',
@@ -152,5 +150,37 @@ describe('PublishPostService', () => {
   it('buildMessage combina caption y hashtags', () => {
     const { service } = createService();
     expect(service.buildMessage('Hola', ['#a', '#b'])).toBe('Hola\n\n#a #b');
+  });
+
+  it('pasa videoFormat reel al publicar video en Instagram', async () => {
+    const { service, posts, socialAccounts, metaPublish } = createService();
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Reel test',
+      hashtags: [],
+      video_format: 'reel',
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [{ type: 'video', storage_url: 'https://cdn.example.com/v.mp4' }],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa1' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa1',
+      platform: 'instagram',
+      external_account_id: 'ig-1',
+      access_token_enc: encryptedToken(),
+      is_active: true,
+    });
+    metaPublish.publish.mockResolvedValue({ platformPostId: 'ig-reel-1' });
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(metaPublish.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'instagram',
+        videoUrl: 'https://cdn.example.com/v.mp4',
+        videoFormat: 'reel',
+      }),
+    );
   });
 });

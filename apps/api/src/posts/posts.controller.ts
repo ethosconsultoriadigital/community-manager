@@ -31,12 +31,14 @@ class CreatePostDto {
   caption?: string;
   hashtags?: string[];
   socialAccountIds!: string[];
+  videoFormat?: 'feed' | 'reel' | null;
 }
 
 class UpdatePostDto {
   caption?: string;
   hashtags?: string[];
   socialAccountIds?: string[];
+  videoFormat?: 'feed' | 'reel' | null;
 }
 
 class SchedulePostDto {

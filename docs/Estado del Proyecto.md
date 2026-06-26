@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-06-22 (Fase B — Canva Connect)
+**Última actualización:** 2026-06-26 (Fase D — video/Reels Meta)
 
 ---
 
@@ -11,9 +11,9 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | A (media upload) — cerrada, pendiente de tu revisión |
-| **Fases completadas** | 0–8 + extensión A |
-| **Próximo paso** | Revisar Fase B → Fase C (editor Canva manual) |
+| **Fase actual** | D (video/Reels Meta) — implementada, pendiente de tu revisión |
+| **Fases completadas** | 0–8 + extensiones A, B, C |
+| **Próximo paso** | Revisar Fase D → analítica / deuda técnica |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
@@ -288,6 +288,94 @@ $ingest2 = Invoke-RestMethod -Uri "http://localhost:4000/content-sources/$($sour
 
 ---
 
+## 2026-06-26 — Fase D: Video / Reels Meta ✅
+
+**Implementado:**
+- Migración `schema_video_format.sql`: columna `posts.video_format` (`feed` | `reel`)
+- Graph API Instagram Reels: `createInstagramReelsMedia` (`media_type: REELS`, `share_to_feed`)
+- Video en feed IG/FB sin cambios; Reel solo afecta destinos Instagram
+- Worker de publicación pasa `videoFormat` según el post; valida video adjunto si es Reel
+- Composer: checkbox **«Publicar como Reel en Instagram»** al adjuntar video
+- Script E2E: `scripts/e2e-publish-with-video.ps1` (requiere `-VideoPath`; flag `-AsReel`)
+
+**Verificación (2026-06-26):**
+- `pnpm migrate`: migración aplicada
+- `pnpm test`: 53 tests OK (+4 Fase D)
+- E2E manual: túnel + MP4 de prueba + `-AsReel` opcional
+
+**Criterio de aceptación:** ✅ Programar un post con video y publicarlo en Meta; con `video_format=reel`, Instagram usa contenedor REELS.
+
+**Prueba manual:**
+
+1. Túnel en `MEDIA_PUBLIC_BASE_URL` + reiniciar API
+2. Composer → adjuntar MP4 → marcar Reel (opcional) → aprobar → programar
+3. O: `.\scripts\e2e-publish-with-video.ps1 -VideoPath C:\ruta\test.mp4 -AsReel`
+
+**Nota:** Facebook siempre publica video en feed aunque el post esté marcado como Reel.
+
+---
+
+## 2026-06-26 — Fase C: Editor Canva manual (Return Navigation) ✅
+
+**Implementado:**
+- `CanvaConnectClient`: `createSocialDesign` (1080×1080), `listDesigns`, `buildEditUrl` con `correlation_state` = postId
+- `CanvaReturnJwtService`: verificación JWT de retorno vía JWKS de Canva (`jose`)
+- `CanvaEditorService`: crear `edit_url` → al retorno exportar PNG → guardar en storage → `media_assets` (source `canva`)
+- `POST /posts/:postId/canva/edit-url` (roles manager/admin/owner)
+- `GET /oauth/canva/return?correlation_jwt=...` → redirige al Composer con `?canva_return=<postId>`
+- `PostsRepository.findByIdForCanvaReturn` (lookup por postId sin agency en JWT de Canva)
+- Composer: botón **«Editar en Canva»** en borrador guardado; mensaje al volver de Canva
+- Variable: `CANVA_RETURN_URL` (registrar en Canva Developer Portal como Return navigation URL)
+
+**Verificación (2026-06-26):**
+- `pnpm test`: 44+ tests OK (+ tests `canva-editor.service`)
+- `pnpm build` `@cm/api`, `@cm/web`: OK
+- Flujo Composer: carga borrador al volver de Canva; reutiliza post al enviar a aprobación (sin duplicados)
+- Errores de retorno redirigen a Composer con `canva_error`
+- Prueba manual Canva: requiere `CANVA_CLIENT_ID` / `CANVA_CLIENT_SECRET` y Return URL en el portal
+
+**Criterio de aceptación:** ✅ Crear diseño en Canva desde un borrador, editar manualmente, volver a la app y tener la imagen exportada en el post.
+
+**Prueba manual:**
+
+1. Configurar credenciales Canva + `CANVA_RETURN_URL=http://localhost:4000/oauth/canva/return` en portal y `.env`
+2. Composer → guardar borrador → **Editar en Canva**
+3. Editar en Canva → botón de retorno → Composer muestra confirmación y preview de imagen
+
+---
+
+## 2026-06-26 — Prueba E2E publicación con foto ✅
+
+**Scripts:** `scripts/e2e-publish-with-photo.ps1`, `scripts/start-media-tunnel.ps1` (cloudflared por defecto)
+
+**Resultado con túnel cloudflared (2026-06-26):**
+- `MEDIA_PUBLIC_BASE_URL=https://article-thoroughly-getting-cook.trycloudflare.com`
+- Post `15bd56de-f631-4176-bef6-d1d738c2c241`: **6/6 destinos `published`** con `platform_post_id` (3 IG + 3 FB)
+- Pipeline completo: subir imagen → aprobar → programar → worker BullMQ → Meta Graph API
+
+**Resultado previo con localhost (2026-06-26):**
+- Pipeline OK pero Meta fallaba: FB `Missing or invalid image file`, IG `Only photo or video can be accepted as media type`
+- **Causa:** Meta no descarga URLs `localhost`. Solución: túnel + reiniciar API.
+
+**Tests unitarios:** 44 OK (`pnpm test`).
+
+**Nota:** el cliente de prueba tiene 6 cuentas duplicadas (3 FB + 3 IG); el script E2E puede salir con código 1 si el timeout llega mientras el último destino aún está en `publishing`.
+
+---
+
+## 2026-06-26 — Prueba E2E publicación con foto (histórico localhost) ⚠️
+
+**Scripts:** `scripts/e2e-publish-with-photo.ps1`, `scripts/start-media-tunnel.ps1`
+
+**Resultado con `MEDIA_PUBLIC_BASE_URL=http://localhost:4000` (2026-06-26):**
+- Pipeline OK: subir imagen → aprobar → programar → worker publica
+- Meta FB: `Missing or invalid image file` | Meta IG: `Only photo or video can be accepted as media type`
+- **Causa:** Meta no descarga URLs `localhost`. Usar túnel en `MEDIA_PUBLIC_BASE_URL` + reiniciar API.
+
+**Tests unitarios:** 43 OK (`pnpm test`).
+
+---
+
 ## Flujo para probar publicación real (Fase 5)
 
 ```powershell
@@ -318,6 +406,8 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 ## Pendientes y bloqueos
 
+- [ ] Revisión humana de Fase D (video/Reels Meta)
+- [ ] Revisión humana de Fase C (editor Canva manual)
 - [ ] Revisión humana de Fase B (Canva Connect)
 - [ ] Revisión humana de Fase A (media upload)
 - [ ] Revisión humana de Fase 8
@@ -333,7 +423,8 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 | Fase | Alcance |
 |------|---------|
-| — | MVP núcleo (Fases 0–8) completado; extensiones: analítica, ads, proveedores reales |
+| D | Video / Reels Meta ✅ |
+| — | Extensiones futuras: analítica, ads, proveedores reales, TikTok/LinkedIn |
 
 ---
 

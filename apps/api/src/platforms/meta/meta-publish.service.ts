@@ -50,12 +50,15 @@ export class MetaPublishService implements PlatformPublisher {
 
   private async publishInstagram(input: PublishTargetInput): Promise<PublishResult> {
     if (input.videoUrl) {
-      const container = await this.meta.createInstagramVideoMedia(
+      const asReelOnly = input.videoFormat === 'reel';
+      const container = await this.meta.createInstagramReelsMedia(
         input.externalAccountId,
         input.accessToken,
         input.videoUrl,
         input.message,
+        !asReelOnly,
       );
+      await this.meta.waitForInstagramContainer(container.id, input.accessToken);
       const published = await this.meta.publishInstagramMedia(
         input.externalAccountId,
         input.accessToken,

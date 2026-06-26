@@ -142,6 +142,7 @@ model posts {
   created_at        DateTime         @default(now()) @db.Timestamptz(6)
   updated_at        DateTime         @default(now()) @db.Timestamptz(6)
   content_source_id String?          @db.Uuid
+  video_format      video_format?
   approvals         approvals[]
   generations       generations[]
   media_assets      media_assets[]
@@ -309,6 +310,11 @@ enum target_status {
   publishing
   published
   failed
+}
+
+enum video_format {
+  feed
+  reel
 }
 
 enum user_role {

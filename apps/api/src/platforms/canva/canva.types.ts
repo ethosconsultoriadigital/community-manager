@@ -24,6 +24,10 @@ export type CanvaBrandConfig = {
   imageField?: string;
 };
 
+export type BrandTemplateField = {
+  type: string;
+};
+
 export type CanvaTokenResponse = {
   access_token: string;
   refresh_token?: string;
@@ -59,8 +63,28 @@ export type CanvaExportJob = {
   error?: { code?: string; message?: string };
 };
 
-export type BrandTemplateField = {
+export type CanvaDesign = {
+  id: string;
+  title?: string;
+  urls?: {
+    edit_url?: string;
+    view_url?: string;
+  };
+};
+
+export type CanvaDesignList = {
+  items: CanvaDesign[];
+  continuation?: string;
+};
+
+export type CanvaReturnJwtPayload = {
+  aud: string;
+  exp: number;
+  sub: string;
+  team_id?: string;
   type: string;
+  design_id: string;
+  correlation_state?: string;
 };
 
 export function parseCanvaDesignId(urlOrId: string): string | null {
