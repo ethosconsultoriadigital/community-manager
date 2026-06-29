@@ -14,6 +14,7 @@ export default function CalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [scheduledPage, setScheduledPage] = useState(1);
   const [publishedPage, setPublishedPage] = useState(1);
+  const [failedPage, setFailedPage] = useState(1);
 
   const load = useCallback(async () => {
     const [postsData, clientsData] = await Promise.all([
@@ -53,6 +54,17 @@ export default function CalendarPage() {
     [posts],
   );
 
+  const failed = useMemo(
+    () =>
+      posts
+        .filter((p) => p.status === 'failed' || p.status === 'publishing')
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+        ),
+    [posts],
+  );
+
   const scheduledPaginated = useMemo(
     () => paginate(scheduled, scheduledPage),
     [scheduled, scheduledPage],
@@ -60,6 +72,10 @@ export default function CalendarPage() {
   const publishedPaginated = useMemo(
     () => paginate(published, publishedPage),
     [published, publishedPage],
+  );
+  const failedPaginated = useMemo(
+    () => paginate(failed, failedPage),
+    [failed, failedPage],
   );
 
   useEffect(() => {
@@ -74,6 +90,12 @@ export default function CalendarPage() {
     }
   }, [publishedPage, publishedPaginated.totalPages, publishedPaginated.safePage]);
 
+  useEffect(() => {
+    if (failedPage > failedPaginated.totalPages) {
+      setFailedPage(failedPaginated.safePage);
+    }
+  }, [failedPage, failedPaginated.totalPages, failedPaginated.safePage]);
+
   if (loading) {
     return <p className="text-slate-400">Cargando calendario…</p>;
   }
@@ -83,7 +105,7 @@ export default function CalendarPage() {
       <div>
         <h1 className="text-xl font-semibold text-white">Calendario</h1>
         <p className="text-sm text-slate-400">
-          Posts programados y publicados.
+          Posts programados, publicados y con errores de publicación.
         </p>
       </div>
 
@@ -116,6 +138,24 @@ export default function CalendarPage() {
           </>
         )}
       </section>
+
+      {failed.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-red-300">
+            Con errores ({failed.length})
+          </h2>
+          {failedPaginated.slice.map((post) => (
+            <PostCard key={post.id} post={post} clientName={clients[post.client_id]} />
+          ))}
+          <Pagination
+            page={failedPaginated.safePage}
+            totalPages={failedPaginated.totalPages}
+            totalItems={failedPaginated.totalItems}
+            onPageChange={setFailedPage}
+            label="con errores"
+          />
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-slate-300">

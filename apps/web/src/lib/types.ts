@@ -26,11 +26,14 @@ export type SocialAccount = {
   platform: string;
   username: string | null;
   external_account_id: string;
+  is_active?: boolean;
 };
 
 export type PostTarget = {
   id: string;
   status: string;
+  error_message?: string | null;
+  platform_post_id?: string | null;
   social_accounts: SocialAccount;
 };
 

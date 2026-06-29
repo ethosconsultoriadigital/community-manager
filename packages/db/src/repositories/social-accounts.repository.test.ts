@@ -71,4 +71,27 @@ describe('SocialAccountsRepository', () => {
     expect(forA.map((a) => a.id)).toContain(accountAId);
     expect(forB).toHaveLength(0);
   });
+
+  it('no desconecta cuenta de otra agencia', async () => {
+    const revoked = encryptToken('revoked', KEY);
+    const result = await socialRepo.disconnect(agencyBId, accountAId, revoked);
+    expect(result.count).toBe(0);
+
+    const account = await socialRepo.findById(agencyAId, accountAId);
+    expect(account?.is_active).toBe(true);
+  });
+
+  it('desconecta cuenta: is_active=false y token sustituido', async () => {
+    const revoked = encryptToken('revoked', KEY);
+    const result = await socialRepo.disconnect(agencyAId, accountAId, revoked);
+    expect(result.count).toBe(1);
+
+    const account = await socialRepo.findById(agencyAId, accountAId);
+    expect(account?.is_active).toBe(false);
+
+    const raw = await prisma.social_accounts.findUnique({ where: { id: accountAId } });
+    expect(raw!.access_token_enc.toString('utf8')).not.toContain('meta-page-token-secret');
+    expect(raw!.refresh_token_enc).toBeNull();
+    expect(raw!.scopes).toEqual([]);
+  });
 });

@@ -127,4 +127,19 @@ export class SocialAccountsRepository {
       },
     });
   }
+
+  /** Marca la cuenta inactiva y sustituye tokens por un valor cifrado de revocación. */
+  disconnect(agencyId: string, id: string, clearedTokenEnc: Buffer) {
+    return this.prisma.social_accounts.updateMany({
+      where: scopedWhere(agencyId, { id }),
+      data: {
+        is_active: false,
+        access_token_enc: toPrismaBytes(clearedTokenEnc),
+        refresh_token_enc: null,
+        token_expires_at: null,
+        scopes: [],
+        updated_at: new Date(),
+      },
+    });
+  }
 }

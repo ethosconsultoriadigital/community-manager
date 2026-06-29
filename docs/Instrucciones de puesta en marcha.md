@@ -21,8 +21,8 @@ Opcional: **curl** o PowerShell para probar endpoints.
 ## 2. Obtener el código
 
 ```bash
-git clone <url-del-repositorio>
-cd "Community Manager Automatico"
+git clone https://github.com/ethosconsultoriadigital/community-manager.git
+cd community-manager
 ```
 
 Si aún no está en GitHub, copiar la carpeta del proyecto por otro medio (USB, sincronización, etc.).
@@ -438,8 +438,87 @@ Igual que con fotos: Meta debe descargar el video. Usa túnel o S3/R2:
 ### Script E2E
 
 ```powershell
-.\scripts\e2e-publish-with-video.ps1 -VideoPath C:\ruta\test.mp4
-.\scripts\e2e-publish-with-video.ps1 -VideoPath C:\ruta\test.mp4 -AsReel
+.\scripts\e2e-publish-with-video.ps1 -VideoPath ".\scripts\sample-test.mp4"
+.\scripts\e2e-publish-with-video.ps1 -VideoPath ".\scripts\sample-test.mp4" -AsReel
+```
+
+Requisitos: Docker Desktop + `docker compose up -d`, túnel en `MEDIA_PUBLIC_BASE_URL`, API reiniciada. El script exige que **todos** los destinos queden `published`.
+
+---
+
+## 17. Cuentas sociales y desconexión (Fase E)
+
+Gestión de cuentas Meta desde la web: **http://localhost:3000/cuentas**
+
+### Qué puedes hacer
+
+| Acción | Quién | Dónde |
+|--------|-------|-------|
+| Ver cuentas por cliente | Todos los roles | `/cuentas` |
+| Conectar Meta (OAuth) | manager / admin / owner | Botón **Conectar Meta** |
+| Desconectar cuenta | manager / admin / owner | Botón **Desconectar** |
+
+### Conectar Meta
+
+1. `pnpm dev:api` + `pnpm dev:web` (reinicia la API si acabas de actualizar el código)
+2. Login → **Cuentas** → elige cliente → **Conectar Meta**
+3. Autoriza en Facebook → vuelves a `/cuentas?connected=meta`
+
+La API expone `GET /oauth/meta/connect-url?clientId=<UUID>` (con JWT) para iniciar OAuth desde el navegador.
+
+### Desconectar
+
+1. **Cuentas** → **Desconectar** en una cuenta activa
+2. La cuenta pasa a «Inactiva» y **desaparece del Composer**
+3. API: `DELETE /social-accounts/:id` (204)
+
+### Errores de publicación en la UI
+
+- **Aprobaciones** y **Calendario** muestran por cada destino: estado, `error_message` y `platform_post_id`
+- **Calendario** incluye sección **Con errores** para posts `failed` / `publishing`
+
+---
+
+## 18. Verificación integral antes de continuar
+
+Antes de cerrar una fase o empezar analítica/extensiones:
+
+### Automático (sin publicar en Meta)
+
+```powershell
+docker compose up -d
+pnpm test          # 55 tests esperados
+pnpm lint
+pnpm build         # parar dev:api antes si falla prisma generate
+.\scripts\verify-project.ps1
+.\scripts\verify-phases-api.ps1   # flujo API fases 8, A, B, E
+```
+
+Si `verify-project.ps1` falla en `connect-url`, reinicia `pnpm dev:api`.
+
+### Manual por fase (checklist)
+
+| Fase | Prueba rápida |
+|------|----------------|
+| 8 | Login → Composer → Aprobaciones → Calendario |
+| A | Composer → adjuntar imagen → borrador |
+| B | Composer → brief → generar con IA (mock) |
+| C | Composer → Editar en Canva *(requiere credenciales)* |
+| D | Túnel + `.\scripts\e2e-publish-with-video.ps1` |
+| E | `/cuentas` → conectar o desconectar una cuenta de prueba |
+
+Marca el progreso en `docs/Estado del Proyecto.md` → sección **Checklist de revisión humana**.
+
+### Publicación real (Meta)
+
+Requiere túnel público en `MEDIA_PUBLIC_BASE_URL`:
+
+```powershell
+.\scripts\start-media-tunnel.ps1
+# Copiar URL → .env → reiniciar pnpm dev:api
+.\scripts\e2e-publish-with-photo.ps1
+# o
+.\scripts\e2e-publish-with-video.ps1 -VideoPath ".\ruta\video.mp4"
 ```
 
 ---
@@ -452,6 +531,7 @@ Igual que con fotos: Meta debe descargar el video. Usa túnel o S3/R2:
 /packages/db       → Prisma + repositorios
 /packages/shared   → Tipos + cifrado tokens
 /migrations        → SQL fuente de verdad + runner
+/scripts           → E2E publicación, túnel media, verify-project.ps1
 /backups           → Dumps locales de Postgres (no versionados)
 docker-compose.yml → Postgres + Redis
 .env.example       → Plantilla de variables (versionada)

@@ -7,7 +7,7 @@ param(
   [string]$VideoPath = "",
   [switch]$AsReel,
   [int]$ScheduleMinutes = 2,
-  [int]$WaitSeconds = 180
+  [int]$WaitSeconds = 420
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,10 +101,13 @@ foreach ($t in $final.post_targets) {
   Write-Host "  - $($t.social_accounts.platform): $($t.status) $(if ($t.platform_post_id) { "(id: $($t.platform_post_id))" }) $(if ($err) { "[$err]" })"
 }
 
-if ($final.status -eq "published") {
-  Write-Host "`nOK: Publicación E2E con video completada." -ForegroundColor Green
+$failed = @($final.post_targets | Where-Object { $_.status -ne "published" })
+$published = @($final.post_targets | Where-Object { $_.status -eq "published" })
+
+if ($failed.Count -eq 0 -and $published.Count -gt 0) {
+  Write-Host "`nOK: Publicación E2E con video completada ($($published.Count) destinos)." -ForegroundColor Green
   exit 0
 }
 
-Write-Host "`nREVISAR: logs de pnpm dev:api y MEDIA_PUBLIC_BASE_URL pública." -ForegroundColor Yellow
+Write-Host "`nREVISAR: $($failed.Count) destino(s) no publicados. Logs API + MEDIA_PUBLIC_BASE_URL." -ForegroundColor Yellow
 exit 1

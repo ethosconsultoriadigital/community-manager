@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Query,
@@ -34,6 +35,19 @@ export class OauthController {
     }
     const url = await this.metaOAuth.startConnect(user, clientId);
     return res.redirect(url);
+  }
+
+  @Get('meta/connect-url')
+  @UseGuards(JwtAuthGuard)
+  async metaConnectUrl(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId: string,
+  ) {
+    if (!clientId) {
+      throw new BadRequestException('clientId es obligatorio');
+    }
+    const url = await this.metaOAuth.startConnect(user, clientId);
+    return { url };
   }
 
   @Get('meta/callback')

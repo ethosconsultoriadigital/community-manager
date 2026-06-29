@@ -97,7 +97,7 @@ export class MetaOAuthService {
 
   getSuccessRedirectUrl(): string {
     const frontend = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
-    return `${frontend}/settings/integrations?connected=meta`;
+    return `${frontend}/cuentas?connected=meta`;
   }
 
   private verifyState(state: string): MetaOAuthState {

@@ -11,8 +11,19 @@ const STATUS_LABELS: Record<string, string> = {
   archived: 'Archivado',
 };
 
+const TARGET_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendiente',
+  publishing: 'Publicando',
+  published: 'Publicado',
+  failed: 'Fallido',
+};
+
 export function statusLabel(status: string) {
   return STATUS_LABELS[status] ?? status;
+}
+
+export function targetStatusLabel(status: string) {
+  return TARGET_STATUS_LABELS[status] ?? status;
 }
 
 export function formatDate(iso: string | null) {
@@ -32,10 +43,6 @@ export function PostCard({
   clientName?: string;
   children?: React.ReactNode;
 }) {
-  const targets = post.post_targets
-    .map((t) => `${t.social_accounts.platform}${t.social_accounts.username ? ` @${t.social_accounts.username}` : ''}`)
-    .join(', ');
-
   return (
     <article className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -57,7 +64,38 @@ export function PostCard({
       {post.hashtags.length > 0 && (
         <p className="mb-2 text-xs text-indigo-400">{post.hashtags.join(' ')}</p>
       )}
-      <p className="text-xs text-slate-500">Destinos: {targets || '—'}</p>
+      {post.post_targets.length > 0 ? (
+        <ul className="space-y-1.5">
+          {post.post_targets.map((t) => (
+            <li key={t.id} className="text-xs">
+              <span className="text-slate-500">
+                {t.social_accounts.platform}
+                {t.social_accounts.username ? ` @${t.social_accounts.username}` : ''}
+              </span>
+              <span className="text-slate-600"> — </span>
+              <span
+                className={
+                  t.status === 'failed'
+                    ? 'text-red-400'
+                    : t.status === 'published'
+                      ? 'text-emerald-400'
+                      : 'text-slate-400'
+                }
+              >
+                {targetStatusLabel(t.status)}
+              </span>
+              {t.platform_post_id && (
+                <span className="ml-1 text-slate-600">({t.platform_post_id})</span>
+              )}
+              {t.error_message && (
+                <p className="mt-0.5 text-red-400">{t.error_message}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-slate-500">Destinos: —</p>
+      )}
       {children && <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-800 pt-3">{children}</div>}
     </article>
   );

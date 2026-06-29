@@ -114,9 +114,10 @@ export default function ComposerPage() {
     if (!clientId) return;
     apiFetch<SocialAccount[]>(`/social-accounts?clientId=${clientId}`)
       .then((data) => {
-        setAccounts(data);
+        const active = data.filter((a) => a.is_active !== false);
+        setAccounts(active);
         if (!editingPostId) {
-          setSelectedAccounts(data.map((a) => a.id));
+          setSelectedAccounts(active.map((a) => a.id));
         }
       })
       .catch(() => setError('No se pudieron cargar las cuentas sociales'));

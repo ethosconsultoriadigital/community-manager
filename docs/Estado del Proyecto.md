@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-06-26 (Fase D — video/Reels Meta)
+**Última actualización:** 2026-06-29 (verificación integral OK + push Fase E)
 
 ---
 
@@ -11,12 +11,14 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | D (video/Reels Meta) — implementada, pendiente de tu revisión |
-| **Fases completadas** | 0–8 + extensiones A, B, C |
-| **Próximo paso** | Revisar Fase D → analítica / deuda técnica |
+| **Fase actual** | E — verificada y subida a GitHub |
+| **Fases completadas** | 0–8 + extensiones A, B, C, D, E |
+| **Próximo paso** | Analítica / extensiones (Fase C manual pendiente de credenciales Canva) |
+| **Verificación automática** | `verify-project.ps1` + `verify-phases-api.ps1` — 14/14 OK · `pnpm test` 55 · `pnpm build` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
+| **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
 
 ---
 
@@ -292,18 +294,20 @@ $ingest2 = Invoke-RestMethod -Uri "http://localhost:4000/content-sources/$($sour
 
 **Implementado:**
 - Migración `schema_video_format.sql`: columna `posts.video_format` (`feed` | `reel`)
-- Graph API Instagram Reels: `createInstagramReelsMedia` (`media_type: REELS`, `share_to_feed`)
-- Video en feed IG/FB sin cambios; Reel solo afecta destinos Instagram
-- Worker de publicación pasa `videoFormat` según el post; valida video adjunto si es Reel
+- Graph API Instagram: video vía `REELS` (`createInstagramReelsMedia`); `share_to_feed=true` en feed, `false` en Reel exclusivo
+- `waitForInstagramContainer`: espera `status_code=FINISHED` antes de `media_publish` (evita «Media ID is not available»)
+- Worker: continúa con otros destinos si uno falla (no aborta el post entero)
+- Facebook: video en feed sin cambios
 - Composer: checkbox **«Publicar como Reel en Instagram»** al adjuntar video
-- Script E2E: `scripts/e2e-publish-with-video.ps1` (requiere `-VideoPath`; flag `-AsReel`)
+- Script E2E: `scripts/e2e-publish-with-video.ps1` (`type=video/mp4`, validación upload, éxito solo si **todos** los destinos publican)
 
-**Verificación (2026-06-26):**
-- `pnpm migrate`: migración aplicada
-- `pnpm test`: 53 tests OK (+4 Fase D)
-- E2E manual: túnel + MP4 de prueba + `-AsReel` opcional
+**Verificación (2026-06-29):**
+- `pnpm test`: 53 tests OK
+- E2E feed (`video_format=feed`): post `aa79982f-…` → **6/6 destinos `published`** (3 IG + 3 FB)
+- E2E Reel (`-AsReel`): post `a31861b9-…` → **6/6 destinos `published`**
+- Túnel: `https://writings-block-maybe-let.trycloudflare.com`
 
-**Criterio de aceptación:** ✅ Programar un post con video y publicarlo en Meta; con `video_format=reel`, Instagram usa contenedor REELS.
+**Criterio de aceptación:** ✅ Programar post con video y publicarlo en Meta; Reel usa contenedor REELS sin `share_to_feed`.
 
 **Prueba manual:**
 
@@ -341,6 +345,36 @@ $ingest2 = Invoke-RestMethod -Uri "http://localhost:4000/content-sources/$($sour
 1. Configurar credenciales Canva + `CANVA_RETURN_URL=http://localhost:4000/oauth/canva/return` en portal y `.env`
 2. Composer → guardar borrador → **Editar en Canva**
 3. Editar en Canva → botón de retorno → Composer muestra confirmación y preview de imagen
+
+---
+
+## 2026-06-08 — Fase E: Desconexión OAuth + errores en UI ✅
+
+**Implementado:**
+- `SocialAccountsRepository.disconnect`: `is_active=false`, tokens sustituidos por valor cifrado de revocación, scopes vacíos
+- `DELETE /social-accounts/:id` (roles manager/admin/owner)
+- `GET /oauth/meta/connect-url?clientId=` → `{ url }` para conectar desde el navegador con JWT
+- Redirect post-OAuth Meta: `/cuentas?connected=meta` (antes apuntaba a ruta inexistente)
+- Página web **Cuentas** (`/cuentas`): listar por cliente, conectar Meta, desconectar
+- `PostCard`: estado por destino (`post_targets.status`), `error_message` y `platform_post_id`
+- Calendario: sección **Con errores** (posts `failed` / `publishing`)
+- Composer: solo muestra cuentas activas
+
+**Verificación automática (2026-06-08):**
+- `pnpm test`: **55 tests OK** (+2 desconexión multi-tenant)
+- `pnpm lint`: OK
+- `pnpm build`: OK (parar `dev:api` antes de `prisma generate`)
+- Tras cambios en `@cm/db`: `pnpm --filter @cm/db build` antes de reiniciar la API
+- Scripts: `verify-project.ps1` + `verify-phases-api.ps1` — **14/14 pruebas OK** (2026-06-29)
+- Web: `/login`, `/inicio`, `/composer`, `/approvals`, `/calendar`, `/cuentas` → HTTP 200
+
+**Criterio de aceptación:** ✅ Revocar acceso a una cuenta desde la UI; errores de publicación visibles en Aprobaciones y Calendario.
+
+**Prueba manual:**
+
+1. Web → **Cuentas** → elegir cliente → **Conectar Meta** (o desconectar una cuenta de prueba)
+2. Tras desconectar, la cuenta no aparece en el Composer para ese cliente
+3. Si hay un post fallido, revisar **Calendario** o **Aprobaciones**: cada destino muestra estado y mensaje de error
 
 ---
 
@@ -404,18 +438,57 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 ---
 
-## Pendientes y bloqueos
+## 2026-06-29 — Sesión de verificación integral ✅
 
-- [ ] Revisión humana de Fase D (video/Reels Meta)
-- [ ] Revisión humana de Fase C (editor Canva manual)
-- [ ] Revisión humana de Fase B (Canva Connect)
-- [ ] Revisión humana de Fase A (media upload)
-- [ ] Revisión humana de Fase 8
-- [x] Revisión humana de Fase 7 (2026-06-16: E2E + regresión Fase 6 OK)
-- [ ] Sustituir mocks restantes (Claude, imagen, Google Sheets) cuando haya credenciales
+Objetivo: cerrar pendientes de revisión antes de nuevas fases.
+
+### Verificación automática (ejecutada 2026-06-29)
+
+| Comprobación | Resultado |
+|--------------|-----------|
+| Docker Postgres + Redis | ✅ healthy |
+| `pnpm test` | ✅ 55 tests |
+| `pnpm lint` | ✅ OK |
+| `pnpm build` | ✅ OK (API detenida para `prisma generate`) |
+| `scripts/verify-project.ps1` | ✅ 8/8 |
+| `scripts/verify-phases-api.ps1` | ✅ 14/14 (fases 8, A, B, E vía API) |
+| Web HTTP 200 | ✅ login, inicio, composer, approvals, calendar, cuentas |
+| `GET /oauth/meta/connect-url` | ✅ |
+| `DELETE /social-accounts/:id` | ✅ 2 cuentas inactivas verificadas |
+| `POST /posts/:id/media` | ✅ imagen PNG 201 |
+| `POST /generations/from-brief` | ✅ mock IA + media |
+
+**Nota:** durante la verificación se desconectaron 2 cuentas Meta de prueba (quedan **4 activas**, **2 inactivas**). Reconectar en **Cuentas** si necesitas las 6 para E2E.
+
+### Checklist de revisión
+
+| Fase | Qué probar | Cómo | Estado |
+|------|------------|------|--------|
+| **8** | UI + flujo posts | API + web HTTP 200 | [x] 2026-06-29 |
+| **A** | Subida media | `POST /posts/:id/media` 201 | [x] 2026-06-29 |
+| **B** | Generación IA mock | `POST /generations/from-brief` | [x] 2026-06-29 |
+| **C** | Editor Canva manual | Requiere credenciales Canva · §15 | [ ] bloqueado |
+| **D** | Video/Reels Meta | E2E 6/6 · §16 | [x] 2026-06-29 |
+| **E** | Cuentas + errores UI | connect-url, DELETE, `/cuentas` | [x] 2026-06-29 |
+
+### Pendientes y bloqueos
+
+#### Bloqueados por credenciales (no accionables aún)
+
+- [ ] Sustituir mocks: Claude (LLM), generador de imagen, Google Sheets
+- [ ] Canva real + editor manual (Fase B/C) — `CANVA_CLIENT_ID` / `CANVA_CLIENT_SECRET` vacíos en `.env`
+- [ ] Fase C — revisión manual en navegador cuando haya credenciales Canva
+
+#### Completadas
+
+- [x] Revisión Fase 7 (2026-06-16)
+- [x] Revisión Fase 8 — frontend (2026-06-29)
+- [x] Revisión Fase A — media upload (2026-06-29)
+- [x] Revisión Fase B — Canva mock (2026-06-29)
+- [x] Revisión Fase D — video/Reels E2E (2026-06-29)
+- [x] Revisión Fase E — desconexión OAuth + errores UI (2026-06-29)
 - [x] Canva real detrás de interfaz con fallback mock (Fase B)
-- [ ] Flujo de desconexión/revocación de cuentas
-- [ ] Subir repo a GitHub
+- [x] Repo en GitHub + commit/push Fase E (2026-06-29)
 
 ---
 
@@ -424,17 +497,22 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 | Fase | Alcance |
 |------|---------|
 | D | Video / Reels Meta ✅ |
+| E | Desconexión OAuth + errores en UI ✅ |
 | — | Extensiones futuras: analítica, ads, proveedores reales, TikTok/LinkedIn |
 
 ---
 
 ## Cómo mantener este archivo
 
-Al cerrar una sesión de trabajo o completar una fase, añadir una sección con:
+**Regla del proyecto:** todo cambio de código debe quedar reflejado aquí antes de dar la fase por cerrada.
+
+Al cerrar una sesión de trabajo o completar una fase:
 
 1. **Fecha** (YYYY-MM-DD)
 2. **Fase o tema**
 3. **Qué se implementó** (breve)
-4. **Decisiones** relevantes
-5. **Estado del criterio de aceptación** (✅ / ⏳ / ❌)
-6. Actualizar **Resumen rápido** y **Última actualización** al inicio
+4. **Verificación** (`pnpm test`, E2E, script `verify-project.ps1`)
+5. **Decisiones** relevantes
+6. **Estado del criterio de aceptación** (✅ / ⏳ / ❌)
+7. Actualizar **Resumen rápido**, **Última actualización** y la **checklist de revisión humana**
+8. Si afecta puesta en marcha, actualizar también `Instrucciones de puesta en marcha.md`

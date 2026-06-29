@@ -11,6 +11,7 @@ const NAV = [
   { href: '/composer', label: 'Composer' },
   { href: '/approvals', label: 'Aprobaciones' },
   { href: '/calendar', label: 'Calendario' },
+  { href: '/cuentas', label: 'Cuentas' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
