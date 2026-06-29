@@ -205,6 +205,115 @@ export class MetaGraphClient {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  async getFacebookPostMetrics(
+    postId: string,
+    accessToken: string,
+  ): Promise<{
+    impressions?: number;
+    reach?: number;
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    engagement?: number;
+  }> {
+    const fieldsParams = new URLSearchParams({
+      fields: 'likes.summary(true),comments.summary(true),shares',
+      access_token: accessToken,
+    });
+    const basic = await this.getJson<{
+      likes?: { summary?: { total_count?: number } };
+      comments?: { summary?: { total_count?: number } };
+      shares?: { count?: number };
+    }>(`${this.graphBase}/${postId}?${fieldsParams}`);
+
+    const likes = basic.likes?.summary?.total_count ?? 0;
+    const comments = basic.comments?.summary?.total_count ?? 0;
+    const shares = basic.shares?.count ?? 0;
+
+    let impressions: number | undefined;
+    let engagement: number | undefined;
+
+    try {
+      const insightParams = new URLSearchParams({
+        metric: 'post_impressions,post_engaged_users',
+        period: 'lifetime',
+        access_token: accessToken,
+      });
+      const insights = await this.getJson<{
+        data?: Array<{ name: string; values?: Array<{ value?: number }> }>;
+      }>(`${this.graphBase}/${postId}/insights?${insightParams}`);
+
+      for (const row of insights.data ?? []) {
+        const value = row.values?.[0]?.value ?? 0;
+        if (row.name === 'post_impressions') impressions = value;
+        if (row.name === 'post_engaged_users') engagement = value;
+      }
+    } catch {
+      engagement = likes + comments + shares;
+    }
+
+    return { impressions, likes, comments, shares, engagement: engagement ?? likes + comments + shares };
+  }
+
+  async getInstagramMediaMetrics(
+    mediaId: string,
+    accessToken: string,
+  ): Promise<{
+    impressions?: number;
+    reach?: number;
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    saves?: number;
+    engagement?: number;
+  }> {
+    const fieldsParams = new URLSearchParams({
+      fields: 'like_count,comments_count',
+      access_token: accessToken,
+    });
+    const basic = await this.getJson<{ like_count?: number; comments_count?: number }>(
+      `${this.graphBase}/${mediaId}?${fieldsParams}`,
+    );
+
+    const likes = basic.like_count ?? 0;
+    const comments = basic.comments_count ?? 0;
+
+    let impressions: number | undefined;
+    let reach: number | undefined;
+    let shares: number | undefined;
+    let saves: number | undefined;
+
+    try {
+      const insightParams = new URLSearchParams({
+        metric: 'impressions,reach,saved,shares',
+        access_token: accessToken,
+      });
+      const insights = await this.getJson<{
+        data?: Array<{ name: string; values?: Array<{ value?: number }> }>;
+      }>(`${this.graphBase}/${mediaId}/insights?${insightParams}`);
+
+      for (const row of insights.data ?? []) {
+        const value = row.values?.[0]?.value ?? 0;
+        if (row.name === 'impressions') impressions = value;
+        if (row.name === 'reach') reach = value;
+        if (row.name === 'shares') shares = value;
+        if (row.name === 'saved') saves = value;
+      }
+    } catch {
+      /* insights pueden requerir permisos extra; usamos like_count/comments_count */
+    }
+
+    return {
+      impressions,
+      reach,
+      likes,
+      comments,
+      shares,
+      saves,
+      engagement: likes + comments + (shares ?? 0),
+    };
+  }
+
   private requireConfig(key: string): string {
     const value = this.config.get<string>(key);
     if (!value) throw new Error(`${key} no está definida`);

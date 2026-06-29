@@ -8,6 +8,7 @@ import {
   disconnectPrisma,
   GenerationsRepository,
   MediaAssetsRepository,
+  PostInsightsRepository,
   PostsRepository,
   SocialAccountsRepository,
   SourceItemsRepository,
@@ -46,6 +47,12 @@ export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
       inject: [PRISMA_CLIENT],
       useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
         new SocialAccountsRepository(prisma),
+    },
+    {
+      provide: PostInsightsRepository,
+      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
+        new PostInsightsRepository(prisma),
     },
     {
       provide: PostsRepository,
@@ -94,6 +101,7 @@ export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
     ApprovalsRepository,
     GenerationsRepository,
     MediaAssetsRepository,
+    PostInsightsRepository,
     ContentSourcesRepository,
     SourceItemsRepository,
   ],

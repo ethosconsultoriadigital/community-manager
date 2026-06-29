@@ -62,6 +62,45 @@ export type MediaAsset = {
   position: number;
 };
 
+export type AnalyticsSummary = {
+  publishedTargets: number;
+  withMetrics: number;
+  totals: {
+    impressions: number;
+    reach: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+    engagement: number;
+  };
+  topPosts: Array<{
+    postId: string;
+    caption: string | null;
+    clientId: string;
+    engagement: number;
+    impressions: number;
+    likes: number;
+  }>;
+};
+
+export type PostInsight = {
+  id: string;
+  impressions: number | null;
+  reach: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  engagement: number | null;
+  fetched_at: string;
+  post_targets: {
+    id: string;
+    platform_post_id: string | null;
+    social_accounts: { platform: string; username: string | null };
+  };
+};
+
 export type CanvaStatus = {
   configured: boolean;
   connected: boolean;

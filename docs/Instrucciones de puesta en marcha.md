@@ -506,6 +506,7 @@ Si `verify-project.ps1` falla en `connect-url`, reinicia `pnpm dev:api`.
 | C | Composer → Editar en Canva *(requiere credenciales)* |
 | D | Túnel + `.\scripts\e2e-publish-with-video.ps1` |
 | E | `/cuentas` → conectar o desconectar una cuenta de prueba |
+| I | `/reportes` → Sincronizar ahora |
 
 Marca el progreso en `docs/Estado del Proyecto.md` → sección **Checklist de revisión humana**.
 
@@ -520,6 +521,34 @@ Requiere túnel público en `MEDIA_PUBLIC_BASE_URL`:
 # o
 .\scripts\e2e-publish-with-video.ps1 -VideoPath ".\ruta\video.mp4"
 ```
+
+---
+
+## 19. Reportes y analítica Meta (Fase I)
+
+### Web
+
+1. **Reportes** (`/reportes`) en el menú principal
+2. Filtra por cliente y período (7 / 30 / 90 días)
+3. **Sincronizar ahora** obtiene métricas desde Graph API (FB/IG)
+
+### API
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/analytics/summary?clientId=&days=30` | Totales y top posts |
+| GET | `/posts/:id/insights` | Métricas por destino del post |
+| POST | `/analytics/sync` | Sync manual (manager/admin/owner) |
+
+### Job automático
+
+BullMQ `metrics-sync` cada **6 horas** (`METRICS_STALE_HOURS=6` en `.env`).
+
+### Requisitos
+
+- Posts con destinos `published` y `platform_post_id`
+- Cuentas Meta activas con token válido
+- Scope `pages_read_engagement` (incluido en OAuth Meta)
 
 ---
 

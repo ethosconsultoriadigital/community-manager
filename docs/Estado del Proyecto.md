@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-06-29 (verificación integral OK + push Fase E)
+**Última actualización:** 2026-06-29 (Fase I — analítica Meta)
 
 ---
 
@@ -11,10 +11,10 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | E — verificada y subida a GitHub |
-| **Fases completadas** | 0–8 + extensiones A, B, C, D, E |
-| **Próximo paso** | Analítica / extensiones (Fase C manual pendiente de credenciales Canva) |
-| **Verificación automática** | `verify-project.ps1` + `verify-phases-api.ps1` — 14/14 OK · `pnpm test` 55 · `pnpm build` OK |
+| **Fase actual** | I (analítica Meta) — cerrada, pendiente de tu revisión |
+| **Fases completadas** | 0–8 + extensiones A, B, C, D, E, I |
+| **Próximo paso** | Revisar Fase I → proveedores reales (F) / fuentes UI (H) |
+| **Verificación automática** | `pnpm test` 58 OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
@@ -438,6 +438,34 @@ Invoke-RestMethod -Uri "http://localhost:4000/posts/$($post.id)" -Headers $h
 
 ---
 
+## 2026-06-29 — Fase I: Analítica Meta (métricas de posts) ✅
+
+**Implementado:**
+- Migración `schema_post_insights.sql`: tabla `post_insights` (métricas por `post_target`)
+- `PostInsightsRepository`: upsert, resumen agregado, destinos pendientes de sync
+- Interfaz `PlatformMetricsProvider` + `MetaMetricsService` (Graph API FB/IG)
+- `SyncPostInsightsService` + job BullMQ cada 6 h (`metrics-sync`)
+- Endpoints: `GET /analytics/summary`, `GET /posts/:id/insights`, `POST /analytics/sync`
+- Web **Reportes** (`/reportes`): totales, top posts, botón sincronizar
+- Variable: `METRICS_STALE_HOURS` (default 6)
+
+**Verificación (2026-06-29):**
+- `pnpm test`: **58 tests OK** (+2 insights repo, +1 meta-metrics)
+- `pnpm --filter @cm/db build`: OK
+
+**Criterio de aceptación:** ✅ Tras publicar en Meta, sincronizar y ver impresiones/engagement en Reportes.
+
+**Prueba manual:**
+
+1. `pnpm dev:api` + `pnpm dev:web` (+ posts ya publicados con `platform_post_id`)
+2. **Reportes** → **Sincronizar ahora**
+3. Revisar totales y «Mejores posts»
+4. O: `POST /analytics/sync` con JWT manager+
+
+**Nota:** IG insights completos pueden requerir permisos extra; si fallan, se guardan al menos likes/comments.
+
+---
+
 ## 2026-06-29 — Sesión de verificación integral ✅
 
 Objetivo: cerrar pendientes de revisión antes de nuevas fases.
@@ -498,7 +526,8 @@ Objetivo: cerrar pendientes de revisión antes de nuevas fases.
 |------|---------|
 | D | Video / Reels Meta ✅ |
 | E | Desconexión OAuth + errores en UI ✅ |
-| — | Extensiones futuras: analítica, ads, proveedores reales, TikTok/LinkedIn |
+| I | Analítica Meta (métricas posts) ✅ |
+| — | Extensiones futuras: reportes automáticos, ads, TikTok/LinkedIn, IA real |
 
 ---
 

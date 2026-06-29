@@ -16,13 +16,14 @@ model agencies {
   canva_refresh_token_enc Bytes?
   canva_token_expires_at  DateTime?         @db.Timestamptz(6)
   clients                 clients[]
-  content_sources content_sources[]
-  generations     generations[]
-  media_assets    media_assets[]
-  posts           posts[]
-  social_accounts social_accounts[]
-  source_items    source_items[]
-  users           users[]
+  content_sources         content_sources[]
+  generations             generations[]
+  media_assets            media_assets[]
+  post_insights           post_insights[]
+  posts                   posts[]
+  social_accounts         social_accounts[]
+  source_items            source_items[]
+  users                   users[]
 }
 
 model approvals {
@@ -121,6 +122,7 @@ model post_targets {
   error_message     String?
   attempts          Int             @default(0)
   published_at      DateTime?       @db.Timestamptz(6)
+  post_insights     post_insights?
   posts             posts           @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   social_accounts   social_accounts @relation(fields: [social_account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -238,6 +240,25 @@ model users {
 
   @@unique([agency_id, email])
   @@index([agency_id], map: "idx_users_agency")
+}
+
+model post_insights {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agency_id      String       @db.Uuid
+  post_target_id String       @unique @db.Uuid
+  impressions    Int?
+  reach          Int?
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  saves          Int?
+  engagement     Int?
+  fetched_at     DateTime     @default(now()) @db.Timestamptz(6)
+  agencies       agencies     @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  post_targets   post_targets @relation(fields: [post_target_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([agency_id], map: "idx_post_insights_agency")
+  @@index([fetched_at], map: "idx_post_insights_fetched")
 }
 
 enum approval_status {

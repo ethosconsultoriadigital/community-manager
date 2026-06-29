@@ -21,6 +21,11 @@ export {
   type CreateMediaAssetData,
 } from './repositories/media-assets.repository';
 export {
+  PostInsightsRepository,
+  type AnalyticsSummary,
+  type UpsertPostInsightData,
+} from './repositories/post-insights.repository';
+export {
   SocialAccountsRepository,
   type UpsertSocialAccountData,
 } from './repositories/social-accounts.repository';

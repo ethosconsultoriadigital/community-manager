@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AgenciesModule } from './agencies/agencies.module';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
@@ -32,6 +33,7 @@ import { SocialAccountsModule } from './social-accounts/social-accounts.module';
     ContentSourcesModule,
     JobsModule,
     MediaModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
