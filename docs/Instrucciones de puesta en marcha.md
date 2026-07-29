@@ -1,7 +1,8 @@
 # Instrucciones de puesta en marcha
 
 Guía para levantar el proyecto en una máquina nueva (otra PC, otro desarrollador).  
-Para el estado actual del desarrollo, ver `Estado del Proyecto.md`.
+Para el estado actual del desarrollo, ver `Estado del Proyecto.md`.  
+Para **hostear en producción** (Vercel + Neon + Railway + Redis + R2), ver `Guia_Despliegue_Produccion.md`.
 
 ---
 
@@ -51,6 +52,9 @@ Editar `.env` y completar al menos:
 | `NEXT_PUBLIC_API_URL` | URL de la API para el frontend | `http://localhost:4000` |
 | `MEDIA_PUBLIC_BASE_URL` | URL base para media subida en local | `http://localhost:4000` |
 | `S3_PUBLIC_BASE_URL` | URL pública del bucket (si usas S3/R2) | Opcional |
+| `IMAGE_API_KEY` | Clave OpenAI para generar imágenes (Composer → Generar imagen) | Dashboard OpenAI |
+| `IMAGE_MODEL` | Modelo de imágenes (opcional) | `dall-e-3` |
+| `OPENAI_API_KEY` | Alias opcional de `IMAGE_API_KEY` | Si no defines `IMAGE_API_KEY` |
 
 **Importante:**
 - Sin espacios después del `=` en `.env` (ej. `META_APP_ID=123`, no `META_APP_ID= 123`).
@@ -383,35 +387,31 @@ Con localhost el pipeline funciona pero Meta falla; con túnel público debería
 
 ---
 
-## 15. Editor Canva manual (Fase C)
+## 15. Generar imagen con OpenAI (Composer)
 
-Flujo: crear borrador → abrir editor Canva → volver a la app → imagen PNG en el post → enviar a aprobación.
+El flujo de media del Composer **no depende de Canva**. Opciones:
 
-### Configuración en Canva Developer Portal
-
-1. Crear integración Connect con los mismos scopes que Fase B
-2. **OAuth redirect URI:** `http://localhost:4000/oauth/canva/callback`
-3. **Return navigation URL:** `http://localhost:4000/oauth/canva/return` (debe coincidir con `CANVA_RETURN_URL` en `.env`)
+1. **Generar imagen (IA)** — brief → copy + imagen OpenAI → aprobación  
+2. **Subir archivo** — imagen o video adjunto  
+3. **Reel (video)** — video adjunto publicado como Reel en Instagram  
 
 ### Variables `.env`
 
 ```
-CANVA_CLIENT_ID=...
-CANVA_CLIENT_SECRET=...
-CANVA_REDIRECT_URI=http://localhost:4000/oauth/canva/callback
-CANVA_RETURN_URL=http://localhost:4000/oauth/canva/return
+IMAGE_API_KEY=sk-...
+IMAGE_MODEL=dall-e-3
 ```
+
+Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador usa **mock** (picsum) para desarrollo local.
 
 ### Prueba manual
 
 1. `pnpm dev:api` + `pnpm dev:web`
-2. Login → Composer → **Conectar Canva** (si no está conectado)
-3. Escribe caption, selecciona destinos → **Editar en Canva**
-4. Edita el diseño en Canva → botón de retorno a la app
-5. El Composer carga el borrador con la imagen exportada
-6. **Enviar a aprobación** → Aprobaciones → programar → publicar
+2. Login → Composer → **Generar imagen (IA)**
+3. Brief + destinos → **Generar y enviar a aprobación**
+4. Aprobaciones → programar → publicar
 
-Si el retorno falla, verás el error en el Composer (`canva_error` en la URL). Revisa logs de la API y que la Return URL del portal coincida exactamente.
+> **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 
 ---
 
@@ -503,7 +503,7 @@ Si `verify-project.ps1` falla en `connect-url`, reinicia `pnpm dev:api`.
 | 8 | Login → Composer → Aprobaciones → Calendario |
 | A | Composer → adjuntar imagen → borrador |
 | B | Composer → brief → generar con IA (mock) |
-| C | Composer → Editar en Canva *(requiere credenciales)* |
+| F | Composer → Generar imagen (IA) / Subir / Reel *(OpenAI opcional)* |
 | D | Túnel + `.\scripts\e2e-publish-with-video.ps1` |
 | E | `/cuentas` → conectar o desconectar una cuenta de prueba |
 | I | `/reportes` → Sincronizar ahora |

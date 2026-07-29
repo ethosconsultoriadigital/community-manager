@@ -97,26 +97,26 @@ export default function CalendarPage() {
   }, [failedPage, failedPaginated.totalPages, failedPaginated.safePage]);
 
   if (loading) {
-    return <p className="text-slate-400">Cargando calendario…</p>;
+    return <p className="text-muted">Cargando calendario…</p>;
   }
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-white">Calendario</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-xl font-semibold text-ink">Calendario</h1>
+        <p className="text-sm text-muted">
           Posts programados, publicados y con errores de publicación.
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-300">
+        <h2 className="text-sm font-medium text-muted">
           Programados ({scheduled.length})
         </h2>
         {scheduled.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted">
             No hay posts programados. Aprueba contenido en la bandeja y programa una fecha.
           </p>
         ) : (
@@ -141,7 +141,7 @@ export default function CalendarPage() {
 
       {failed.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-red-300">
+          <h2 className="text-sm font-medium text-red-600">
             Con errores ({failed.length})
           </h2>
           {failedPaginated.slice.map((post) => (
@@ -158,16 +158,16 @@ export default function CalendarPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-300">
+        <h2 className="text-sm font-medium text-muted">
           Publicados ({published.length})
         </h2>
         {published.length === 0 ? (
-          <p className="text-sm text-slate-500">Aún no hay posts publicados.</p>
+          <p className="text-sm text-muted">Aún no hay posts publicados.</p>
         ) : (
           <>
             {publishedPaginated.slice.map((post) => (
               <PostCard key={post.id} post={post} clientName={clients[post.client_id]}>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted">
                   Publicado: {formatDate(post.published_at)}
                 </span>
               </PostCard>

@@ -1,10 +1,9 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, apiUploadMedia } from '@/lib/api';
 import type {
-  CanvaStatus,
   Client,
   GenerateFromBriefResult,
   MediaAsset,
@@ -15,6 +14,8 @@ import type {
 const ACCEPT_MEDIA =
   'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm';
 
+type MediaMode = 'ai' | 'upload' | 'reel';
+
 export default function ComposerPage() {
   const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
@@ -23,15 +24,14 @@ export default function ComposerPage() {
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [aiBrief, setAiBrief] = useState('');
-  const [canvaStatus, setCanvaStatus] = useState<CanvaStatus | null>(null);
   const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaMode, setMediaMode] = useState<MediaMode>('upload');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [openingCanva, setOpeningCanva] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [publishAsReel, setPublishAsReel] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -49,19 +49,6 @@ export default function ComposerPage() {
       .finally(() => setLoading(false));
   }, [loadClients]);
 
-  const loadCanvaStatus = useCallback(async () => {
-    try {
-      const status = await apiFetch<CanvaStatus>('/oauth/canva/status');
-      setCanvaStatus(status);
-    } catch {
-      setCanvaStatus(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCanvaStatus();
-  }, [loadCanvaStatus]);
-
   const loadPostIntoForm = useCallback(async (postId: string) => {
     const post = await apiFetch<Post>(`/posts/${postId}`);
     setEditingPostId(post.id);
@@ -77,38 +64,27 @@ export default function ComposerPage() {
       setAiPreviewUrl(image.storage_url);
       setMediaFile(null);
       setMediaPreview(null);
+      setMediaMode(image.source === 'ai_generated' ? 'ai' : 'upload');
     } else if (video?.storage_url) {
       setAiPreviewUrl(null);
       setMediaFile(null);
       setMediaPreview(video.storage_url);
+      setMediaMode(post.video_format === 'reel' ? 'reel' : 'upload');
     }
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('connected') === 'canva') {
-      setMessage('Canva conectado correctamente.');
-      loadCanvaStatus();
-    }
-
-    const canvaError = searchParams.get('canva_error');
-    if (canvaError) {
-      setError(decodeURIComponent(canvaError));
-      return;
-    }
-
     const canvaReturn = searchParams.get('canva_return');
-    if (!canvaReturn) return;
-
-    loadPostIntoForm(canvaReturn)
-      .then(() => {
-        setMessage(
-          `Diseño Canva guardado en el post (${canvaReturn.slice(0, 8)}…). Puedes enviarlo a aprobación.`,
-        );
-      })
-      .catch(() => {
-        setError('No se pudo cargar el post tras volver de Canva');
-      });
-  }, [searchParams, loadCanvaStatus, loadPostIntoForm]);
+    if (canvaReturn) {
+      loadPostIntoForm(canvaReturn)
+        .then(() => {
+          setMessage(
+            `Post cargado (${canvaReturn.slice(0, 8)}…). Puedes enviarlo a aprobación.`,
+          );
+        })
+        .catch(() => setError('No se pudo cargar el post'));
+    }
+  }, [searchParams, loadPostIntoForm]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -130,17 +106,45 @@ export default function ComposerPage() {
   }
 
   function handleMediaChange(file: File | null) {
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    if (mediaPreview?.startsWith('blob:')) URL.revokeObjectURL(mediaPreview);
     setMediaFile(file);
+    setAiPreviewUrl(null);
     if (!file) {
       setMediaPreview(null);
-      setPublishAsReel(false);
+      if (mediaMode === 'reel') setPublishAsReel(true);
+      else setPublishAsReel(false);
       return;
     }
-    if (!file.type.startsWith('video/')) {
-      setPublishAsReel(false);
+    const isVideo = file.type.startsWith('video/');
+    if (mediaMode === 'reel' && !isVideo) {
+      setError('Para Reel sube un video (MP4, MOV o WebM)');
+      setMediaPreview(null);
+      setMediaFile(null);
+      return;
     }
+    setPublishAsReel(mediaMode === 'reel' || (isVideo && publishAsReel));
     setMediaPreview(URL.createObjectURL(file));
+  }
+
+  function selectMediaMode(mode: MediaMode) {
+    setMediaMode(mode);
+    setError(null);
+    setMessage(null);
+    if (mode === 'ai') {
+      handleMediaChange(null);
+      setPublishAsReel(false);
+    } else if (mode === 'reel') {
+      setAiPreviewUrl(null);
+      setPublishAsReel(true);
+      if (mediaFile && !mediaFile.type.startsWith('video/')) {
+        handleMediaChange(null);
+      }
+    } else {
+      setAiPreviewUrl(null);
+      if (!mediaFile?.type.startsWith('video/')) {
+        setPublishAsReel(false);
+      }
+    }
   }
 
   function clearForm() {
@@ -149,7 +153,7 @@ export default function ComposerPage() {
     setAiBrief('');
     setAiPreviewUrl(null);
     setEditingPostId(null);
-    setPublishAsReel(false);
+    setPublishAsReel(mediaMode === 'reel');
     handleMediaChange(null);
   }
 
@@ -160,7 +164,7 @@ export default function ComposerPage() {
 
   function videoFormatPayload(): 'feed' | 'reel' | null {
     if (!hasVideoAttachment()) return null;
-    return publishAsReel ? 'reel' : 'feed';
+    return publishAsReel || mediaMode === 'reel' ? 'reel' : 'feed';
   }
 
   function parseHashtags(): string[] {
@@ -169,16 +173,6 @@ export default function ComposerPage() {
       .map((t) => t.trim())
       .filter(Boolean)
       .map((t) => (t.startsWith('#') ? t : `#${t}`));
-  }
-
-  async function connectCanva() {
-    setError(null);
-    try {
-      const { url } = await apiFetch<{ url: string }>('/oauth/canva/connect-url');
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo iniciar conexión con Canva');
-    }
   }
 
   async function handleGenerateWithAi() {
@@ -216,10 +210,8 @@ export default function ComposerPage() {
         handleMediaChange(null);
       }
 
-      const provider =
-        canvaStatus?.connected && canvaStatus.configured ? 'Canva' : 'mock';
       setMessage(
-        `Borrador generado con IA (${provider}) y enviado a aprobación (${result.post.id.slice(0, 8)}…)`,
+        `Copy + imagen generados con IA y enviados a aprobación (${result.post.id.slice(0, 8)}…)`,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar con IA');
@@ -228,75 +220,19 @@ export default function ComposerPage() {
     }
   }
 
-  async function handleEditInCanva() {
-    if (!caption.trim()) {
-      setError('Escribe un caption antes de abrir Canva');
-      return;
-    }
-    if (selectedAccounts.length === 0) {
-      setError('Selecciona al menos un destino');
-      return;
-    }
-    if (!canvaStatus?.connected) {
-      setError('Conecta Canva primero');
-      return;
-    }
-
-    setError(null);
-    setMessage(null);
-    setOpeningCanva(true);
-
-    const tagList = parseHashtags();
-
-    try {
-      let postId = editingPostId;
-
-      if (postId) {
-        await apiFetch<Post>(`/posts/${postId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            caption,
-            hashtags: tagList,
-            socialAccountIds: selectedAccounts,
-            videoFormat: videoFormatPayload(),
-          }),
-        });
-        if (mediaFile) {
-          await apiUploadMedia<MediaAsset>(postId, mediaFile);
-        }
-      } else {
-        const post = await apiFetch<Post>('/posts', {
-          method: 'POST',
-          body: JSON.stringify({
-            clientId,
-            caption,
-            hashtags: tagList,
-            socialAccountIds: selectedAccounts,
-            videoFormat: videoFormatPayload(),
-          }),
-        });
-        postId = post.id;
-        if (mediaFile) {
-          await apiUploadMedia<MediaAsset>(postId, mediaFile);
-        }
-      }
-
-      const { editUrl } = await apiFetch<{ editUrl: string; designId: string }>(
-        `/posts/${postId}/canva/edit-url`,
-        { method: 'POST' },
-      );
-
-      window.location.href = editUrl;
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo abrir el editor Canva');
-      setOpeningCanva(false);
-    }
-  }
-
   async function handleSubmit(e: FormEvent, sendToApproval: boolean) {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    if (mediaMode === 'reel' && !hasVideoAttachment() && !mediaFile) {
+      setError('Para Reel adjunta un video');
+      return;
+    }
+    if (mediaMode === 'upload' && !mediaFile && !aiPreviewUrl && !mediaPreview) {
+      // adjunto opcional en upload/feed
+    }
+
     setSubmitting(true);
 
     const tagList = parseHashtags();
@@ -337,7 +273,7 @@ export default function ComposerPage() {
       if (sendToApproval) {
         await apiFetch(`/posts/${postId}/submit-for-approval`, { method: 'POST' });
         setMessage(
-          `Post enviado a aprobación${mediaFile || aiPreviewUrl ? ' con adjunto' : ''} (${postId.slice(0, 8)}…)`,
+          `Post enviado a aprobación${mediaFile || aiPreviewUrl ? ' con media' : ''} (${postId.slice(0, 8)}…)`,
         );
         clearForm();
       } else {
@@ -352,90 +288,157 @@ export default function ComposerPage() {
   }
 
   if (loading) {
-    return <p className="text-slate-400">Cargando composer…</p>;
+    return <p className="text-muted">Cargando composer…</p>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Composer</h1>
-        <p className="text-sm text-slate-400">
-          Crea un borrador o envíalo a aprobación. Puedes adjuntar una imagen o un video.
+        <h1 className="text-xl font-semibold text-ink">Composer</h1>
+        <p className="text-sm text-muted">
+          Elige cómo quieres el media: generar imagen con IA, subir un archivo o publicar un Reel.
         </p>
       </div>
 
-      <form className="space-y-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-        <div className="rounded-md border border-indigo-900/50 bg-indigo-950/20 p-4 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-medium text-indigo-200">Generar con IA + Canva</h2>
-              <p className="text-xs text-slate-400">
-                Crea copy, imagen y flyer (mock o Canva real si está conectado) y envía a
-                aprobación.
-              </p>
-            </div>
-            {canvaStatus?.configured && (
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs ${
-                  canvaStatus.connected
-                    ? 'bg-emerald-900/50 text-emerald-300'
-                    : 'bg-amber-900/40 text-amber-200'
+      <form className="space-y-4 rounded-lg border border-line bg-surface p-4">
+        <div>
+          <p className="mb-2 text-sm text-muted">Media de la publicación</p>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { id: 'ai', label: 'Generar imagen (IA)' },
+                { id: 'upload', label: 'Subir archivo' },
+                { id: 'reel', label: 'Reel (video)' },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => selectMediaMode(option.id)}
+                className={`rounded-md px-3 py-1.5 text-sm ${
+                  mediaMode === option.id
+                    ? 'bg-brand text-white'
+                    : 'border border-line-strong text-muted hover:bg-canvas'
                 }`}
               >
-                Canva {canvaStatus.connected ? 'conectado' : 'sin conectar'}
-              </span>
-            )}
+                {option.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <textarea
-            rows={3}
-            value={aiBrief}
-            onChange={(e) => setAiBrief(e.target.value)}
-            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-            placeholder="Brief: promo de verano, tono cercano, CTA reserva…"
-          />
+        {mediaMode === 'ai' && (
+          <div className="rounded-md border border-brand/30 bg-[#E7F3FF] p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-medium text-brand">Generar copy + imagen</h2>
+              <p className="text-xs text-muted">
+                Usa OpenAI Images si hay <code className="text-muted">IMAGE_API_KEY</code>; si
+                no, mock local. No depende de Canva.
+              </p>
+            </div>
 
-          <div className="flex flex-wrap gap-2">
+            <textarea
+              rows={3}
+              value={aiBrief}
+              onChange={(e) => setAiBrief(e.target.value)}
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+              placeholder="Brief: promo de verano, tono cercano, CTA reserva…"
+            />
+
             <button
               type="button"
               disabled={generatingAi || submitting || selectedAccounts.length === 0}
               onClick={handleGenerateWithAi}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
               {generatingAi ? 'Generando…' : 'Generar y enviar a aprobación'}
             </button>
-            {canvaStatus?.configured && !canvaStatus.connected && (
-              <button
-                type="button"
-                onClick={connectCanva}
-                className="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
-              >
-                Conectar Canva
-              </button>
+
+            {aiPreviewUrl && (
+              <div className="rounded-md border border-line-strong bg-white p-2">
+                <img
+                  src={aiPreviewUrl}
+                  alt="Vista previa generada"
+                  className="max-h-48 w-full rounded object-contain"
+                />
+                <p className="mt-1 text-xs text-muted">
+                  Imagen generada (ya guardada en el post)
+                </p>
+              </div>
             )}
           </div>
+        )}
 
-          {aiPreviewUrl && (
-            <div className="rounded-md border border-slate-700 bg-slate-900 p-2">
-              <img
-                src={aiPreviewUrl}
-                alt="Vista previa generada"
-                className="max-h-48 w-full rounded object-contain"
-              />
-              <p className="mt-1 text-xs text-slate-500">Imagen generada (ya guardada en el post)</p>
-            </div>
-          )}
-        </div>
+        {(mediaMode === 'upload' || mediaMode === 'reel') && (
+          <div className="space-y-2">
+            <label htmlFor="media" className="mb-1 block text-sm text-muted">
+              {mediaMode === 'reel' ? 'Video para Reel' : 'Imagen o video (opcional)'}
+            </label>
+            <input
+              id="media"
+              type="file"
+              accept={mediaMode === 'reel' ? 'video/mp4,video/quicktime,video/webm' : ACCEPT_MEDIA}
+              onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-ink"
+            />
+            <p className="text-xs text-muted">
+              {mediaMode === 'reel'
+                ? 'Videos hasta 50 MB (MP4, MOV, WebM). Se publicará como Reel en Instagram.'
+                : 'Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)'}
+            </p>
+            {mediaPreview && (
+              <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
+                {hasVideoAttachment() ? (
+                  <video
+                    src={mediaPreview}
+                    controls
+                    className="max-h-48 w-full rounded object-contain"
+                  />
+                ) : (
+                  <img
+                    src={mediaPreview}
+                    alt="Vista previa del adjunto"
+                    className="max-h-48 w-full rounded object-contain"
+                  />
+                )}
+                {mediaFile && (
+                  <button
+                    type="button"
+                    onClick={() => handleMediaChange(null)}
+                    className="mt-2 text-xs text-red-600 hover:text-red-700"
+                  >
+                    Quitar adjunto
+                  </button>
+                )}
+              </div>
+            )}
+            {mediaMode === 'upload' && hasVideoAttachment() && (
+              <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={publishAsReel}
+                  onChange={(e) => setPublishAsReel(e.target.checked)}
+                />
+                Publicar como Reel en Instagram
+              </label>
+            )}
+            {(mediaMode === 'reel' || publishAsReel) && hasVideoAttachment() && (
+              <p className="mt-1 text-xs text-muted">
+                Facebook recibirá el video en feed. Solo Instagram usa formato Reel.
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
-          <label htmlFor="client" className="mb-1 block text-sm text-slate-300">
+          <label htmlFor="client" className="mb-1 block text-sm text-muted">
             Cliente
           </label>
           <select
             id="client"
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
           >
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
@@ -446,7 +449,7 @@ export default function ComposerPage() {
         </div>
 
         <div>
-          <label htmlFor="caption" className="mb-1 block text-sm text-slate-300">
+          <label htmlFor="caption" className="mb-1 block text-sm text-muted">
             Caption
           </label>
           <textarea
@@ -455,114 +458,34 @@ export default function ComposerPage() {
             rows={5}
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
             placeholder="Texto del post…"
           />
         </div>
 
         <div>
-          <label htmlFor="hashtags" className="mb-1 block text-sm text-slate-300">
+          <label htmlFor="hashtags" className="mb-1 block text-sm text-muted">
             Hashtags (separados por espacio o coma)
           </label>
           <input
             id="hashtags"
             value={hashtags}
             onChange={(e) => setHashtags(e.target.value)}
-            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
             placeholder="#marca #promo"
           />
         </div>
 
-        <div>
-          <label htmlFor="media" className="mb-1 block text-sm text-slate-300">
-            Imagen o video (opcional)
-          </label>
-          <input
-            id="media"
-            type="file"
-            accept={ACCEPT_MEDIA}
-            onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
-            className="w-full text-sm text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-1.5 file:text-slate-200"
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)
-          </p>
-          {mediaPreview && (
-            <div className="mt-3 rounded-md border border-slate-700 bg-slate-900 p-2">
-              {hasVideoAttachment() ? (
-                <video
-                  src={mediaPreview}
-                  controls
-                  className="max-h-48 w-full rounded object-contain"
-                />
-              ) : (
-                <img
-                  src={mediaPreview}
-                  alt="Vista previa del adjunto"
-                  className="max-h-48 w-full rounded object-contain"
-                />
-              )}
-              {mediaFile && (
-                <button
-                  type="button"
-                  onClick={() => handleMediaChange(null)}
-                  className="mt-2 text-xs text-red-400 hover:text-red-300"
-                >
-                  Quitar adjunto
-                </button>
-              )}
-            </div>
-          )}
-          {hasVideoAttachment() && (
-            <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-slate-300">
-              <input
-                type="checkbox"
-                checked={publishAsReel}
-                onChange={(e) => setPublishAsReel(e.target.checked)}
-              />
-              Publicar como Reel en Instagram
-            </label>
-          )}
-          {hasVideoAttachment() && publishAsReel && (
-            <p className="mt-1 text-xs text-slate-500">
-              Facebook seguirá recibiendo el video en feed. Solo Instagram usa formato Reel.
-            </p>
-          )}
-        </div>
-
-        {canvaStatus?.configured && canvaStatus.connected && (
-          <div className="rounded-md border border-slate-700 bg-slate-900/60 p-3 space-y-2">
-            <h2 className="text-sm font-medium text-slate-200">Editor Canva (manual)</h2>
-            <p className="text-xs text-slate-400">
-              Guarda un borrador y abre el editor de Canva. Al volver, la imagen exportada se
-              adjunta al post.
-            </p>
-            {editingPostId && (
-              <p className="text-xs text-indigo-300">
-                Borrador activo: {editingPostId.slice(0, 8)}…
-              </p>
-            )}
-            <button
-              type="button"
-              disabled={openingCanva || submitting || selectedAccounts.length === 0}
-              onClick={handleEditInCanva}
-              className="rounded-md border border-indigo-600 px-4 py-2 text-sm text-indigo-200 hover:bg-indigo-950 disabled:opacity-50"
-            >
-              {openingCanva ? 'Abriendo Canva…' : 'Editar en Canva'}
-            </button>
-          </div>
-        )}
-
         <fieldset>
-          <legend className="mb-2 text-sm text-slate-300">Destinos</legend>
+          <legend className="mb-2 text-sm text-muted">Destinos</legend>
           <div className="flex flex-wrap gap-2">
             {accounts.length === 0 ? (
-              <p className="text-xs text-slate-500">No hay cuentas conectadas para este cliente.</p>
+              <p className="text-xs text-muted">No hay cuentas conectadas para este cliente.</p>
             ) : (
               accounts.map((a) => (
                 <label
                   key={a.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300"
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-xs text-muted"
                 >
                   <input
                     type="checkbox"
@@ -577,27 +500,29 @@ export default function ComposerPage() {
           </div>
         </fieldset>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {message && <p className="text-sm text-emerald-400">{message}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {message && <p className="text-sm text-emerald-600">{message}</p>}
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={submitting || selectedAccounts.length === 0}
-            onClick={(e) => handleSubmit(e, false)}
-            className="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
-          >
-            Guardar borrador
-          </button>
-          <button
-            type="button"
-            disabled={submitting || selectedAccounts.length === 0}
-            onClick={(e) => handleSubmit(e, true)}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-          >
-            Enviar a aprobación
-          </button>
-        </div>
+        {mediaMode !== 'ai' && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={submitting || selectedAccounts.length === 0}
+              onClick={(e) => handleSubmit(e, false)}
+              className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              Guardar borrador
+            </button>
+            <button
+              type="button"
+              disabled={submitting || selectedAccounts.length === 0}
+              onClick={(e) => handleSubmit(e, true)}
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            >
+              Enviar a aprobación
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -29,14 +29,14 @@ export default function InicioPage() {
   );
 
   if (loading) {
-    return <p className="text-slate-400">Cargando…</p>;
+    return <p className="text-muted">Cargando…</p>;
   }
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-white">Inicio</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-xl font-semibold text-ink">Inicio</h1>
+        <p className="text-sm text-muted">
           Resumen de tu contenido y accesos rápidos.
         </p>
       </div>
@@ -51,10 +51,10 @@ export default function InicioPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="rounded-lg border border-slate-800 bg-slate-900/50 p-4 transition-colors hover:border-indigo-800 hover:bg-slate-900"
+            className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-brand hover:bg-white"
           >
-            <p className="text-2xl font-semibold text-white">{card.value}</p>
-            <p className="mt-1 text-xs text-slate-400">{card.label}</p>
+            <p className="text-2xl font-semibold text-ink">{card.value}</p>
+            <p className="mt-1 text-xs text-muted">{card.label}</p>
           </Link>
         ))}
       </div>
@@ -62,13 +62,13 @@ export default function InicioPage() {
       <div className="flex flex-wrap gap-2">
         <Link
           href="/composer"
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
         >
           Crear contenido
         </Link>
         <Link
           href="/approvals"
-          className="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+          className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas"
         >
           Ir a aprobaciones
         </Link>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '@/lib/api';
@@ -60,7 +60,7 @@ export default function ReportesPage() {
   }
 
   if (loading && !summary) {
-    return <p className="text-slate-400">Cargando reportes…</p>;
+    return <p className="text-muted">Cargando reportes…</p>;
   }
 
   const totals = summary?.totals;
@@ -68,22 +68,22 @@ export default function ReportesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Reportes</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-xl font-semibold text-ink">Reportes</h1>
+        <p className="text-sm text-muted">
           Métricas de posts publicados en Meta (sincronización cada 6 h).
         </p>
       </div>
 
-      {message && <p className="text-sm text-emerald-400">{message}</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {message && <p className="text-sm text-emerald-600">{message}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-400">Cliente</span>
+          <span className="text-muted">Cliente</span>
           <select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+            className="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
           >
             <option value="">Todos</option>
             {clients.map((c) => (
@@ -94,11 +94,11 @@ export default function ReportesPage() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-400">Período (días)</span>
+          <span className="text-muted">Período (días)</span>
           <select
             value={days}
             onChange={(e) => setDays(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+            className="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
           >
             <option value="7">7</option>
             <option value="30">30</option>
@@ -109,7 +109,7 @@ export default function ReportesPage() {
           type="button"
           onClick={syncMetrics}
           disabled={syncing}
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="rounded-md bg-brand px-4 py-2 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
         >
           {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
         </button>
@@ -117,7 +117,7 @@ export default function ReportesPage() {
 
       {summary && (
         <>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted">
             Destinos publicados: {summary.publishedTargets} · Con métricas: {summary.withMetrics}
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -129,18 +129,18 @@ export default function ReportesPage() {
             ].map((card) => (
               <div
                 key={card.label}
-                className="rounded-lg border border-slate-800 bg-slate-900/50 p-4"
+                className="rounded-lg border border-line bg-surface p-4"
               >
-                <p className="text-2xl font-semibold text-white">{card.value.toLocaleString()}</p>
-                <p className="mt-1 text-xs text-slate-400">{card.label}</p>
+                <p className="text-2xl font-semibold text-ink">{card.value.toLocaleString()}</p>
+                <p className="mt-1 text-xs text-muted">{card.label}</p>
               </div>
             ))}
           </div>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-slate-300">Mejores posts</h2>
+            <h2 className="text-sm font-medium text-muted">Mejores posts</h2>
             {summary.topPosts.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted">
                 Aún no hay métricas. Publica contenido y pulsa «Sincronizar ahora».
               </p>
             ) : (
@@ -148,12 +148,12 @@ export default function ReportesPage() {
                 {summary.topPosts.map((post) => (
                   <li
                     key={post.postId}
-                    className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3"
+                    className="rounded-lg border border-line bg-surface px-4 py-3"
                   >
-                    <p className="text-sm text-white line-clamp-2">
+                    <p className="text-sm text-ink line-clamp-2">
                       {post.caption ?? '(sin caption)'}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-muted">
                       Engagement: {post.engagement} · Impresiones: {post.impressions} · Likes:{' '}
                       {post.likes}
                     </p>

@@ -7,8 +7,7 @@ import {
   PostsValidationError,
   SocialAccountsRepository,
 } from '@cm/db';
-import { CANVA_PROVIDER, IMAGE_PROVIDER, LLM_PROVIDER } from './ai.tokens';
-import type { CanvaProvider } from './interfaces/canva-provider.interface';
+import { IMAGE_PROVIDER, LLM_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
 import type { LlmProvider } from './interfaces/llm-provider.interface';
 
@@ -34,7 +33,6 @@ export class ContentGenerationService {
     private readonly socialAccounts: SocialAccountsRepository,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     @Inject(IMAGE_PROVIDER) private readonly image: ImageProvider,
-    @Inject(CANVA_PROVIDER) private readonly canva: CanvaProvider,
   ) {}
 
   async generateFromBrief(
@@ -79,31 +77,24 @@ export class ContentGenerationService {
     const imageGen = await this.generations.create(agencyId, {
       kind: 'image',
       prompt: input.brief,
-      model: 'mock-image',
+      model: 'pending-image',
     });
     await this.generations.updateStatus(agencyId, imageGen.id, 'processing');
 
-    let rawImage;
-    let canvaExport;
+    let generatedImage;
     try {
-      rawImage = await this.image.generateImage({ brief: input.brief });
-      canvaExport = await this.canva.composeFlyer({
+      generatedImage = await this.image.generateImage({
         brief: input.brief,
-        imageUrl: rawImage.url,
         agencyId,
-        clientId: input.clientId,
       });
-      const canvaModel =
-        canvaExport.provider === 'canva-connect' ? 'canva-connect' : 'mock-canva';
       await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {
         output: {
-          rawImageUrl: rawImage.url,
-          canvaUrl: canvaExport.url,
-          templateId: canvaExport.templateId,
-          provider: canvaExport.provider ?? 'mock',
-          designId: canvaExport.designId,
+          imageUrl: generatedImage.url,
+          provider: generatedImage.provider ?? 'unknown',
+          width: generatedImage.width,
+          height: generatedImage.height,
         },
-        model: canvaModel,
+        model: generatedImage.model ?? generatedImage.provider ?? 'image',
       });
     } catch (error) {
       await this.generations.updateStatus(agencyId, imageGen.id, 'failed', {
@@ -129,23 +120,22 @@ export class ContentGenerationService {
     const media = await this.mediaAssets.create(agencyId, {
       postId: post.id,
       type: 'image',
-      source: 'canva',
-      storageUrl: canvaExport.url,
-      width: rawImage.width,
-      height: rawImage.height,
+      source: 'ai_generated',
+      storageUrl: generatedImage.url,
+      width: generatedImage.width,
+      height: generatedImage.height,
     });
 
     await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {
       output: {
-        rawImageUrl: rawImage.url,
-        canvaUrl: canvaExport.url,
-        templateId: canvaExport.templateId,
-        provider: canvaExport.provider ?? 'mock',
-        designId: canvaExport.designId,
+        imageUrl: generatedImage.url,
+        provider: generatedImage.provider ?? 'unknown',
+        width: generatedImage.width,
+        height: generatedImage.height,
       },
       mediaId: media.id,
       postId: post.id,
-      model: canvaExport.provider === 'canva-connect' ? 'canva-connect' : 'mock-canva',
+      model: generatedImage.model ?? generatedImage.provider ?? 'image',
     });
     await this.generations.linkPost(agencyId, copyGen.id, post.id);
 

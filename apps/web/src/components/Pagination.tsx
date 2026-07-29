@@ -19,7 +19,7 @@ export function Pagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted">
         {totalItems} {label} · Página {page} de {totalPages}
       </p>
       <div className="flex gap-2">
@@ -27,7 +27,7 @@ export function Pagination({
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md border border-line-strong px-3 py-1 text-xs text-muted hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40"
         >
           Anterior
         </button>
@@ -35,7 +35,7 @@ export function Pagination({
           type="button"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}
-          className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md border border-line-strong px-3 py-1 text-xs text-muted hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40"
         >
           Siguiente
         </button>

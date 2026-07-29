@@ -39,6 +39,8 @@ export class MockImageProvider implements ImageProvider {
       url: `https://picsum.photos/seed/${seed}/1080/1080`,
       width: 1080,
       height: 1080,
+      model: 'mock-image',
+      provider: 'mock',
     };
   }
 }

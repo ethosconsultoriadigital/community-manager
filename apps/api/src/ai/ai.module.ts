@@ -1,17 +1,20 @@
 import { Module } from '@nestjs/common';
-import { CANVA_PROVIDER, IMAGE_PROVIDER, LLM_PROVIDER } from './ai.tokens';
+import { MediaModule } from '../media/media.module';
+import { IMAGE_PROVIDER, LLM_PROVIDER } from './ai.tokens';
 import { ContentGenerationService } from './content-generation.service';
+import { HybridImageProvider } from './hybrid-image.provider';
 import { MockImageProvider, MockLlmProvider } from './mocks/mock-providers';
-import { CanvaModule } from '../platforms/canva/canva.module';
-import { HybridCanvaProvider } from '../platforms/canva/hybrid-canva.provider';
+import { OpenAiImageProvider } from './openai-image.provider';
 
 @Module({
-  imports: [CanvaModule],
+  imports: [MediaModule],
   providers: [
     ContentGenerationService,
     { provide: LLM_PROVIDER, useClass: MockLlmProvider },
-    { provide: IMAGE_PROVIDER, useClass: MockImageProvider },
-    { provide: CANVA_PROVIDER, useExisting: HybridCanvaProvider },
+    MockImageProvider,
+    OpenAiImageProvider,
+    HybridImageProvider,
+    { provide: IMAGE_PROVIDER, useExisting: HybridImageProvider },
   ],
   exports: [ContentGenerationService],
 })

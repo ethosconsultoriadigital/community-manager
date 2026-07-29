@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -113,28 +113,28 @@ export default function CuentasPage() {
   );
 
   if (loading) {
-    return <p className="text-slate-400">Cargando cuentas…</p>;
+    return <p className="text-muted">Cargando cuentas…</p>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Cuentas sociales</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-xl font-semibold text-ink">Cuentas sociales</h1>
+        <p className="text-sm text-muted">
           Conecta o desconecta cuentas de Facebook e Instagram por cliente.
         </p>
       </div>
 
-      {message && <p className="text-sm text-emerald-400">{message}</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {message && <p className="text-sm text-emerald-600">{message}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="text-slate-400">Cliente</span>
+          <span className="text-muted">Cliente</span>
           <select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+            className="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
           >
             {clients.length === 0 ? (
               <option value="">Sin clientes</option>
@@ -152,7 +152,7 @@ export default function CuentasPage() {
             type="button"
             onClick={connectMeta}
             disabled={!clientId || connecting}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="rounded-md bg-brand px-4 py-2 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
           >
             {connecting ? 'Redirigiendo…' : 'Conectar Meta'}
           </button>
@@ -160,11 +160,11 @@ export default function CuentasPage() {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-300">
+        <h2 className="text-sm font-medium text-muted">
           Conectadas ({activeAccounts.length})
         </h2>
         {activeAccounts.length === 0 ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted">
             No hay cuentas activas para este cliente.
             {canManage && ' Usa «Conectar Meta» para añadir páginas e Instagram.'}
           </p>
@@ -173,21 +173,21 @@ export default function CuentasPage() {
             {activeAccounts.map((account) => (
               <li
                 key={account.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface px-4 py-3"
               >
                 <div>
-                  <p className="text-sm text-white">
+                  <p className="text-sm text-ink">
                     {platformLabel(account.platform)}
                     {account.username ? ` @${account.username}` : ''}
                   </p>
-                  <p className="text-xs text-slate-500">ID: {account.external_account_id}</p>
+                  <p className="text-xs text-muted">ID: {account.external_account_id}</p>
                 </div>
                 {canManage && (
                   <button
                     type="button"
                     onClick={() => disconnectAccount(account.id)}
                     disabled={disconnectingId === account.id}
-                    className="rounded-md border border-red-900/60 px-3 py-1.5 text-xs text-red-300 hover:bg-red-950/40 disabled:opacity-50"
+                    className="rounded-md border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
                     {disconnectingId === account.id ? 'Desconectando…' : 'Desconectar'}
                   </button>
@@ -200,19 +200,19 @@ export default function CuentasPage() {
 
       {inactiveAccounts.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-slate-300">
+          <h2 className="text-sm font-medium text-muted">
             Desconectadas ({inactiveAccounts.length})
           </h2>
           <ul className="space-y-2">
             {inactiveAccounts.map((account) => (
               <li
                 key={account.id}
-                className="rounded-lg border border-slate-800/60 bg-slate-900/30 px-4 py-3"
+                className="rounded-lg border border-line bg-canvas px-4 py-3"
               >
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-muted">
                   {platformLabel(account.platform)}
                   {account.username ? ` @${account.username}` : ''}
-                  <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs">
+                  <span className="ml-2 rounded-full bg-canvas px-2 py-0.5 text-xs">
                     Inactiva
                   </span>
                 </p>

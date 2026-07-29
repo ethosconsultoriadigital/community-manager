@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ContentGenerationService } from './content-generation.service';
 
 describe('ContentGenerationService', () => {
-  it('genera copy, imagen y post pending_approval con generaciones registradas', async () => {
+  it('genera copy, imagen y post pending_approval sin Canva', async () => {
     const posts = {
       create: vi.fn().mockResolvedValue({
         id: 'post-1',
@@ -32,8 +32,11 @@ describe('ContentGenerationService', () => {
       ]),
     };
     const mediaAssets = {
-      create: vi.fn().mockResolvedValue({ id: 'media-1', storage_url: 'https://mock-canva.local/x.png' }),
-      findByPost: vi.fn().mockResolvedValue([{ id: 'media-1', source: 'canva' }]),
+      create: vi.fn().mockResolvedValue({
+        id: 'media-1',
+        storage_url: 'https://storage.local/ai.png',
+      }),
+      findByPost: vi.fn().mockResolvedValue([{ id: 'media-1', source: 'ai_generated' }]),
     };
     const approvals = { createPending: vi.fn().mockResolvedValue({ id: 'ap-1' }) };
     const socialAccounts = {
@@ -50,15 +53,11 @@ describe('ContentGenerationService', () => {
     };
     const image = {
       generateImage: vi.fn().mockResolvedValue({
-        url: 'https://picsum.photos/seed/abc/1080/1080',
-        width: 1080,
-        height: 1080,
-      }),
-    };
-    const canva = {
-      composeFlyer: vi.fn().mockResolvedValue({
-        url: 'https://mock-canva.local/export/abc.png',
-        templateId: 'mock-brand-template',
+        url: 'https://storage.local/ai.png',
+        width: 1024,
+        height: 1024,
+        model: 'dall-e-3',
+        provider: 'openai',
       }),
     };
 
@@ -70,7 +69,6 @@ describe('ContentGenerationService', () => {
       socialAccounts as never,
       llm as never,
       image as never,
-      canva as never,
     );
 
     const result = await service.generateFromBrief('agency-1', 'user-1', {
@@ -80,12 +78,16 @@ describe('ContentGenerationService', () => {
     });
 
     expect(llm.generateCopy).toHaveBeenCalled();
-    expect(image.generateImage).toHaveBeenCalled();
-    expect(canva.composeFlyer).toHaveBeenCalledWith(
+    expect(image.generateImage).toHaveBeenCalledWith({
+      brief: 'Promo verano',
+      agencyId: 'agency-1',
+    });
+    expect(mediaAssets.create).toHaveBeenCalledWith(
+      'agency-1',
       expect.objectContaining({
-        brief: 'Promo verano',
-        agencyId: 'agency-1',
-        clientId: 'client-1',
+        type: 'image',
+        source: 'ai_generated',
+        storageUrl: 'https://storage.local/ai.png',
       }),
     );
     expect(posts.create).toHaveBeenCalledWith(
@@ -97,6 +99,6 @@ describe('ContentGenerationService', () => {
     expect(approvals.createPending).toHaveBeenCalledWith('post-1');
     expect(result.post?.status).toBe('pending_approval');
     expect(result.generations).toHaveLength(2);
-    expect(result.media[0].source).toBe('canva');
+    expect(result.media[0].source).toBe('ai_generated');
   });
 });

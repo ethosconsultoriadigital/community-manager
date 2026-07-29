@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-slate-400">
+      <div className="flex min-h-screen items-center justify-center text-muted">
         Cargando…
       </div>
     );
@@ -34,12 +34,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b border-slate-800 bg-slate-900/80">
+    <div className="flex min-h-screen flex-col bg-canvas">
+      <header className="border-b border-line bg-surface shadow-sm">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <EthosLogo href="/inicio" compact />
-            <p className="hidden text-xs text-slate-400 sm:block">{agencyName}</p>
+            <p className="hidden text-xs text-muted sm:block">{agencyName}</p>
           </div>
           <nav className="flex flex-wrap gap-1">
             {NAV.map((item) => (
@@ -48,8 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
                   pathname === item.href
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-brand text-white'
+                    : 'text-muted hover:bg-canvas hover:text-ink'
                 }`}
               >
                 {item.label}
@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-3">
-            <span className="hidden max-w-[140px] truncate text-xs text-slate-400 md:inline">
+            <span className="hidden max-w-[140px] truncate text-xs text-muted md:inline">
               {user.email}
             </span>
             <button
@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 logout();
                 router.push('/login');
               }}
-              className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+              className="rounded-md border border-line-strong px-2 py-1 text-xs text-muted hover:bg-canvas hover:text-ink"
             >
               Salir
             </button>

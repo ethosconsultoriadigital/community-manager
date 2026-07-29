@@ -6,15 +6,17 @@ type EthosLogoProps = {
   compact?: boolean;
 };
 
+/**
+ * Logo claro (fondo blanco / letras oscuras) para la paleta azul-blanco del producto.
+ */
 export function EthosLogo({ href = '/inicio', compact = false }: EthosLogoProps) {
   const img = (
-    // img nativo: evita restricciones de next/image con PNG en public/
     <img
-      src="/ethos-logo.png"
+      src="/ethos-logo-light.png"
       alt="Ethos — Consultoría y Estrategia Digital"
       width={compact ? 160 : 280}
       height={compact ? 48 : 84}
-      className={`h-auto w-auto object-contain ${compact ? 'max-h-10' : 'max-h-16'}`}
+      className={`h-auto w-auto object-contain object-left ${compact ? 'max-h-10' : 'max-h-16'}`}
       decoding="async"
     />
   );

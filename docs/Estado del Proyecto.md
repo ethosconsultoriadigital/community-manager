@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-06-29 (Fase I — analítica Meta)
+**Última actualización:** 2026-07-29 (Guía de despliegue producción)
 
 ---
 
@@ -11,14 +11,73 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | I (analítica Meta) — cerrada, pendiente de tu revisión |
-| **Fases completadas** | 0–8 + extensiones A, B, C, D, E, I |
-| **Próximo paso** | Revisar Fase I → proveedores reales (F) / fuentes UI (H) |
-| **Verificación automática** | `pnpm test` 58 OK |
+| **Fase actual** | Listo para despliegue → luego módulos |
+| **Fases completadas** | 0–8 + A–E, I, F (imagen) + landing + tema |
+| **Próximo paso** | Seguir `docs/Guia_Despliegue_Produccion.md` (Vercel/Neon/Railway/R2) |
+| **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-07-29 — Guía de despliegue a producción ✅
+
+**Implementado (documentación):**
+- `docs/Guia_Despliegue_Produccion.md`: checklist Vercel (web) + Neon (Postgres) + Railway (API/BullMQ) + Upstash (Redis) + Cloudflare R2 (media)
+- Enlace desde `Instrucciones de puesta en marcha.md`
+- Incluye vars, build monorepo, `API_PORT`, Meta OAuth, smoke test y fallos frecuentes
+
+**Criterio de aceptación:** ✅ Guía lista para hostear sin cambiar código; luego se continúa por módulos.
+
+---
+
+## 2026-07-27 — Landing profesional + tema azul/blanco global ✅
+
+**Implementado:**
+- Landing con hero fotográfico, servicios con imagen por módulo y pasos con visual
+- Logo claro `ethos-logo-light.png` (fondo blanco / letras oscuras) en todo el producto
+- Paleta Tailwind `@theme`: `brand` `#1877F2`, `canvas`, `surface`, `ink`, `muted`, `line`
+- `AppShell`, footer, PostCard, Pagination y páginas del panel alineadas al tema claro
+- Auth/publicación/Composer **sin cambios de lógica**
+
+**Criterio de aceptación:** ✅ Landing vendible; panel coherente azul/blanco; login y flujos previos intactos.
+
+---
+
+## 2026-07-27 — Landing pública (azul Facebook / blanco) ✅
+
+**Implementado:**
+- `/` deja de redirigir ciego a login: landing con navbar, hero, servicios dinámicos, cómo funciona y footer
+- CTA **Iniciar sesión** → `/login` (mismo `LoginForm` / auth)
+- Servicios editables en `apps/web/src/lib/landing-services.ts`
+- Paleta `#1877F2` + blanco; tipografías Outfit / Source Sans 3 solo en `.landing-root`
+- `/login` alineado al mismo look; panel `(app)` / `AppShell` **sin cambios**
+
+**Criterio de aceptación:** ✅ Visitante ve landing; login existente funciona; sesión activa en `/` sigue yendo a `/inicio`.
+
+---
+
+## 2026-07-23 — Fase F (parcial): imagen OpenAI + Composer sin Canva ✅
+
+**Implementado:**
+- `OpenAiImageProvider` + `HybridImageProvider` (OpenAI si hay `IMAGE_API_KEY` / `OPENAI_API_KEY`; si no, mock)
+- `ContentGenerationService.generateFromBrief` ya **no usa Canva**: imagen → `media_assets` con `source: ai_generated`
+- Composer: modos **Generar imagen (IA)** / **Subir archivo** / **Reel (video)**
+- Variables: `IMAGE_API_KEY`, `IMAGE_MODEL`, `OPENAI_API_KEY` en `.env.example`
+- Backend Canva (OAuth/editor) **intactos** por compatibilidad; fuera del UI principal
+
+**Decisiones:**
+- Reels se cubren con subida de video (sin generación de video IA aún)
+- Copy sigue en mock LLM (sin cambio)
+
+**Criterio de aceptación:** ✅ Generar post con imagen IA sin Canva; adjuntar archivo; marcar Reel; publicación Meta sin cambios.
+
+**Pendiente tu revisión:**
+1. Poner `IMAGE_API_KEY` en `.env` y reiniciar API
+2. Composer → Generar imagen (IA) → brief → generar
+3. Probar Subir archivo y Reel como antes
 
 ---
 
