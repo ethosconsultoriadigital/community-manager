@@ -99,25 +99,28 @@ pnpm migrate
 
 Configura (Settings → Build / Deploy):
 
-**Build command:**
+**Build command (Render — recomendado):**
 
 ```bash
-pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter @cm/shared build && pnpm --filter @cm/db build && pnpm --filter @cm/api build
+npx pnpm@9 install --frozen-lockfile && npx pnpm@9 db:generate && npx pnpm@9 --filter @cm/shared build && npx pnpm@9 --filter @cm/db build && npx pnpm@9 --filter @cm/api build
 ```
 
+> En Render **no uses** `corepack enable` ni `npm install -g pnpm`: el filesystem es de solo lectura (`EROFS`).
+
+**Build command (Railway u otros con write en global):**
+
+```bash
+npm install -g pnpm@9 && pnpm install --frozen-lockfile && pnpm db:generate && pnpm --filter @cm/shared build && pnpm --filter @cm/db build && pnpm --filter @cm/api build
+```
 **Start command:**
 
 ```bash
-cd apps/api && node dist/main
+cd apps/api && API_PORT=$PORT node dist/main
 ```
 
-(Alternativa: `pnpm --filter @cm/api start:prod` desde la raíz.)
+(Alternativa: `pnpm --filter @cm/api start:prod` desde la raíz, con `API_PORT=$PORT`.)
 
-**Importante — puerto:** la API lee `API_PORT` (no solo `PORT`). En Railway:
-
-- Variable `API_PORT` = `${{PORT}}` si el panel lo permite, **o**
-- Pon el mismo valor numérico que asigne Railway, **o**
-- Temporalmente define `API_PORT=4000` y mapea el puerto público del servicio a 4000.
+**Importante — puerto:** la API lee `API_PORT` (no solo `PORT`). En Render/Railway el host inyecta `PORT`; el start command de arriba lo reutiliza.
 
 Sin esto, el healthcheck puede fallar.
 
