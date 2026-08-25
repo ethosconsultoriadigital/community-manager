@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
+import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AgenciesModule } from './agencies/agencies.module';
 import { AuthModule } from './auth/auth.module';
@@ -24,6 +25,7 @@ import { SocialAccountsModule } from './social-accounts/social-accounts.module';
     }),
     DbModule,
     AuthModule,
+    AdminModule,
     AgenciesModule,
     ClientsModule,
     OauthModule,

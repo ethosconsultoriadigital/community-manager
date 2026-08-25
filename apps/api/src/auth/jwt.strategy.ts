@@ -29,6 +29,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || user.agency_id !== payload.agencyId) {
       throw new UnauthorizedException('Sesión inválida');
     }
+    if (user.is_active === false) {
+      throw new UnauthorizedException('Cuenta desactivada');
+    }
 
     return {
       id: user.id,

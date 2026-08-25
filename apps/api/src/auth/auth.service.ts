@@ -59,6 +59,9 @@ export class AuthService {
     if (!valid) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    if (user.is_active === false) {
+      throw new UnauthorizedException('Cuenta desactivada. Contacta al administrador.');
+    }
 
     return this.buildAuthResponse(user, user.agencies);
   }

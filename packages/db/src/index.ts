@@ -31,6 +31,11 @@ export {
 } from './repositories/social-accounts.repository';
 export { type CreateUserData, UsersRepository } from './repositories/users.repository';
 export {
+  type AssignUserClientData,
+  UserClientAssignmentsRepository,
+  UserClientAssignmentsValidationError,
+} from './repositories/user-client-assignments.repository';
+export {
   PostsRepository,
   PostsValidationError,
   type CreatePostData,

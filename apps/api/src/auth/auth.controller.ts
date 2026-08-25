@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { AuthUser } from '@cm/shared';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AuthService } from './auth.service';
@@ -18,10 +26,18 @@ class LoginDto {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Post('register')
   register(@Body() body: RegisterDto) {
+    if (this.config.get<string>('ALLOW_PUBLIC_REGISTER') === 'false') {
+      throw new ForbiddenException(
+        'El registro público está deshabilitado. Contacta al administrador.',
+      );
+    }
     return this.auth.register(body);
   }
 

@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-25 (Composer IA: caption/hashtags del usuario)
+**Última actualización:** 2026-08-25 (Fase A — admin usuarios + asignación cliente)
 
 ---
 
@@ -11,14 +11,40 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Despliegue en curso (Neon/Upstash/R2/Render/Vercel) |
-| **Fases completadas** | 0–8 + A–E, I, F (imagen) + landing + tema |
-| **Próximo paso** | Desplegar fix Composer IA (caption/hashtags sin mock) |
+| **Fase actual** | Fase A cerrada → revisión → Fase B (aislamiento API) |
+| **Fases completadas** | 0–8 + A–E, I, F (imagen) + landing + tema + **Admin Fase A** |
+| **Próximo paso** | Fase B: filtrar datos por cliente asignado al usuario |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-25 — Fase A: Admin usuarios + vínculo usuario↔cliente ✅
+
+**Objetivo:** base para aislamiento por negocio; el panel y filtros llegan en Fases B–D.
+
+**Implementado:**
+- Migración `schema_user_client_assignments.sql`: tabla `user_client_assignments` + `users.is_active`
+- `UserClientAssignmentsRepository` + tests de integración
+- API admin (`owner` / `admin`):
+  - `GET /admin/users` — listado con cliente asignado
+  - `POST /admin/users` — crear usuario (`manager`/`viewer`) + asignar `clientId`
+  - `PATCH /admin/users/:id/deactivate` / `activate`
+  - `POST /admin/users/:id/reset-password`
+- `POST /clients` (crear/editar/borrar cliente) restringido a `owner`/`admin`
+- `ALLOW_PUBLIC_REGISTER=false` deshabilita registro público (`.env.example`)
+- Login/JWT rechazan usuarios desactivados
+
+**Sin cambios de UX:** Composer, OAuth Meta y publicación siguen igual; un `manager` aún ve todos los clientes hasta Fase B.
+
+**Producción:** aplicar migración en Neon (`pnpm migrate` con `DATABASE_URL` de prod).
+
+**Criterio de aceptación:** ✅ Admin crea usuario ligado a un `client_id` vía API; tests OK.
+
+**Pendiente Fase B:** filtrar `clients`, posts, cuentas, etc. por cliente asignado.
 
 ---
 

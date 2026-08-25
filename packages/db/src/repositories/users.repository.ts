@@ -35,10 +35,41 @@ export class UsersRepository {
         email: true,
         full_name: true,
         role: true,
+        is_active: true,
         created_at: true,
         updated_at: true,
       },
     });
+  }
+
+  findByIdInAgency(agencyId: string, id: string) {
+    return this.prisma.users.findFirst({
+      where: { agency_id: agencyId, id },
+      include: { agencies: true },
+    });
+  }
+
+  async updatePasswordHash(agencyId: string, userId: string, passwordHash: string) {
+    const result = await this.prisma.users.updateMany({
+      where: { agency_id: agencyId, id: userId },
+      data: { password_hash: passwordHash, updated_at: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  async setActive(agencyId: string, userId: string, isActive: boolean) {
+    const result = await this.prisma.users.updateMany({
+      where: { agency_id: agencyId, id: userId },
+      data: { is_active: isActive, updated_at: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  async deleteInAgency(agencyId: string, userId: string) {
+    const result = await this.prisma.users.deleteMany({
+      where: { agency_id: agencyId, id: userId, role: { not: 'owner' } },
+    });
+    return result.count > 0;
   }
 
   create(data: CreateUserData) {

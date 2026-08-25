@@ -172,6 +172,29 @@ Invoke-RestMethod -Uri "http://localhost:4000/clients" -Method POST `
 
 ---
 
+## 9b. Admin — crear usuario de cliente (Fase A)
+
+Requiere JWT de rol `owner` o `admin`. Primero crea un cliente (`POST /clients`), luego:
+
+```powershell
+$body = @{
+  email = "cliente@negocio.com"
+  password = "TuPass123!"
+  fullName = "Cliente Demo"
+  role = "manager"
+  clientId = "<uuid-del-cliente>"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:4000/admin/users" -Method POST `
+  -ContentType "application/json" -Headers $headers -Body $body
+
+Invoke-RestMethod -Uri "http://localhost:4000/admin/users" -Headers $headers
+```
+
+En producción: `ALLOW_PUBLIC_REGISTER=false` y aplicar migración `schema_user_client_assignments.sql` (`pnpm migrate`).
+
+---
+
 ## 10. Probar OAuth Meta (Fase 3)
 
 ### En Meta Developer Dashboard

@@ -12,6 +12,8 @@ import {
 import { ClientsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 
 class CreateClientDto {
@@ -32,6 +34,8 @@ export class ClientsController {
   constructor(private readonly clients: ClientsRepository) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('owner', 'admin')
   create(@CurrentUser() user: AuthUser, @Body() body: CreateClientDto) {
     return this.clients.create(user.agencyId, body);
   }
@@ -49,6 +53,8 @@ export class ClientsController {
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles('owner', 'admin')
   async update(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -60,6 +66,8 @@ export class ClientsController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('owner', 'admin')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     const deleted = await this.clients.delete(user.agencyId, id);
     if (!deleted) throw new NotFoundException('Cliente no encontrado');

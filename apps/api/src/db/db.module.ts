@@ -12,6 +12,7 @@ import {
   PostsRepository,
   SocialAccountsRepository,
   SourceItemsRepository,
+  UserClientAssignmentsRepository,
   UsersRepository,
 } from '@cm/db';
 
@@ -41,6 +42,12 @@ export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
       inject: [PRISMA_CLIENT],
       useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
         new UsersRepository(prisma),
+    },
+    {
+      provide: UserClientAssignmentsRepository,
+      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: ReturnType<typeof createPrismaClient>) =>
+        new UserClientAssignmentsRepository(prisma),
     },
     {
       provide: SocialAccountsRepository,
@@ -96,6 +103,7 @@ export const PRISMA_CLIENT = Symbol('PRISMA_CLIENT');
     AgenciesRepository,
     ClientsRepository,
     UsersRepository,
+    UserClientAssignmentsRepository,
     SocialAccountsRepository,
     PostsRepository,
     ApprovalsRepository,
