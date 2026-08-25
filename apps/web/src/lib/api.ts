@@ -35,8 +35,12 @@ export async function apiFetch<T>(
   try {
     res = await fetch(`${API_URL}${path}`, { ...options, headers });
   } catch {
+    const hint =
+      API_URL.includes('localhost') || API_URL.includes('127.0.0.1')
+        ? 'En Vercel configura NEXT_PUBLIC_API_URL=https://community-manager-api.onrender.com y vuelve a hacer Redeploy.'
+        : `Revisa que la API responda en ${API_URL}/health y que FRONTEND_URL en Render coincida con la URL de Vercel (CORS).`;
     throw new ApiError(
-      'No se pudo conectar con la API. Comprueba que esté en marcha (pnpm dev:api en el puerto 4000).',
+      `No se pudo conectar con la API (${API_URL}). ${hint}`,
       0,
     );
   }
