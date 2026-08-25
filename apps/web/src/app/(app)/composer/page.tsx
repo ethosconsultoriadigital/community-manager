@@ -177,7 +177,11 @@ export default function ComposerPage() {
 
   async function handleGenerateWithAi() {
     if (!aiBrief.trim()) {
-      setError('Escribe un brief para generar con IA');
+      setError('Escribe un brief para generar la imagen con IA');
+      return;
+    }
+    if (!caption.trim()) {
+      setError('Escribe el caption del post antes de generar');
       return;
     }
     if (selectedAccounts.length === 0) {
@@ -195,14 +199,11 @@ export default function ComposerPage() {
         body: JSON.stringify({
           clientId,
           brief: aiBrief.trim(),
+          caption: caption.trim(),
+          hashtags: parseHashtags(),
           socialAccountIds: selectedAccounts,
         }),
       });
-
-      if (result.post.caption) setCaption(result.post.caption);
-      if (result.post.hashtags?.length) {
-        setHashtags(result.post.hashtags.join(' '));
-      }
 
       const image = result.media.find((m) => m.type === 'image');
       if (image?.storage_url) {
@@ -211,7 +212,7 @@ export default function ComposerPage() {
       }
 
       setMessage(
-        `Copy + imagen generados con IA y enviados a aprobación (${result.post.id.slice(0, 8)}…)`,
+        `Imagen generada con IA y enviada a aprobación (${result.post.id.slice(0, 8)}…)`,
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar con IA');
@@ -327,13 +328,84 @@ export default function ComposerPage() {
           </div>
         </div>
 
+        <div>
+          <label htmlFor="client" className="mb-1 block text-sm text-muted">
+            Cliente
+          </label>
+          <select
+            id="client"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+          >
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="caption" className="mb-1 block text-sm text-muted">
+            Caption
+          </label>
+          <textarea
+            id="caption"
+            required
+            rows={5}
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+            placeholder="Texto del post…"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="hashtags" className="mb-1 block text-sm text-muted">
+            Hashtags (separados por espacio o coma)
+          </label>
+          <input
+            id="hashtags"
+            value={hashtags}
+            onChange={(e) => setHashtags(e.target.value)}
+            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+            placeholder="#marca #promo"
+          />
+        </div>
+
+        <fieldset>
+          <legend className="mb-2 text-sm text-muted">Destinos</legend>
+          <div className="flex flex-wrap gap-2">
+            {accounts.length === 0 ? (
+              <p className="text-xs text-muted">No hay cuentas conectadas para este cliente.</p>
+            ) : (
+              accounts.map((a) => (
+                <label
+                  key={a.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-xs text-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAccounts.includes(a.id)}
+                    onChange={() => toggleAccount(a.id)}
+                  />
+                  {a.platform}
+                  {a.username ? ` · ${a.username}` : ''}
+                </label>
+              ))
+            )}
+          </div>
+        </fieldset>
+
         {mediaMode === 'ai' && (
           <div className="rounded-md border border-brand/30 bg-[#E7F3FF] p-4 space-y-3">
             <div>
-              <h2 className="text-sm font-medium text-brand">Generar copy + imagen</h2>
+              <h2 className="text-sm font-medium text-brand">Generar imagen con IA</h2>
               <p className="text-xs text-muted">
-                Usa OpenAI Images si hay <code className="text-muted">IMAGE_API_KEY</code>; si
-                no, mock local. No depende de Canva.
+                El brief solo define la imagen. Caption y hashtags los escribes arriba. OpenAI
+                Images si hay <code className="text-muted">IMAGE_API_KEY</code>; si no, mock
+                local.
               </p>
             </div>
 
@@ -342,7 +414,7 @@ export default function ComposerPage() {
               value={aiBrief}
               onChange={(e) => setAiBrief(e.target.value)}
               className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-              placeholder="Brief: promo de verano, tono cercano, CTA reserva…"
+              placeholder="Brief visual: promo de verano, colores cálidos, producto en primer plano…"
             />
 
             <button
@@ -351,7 +423,7 @@ export default function ComposerPage() {
               onClick={handleGenerateWithAi}
               className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
-              {generatingAi ? 'Generando…' : 'Generar y enviar a aprobación'}
+              {generatingAi ? 'Generando imagen…' : 'Generar imagen y enviar a aprobación'}
             </button>
 
             {aiPreviewUrl && (
@@ -429,76 +501,6 @@ export default function ComposerPage() {
             )}
           </div>
         )}
-
-        <div>
-          <label htmlFor="client" className="mb-1 block text-sm text-muted">
-            Cliente
-          </label>
-          <select
-            id="client"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-          >
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="caption" className="mb-1 block text-sm text-muted">
-            Caption
-          </label>
-          <textarea
-            id="caption"
-            required
-            rows={5}
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-            placeholder="Texto del post…"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="hashtags" className="mb-1 block text-sm text-muted">
-            Hashtags (separados por espacio o coma)
-          </label>
-          <input
-            id="hashtags"
-            value={hashtags}
-            onChange={(e) => setHashtags(e.target.value)}
-            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-            placeholder="#marca #promo"
-          />
-        </div>
-
-        <fieldset>
-          <legend className="mb-2 text-sm text-muted">Destinos</legend>
-          <div className="flex flex-wrap gap-2">
-            {accounts.length === 0 ? (
-              <p className="text-xs text-muted">No hay cuentas conectadas para este cliente.</p>
-            ) : (
-              accounts.map((a) => (
-                <label
-                  key={a.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-xs text-muted"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedAccounts.includes(a.id)}
-                    onChange={() => toggleAccount(a.id)}
-                  />
-                  {a.platform}
-                  {a.username ? ` · ${a.username}` : ''}
-                </label>
-              ))
-            )}
-          </div>
-        </fieldset>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-emerald-600">{message}</p>}

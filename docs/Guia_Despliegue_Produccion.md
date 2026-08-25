@@ -2,12 +2,15 @@
 
 Checklist **paso a paso** para hostear Community Manager Automático y luego seguir implementando módulos.
 
+**Antes de desplegar:** lee `Arquitectura_Hosting.md` (qué es Vercel, Render, Neon, Upstash y R2).  
+En la API, `GET /` da **404** a propósito; la prueba correcta es `GET /health`.
+
 **Stack recomendado (estable y simple):**
 
 | Pieza | Servicio | Por qué |
 |-------|----------|---------|
-| Web (Next.js) | [Vercel](https://vercel.com) | Encaja con `apps/web` |
-| API + workers BullMQ | [Railway](https://railway.app) o [Render](https://render.com) | Proceso Node 24/7 (no serverless) |
+| Web (Next.js) | [Vercel](https://vercel.com) | Encaja con `apps/web` — **esto es lo que abre el usuario** |
+| API + workers BullMQ | [Render](https://render.com) o [Railway](https://railway.app) | Proceso Node 24/7 (no serverless) — **no es la web** |
 | PostgreSQL | [Neon](https://neon.tech) | `DATABASE_URL` + backups |
 | Redis | [Upstash](https://upstash.com) | Colas BullMQ (publicar, tokens, métricas) |
 | Media | [Cloudflare R2](https://developers.cloudflare.com/r2/) | URLs HTTPS públicas para Meta |
@@ -155,9 +158,10 @@ METRICS_STALE_HOURS=6
 
 ### 4.4 Dominio API
 
-1. Settings → Domains → `api.tudominio.com` (o usa el `*.up.railway.app` temporal).
+1. Settings → Domains → `api.tudominio.com` (o usa el `*.onrender.com` / `*.up.railway.app` temporal).
 2. Probar: `https://api.tudominio.com/health` → `{"status":"ok"}`.
-3. [ ] API en HTTPS con health OK
+3. **Nota:** `https://api.tudominio.com/` (raíz) suele devolver **404** — es normal; la API no tiene página home.
+4. [ ] API en HTTPS con health OK
 
 ---
 
@@ -188,13 +192,15 @@ NEXT_PUBLIC_API_URL=https://api.tudominio.com
 
 ## Paso 6 — CORS y URLs cruzadas
 
-En la API, `FRONTEND_URL` debe ser **exactamente** la URL pública de la web (con `https://`, sin barra final).
+En la API, `FRONTEND_URL` debe ser **exactamente** la URL pública de la web (con `https://`, **sin barra final**).
 
 | Variable | Dónde | Valor |
 |----------|-------|-------|
-| `FRONTEND_URL` | Railway (API) | `https://app.tudominio.com` |
-| `NEXT_PUBLIC_API_URL` | Vercel (Web) | `https://api.tudominio.com` |
-| `META_REDIRECT_URI` | Railway + Meta Dashboard | `https://api.tudominio.com/oauth/meta/callback` |
+| `FRONTEND_URL` | Render/Railway (API) | `https://community-manager-web.vercel.app` (sin `/` al final) |
+| `NEXT_PUBLIC_API_URL` | Vercel (Web) | `https://community-manager-api.onrender.com` |
+| `META_REDIRECT_URI` | API + Meta Dashboard | `https://…api…/oauth/meta/callback` |
+
+> Si pones `https://….vercel.app/` con `/` al final, el navegador envía Origin sin barra y **CORS bloquea el login** (parece un error de “no se pudo conectar con la API”).
 
 1. [ ] Login desde la web sin error CORS
 2. [ ] `GET /auth/me` con el JWT funciona

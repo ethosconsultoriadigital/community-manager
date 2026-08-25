@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-07-29 (Guía de despliegue producción)
+**Última actualización:** 2026-08-25 (Composer IA: caption/hashtags del usuario)
 
 ---
 
@@ -11,14 +11,41 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Listo para despliegue → luego módulos |
+| **Fase actual** | Despliegue en curso (Neon/Upstash/R2/Render/Vercel) |
 | **Fases completadas** | 0–8 + A–E, I, F (imagen) + landing + tema |
-| **Próximo paso** | Seguir `docs/Guia_Despliegue_Produccion.md` (Vercel/Neon/Railway/R2) |
+| **Próximo paso** | Desplegar fix Composer IA (caption/hashtags sin mock) |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-25 — Composer IA: caption y hashtags del usuario ✅
+
+**Problema:** Al generar imagen con IA, el mock LLM inyectaba `[Mock LLM]` en el caption y hashtags fijos (`#mock`, `#communitymanager`, `#contenido`).
+
+**Implementado:**
+- `POST /generations/from-brief` acepta `caption` (obligatorio) y `hashtags` (opcional); solo genera **imagen** con IA
+- Eliminada la llamada al mock LLM en `ContentGenerationService.generateFromBrief`
+- Composer envía caption/hashtags del formulario; ya no los sobrescribe con la respuesta de la API
+- Formulario reordenado: caption/hashtags/destinos antes del brief visual
+- Script `verify-phases-api.ps1` actualizado con los nuevos campos
+
+**Criterio de aceptación:** ✅ El post publicado lleva exactamente el caption y hashtags que escribe el usuario; el brief solo afecta la imagen.
+
+---
+
+## 2026-08-11 — Arquitectura de hosting documentada ✅
+
+**Implementado (solo docs):**
+- `docs/Arquitectura_Hosting.md`: mapa Vercel (web) / Render (API) / Neon / Upstash / R2
+- Aclara que `GET /` en la API = 404 normal; la prueba es `/health`
+- Enlaces desde Instrucciones y Guía de despliegue
+- Checklist de login fallido en Vercel (`NEXT_PUBLIC_API_URL` + `FRONTEND_URL`)
+
+**Sin cambios de código de aplicación.**
 
 ---
 

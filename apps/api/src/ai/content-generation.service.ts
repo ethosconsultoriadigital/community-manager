@@ -7,13 +7,14 @@ import {
   PostsValidationError,
   SocialAccountsRepository,
 } from '@cm/db';
-import { IMAGE_PROVIDER, LLM_PROVIDER } from './ai.tokens';
+import { IMAGE_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
-import type { LlmProvider } from './interfaces/llm-provider.interface';
 
 export type GenerateFromBriefInput = {
   clientId: string;
   brief: string;
+  caption: string;
+  hashtags?: string[];
   socialAccountIds: string[];
 };
 
@@ -31,7 +32,6 @@ export class ContentGenerationService {
     private readonly mediaAssets: MediaAssetsRepository,
     private readonly approvals: ApprovalsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
-    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     @Inject(IMAGE_PROVIDER) private readonly image: ImageProvider,
   ) {}
 
@@ -43,36 +43,15 @@ export class ContentGenerationService {
     if (!input.brief?.trim()) {
       throw new PostsValidationError('El brief es obligatorio');
     }
+    if (!input.caption?.trim()) {
+      throw new PostsValidationError('El caption es obligatorio');
+    }
 
-    const platforms = await this.resolvePlatforms(
+    await this.assertSocialAccountsActive(
       agencyId,
       input.clientId,
       input.socialAccountIds,
     );
-
-    const copyGen = await this.generations.create(agencyId, {
-      kind: 'copy',
-      prompt: input.brief,
-      model: 'mock-llm',
-    });
-    await this.generations.updateStatus(agencyId, copyGen.id, 'processing');
-
-    let copyOutput;
-    try {
-      copyOutput = await this.llm.generateCopy({
-        brief: input.brief,
-        platforms,
-      });
-      await this.generations.updateStatus(agencyId, copyGen.id, 'completed', {
-        output: copyOutput,
-        model: 'mock-llm',
-      });
-    } catch (error) {
-      await this.generations.updateStatus(agencyId, copyGen.id, 'failed', {
-        output: { error: error instanceof Error ? error.message : 'Error desconocido' },
-      });
-      throw error;
-    }
 
     const imageGen = await this.generations.create(agencyId, {
       kind: 'image',
@@ -108,8 +87,8 @@ export class ContentGenerationService {
       userId,
       {
         clientId: input.clientId,
-        caption: copyOutput.caption,
-        hashtags: copyOutput.hashtags,
+        caption: input.caption.trim(),
+        hashtags: input.hashtags ?? [],
         socialAccountIds: input.socialAccountIds,
       },
       'pending_approval',
@@ -137,7 +116,7 @@ export class ContentGenerationService {
       postId: post.id,
       model: generatedImage.model ?? generatedImage.provider ?? 'image',
     });
-    await this.generations.linkPost(agencyId, copyGen.id, post.id);
+    await this.generations.linkPost(agencyId, imageGen.id, post.id);
 
     const fullPost = await this.posts.findById(agencyId, post.id);
     const postGenerations = await this.generations.findByPost(agencyId, post.id);
@@ -150,11 +129,11 @@ export class ContentGenerationService {
     };
   }
 
-  private async resolvePlatforms(
+  private async assertSocialAccountsActive(
     agencyId: string,
     clientId: string,
     socialAccountIds: string[],
-  ): Promise<string[]> {
+  ): Promise<void> {
     const uniqueIds = [...new Set(socialAccountIds)];
     const accounts = await this.socialAccounts.findByAgency(agencyId, clientId);
     const selected = accounts.filter(
@@ -166,7 +145,5 @@ export class ContentGenerationService {
         'Uno o más destinos no pertenecen al cliente o no están activos',
       );
     }
-
-    return [...new Set(selected.map((account) => account.platform))];
   }
 }

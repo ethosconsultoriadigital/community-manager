@@ -16,6 +16,8 @@ import { CurrentUser } from '../common/current-user.decorator';
 class GenerateFromBriefDto {
   clientId!: string;
   brief!: string;
+  caption!: string;
+  hashtags?: string[];
   socialAccountIds!: string[];
 }
 

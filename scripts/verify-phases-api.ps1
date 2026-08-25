@@ -92,6 +92,8 @@ try {
     -Body (@{
       clientId = $clientId
       brief = "Verificacion mock IA"
+      caption = "Post de verificacion automatica"
+      hashtags = @("#test")
       socialAccountIds = @($activeIds[0])
     } | ConvertTo-Json) -ContentType "application/json"
   Record "B" "POST /generations/from-brief" ($gen.post.status -eq "pending_approval") "media=$($gen.media.Count)"

@@ -2,32 +2,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { ContentGenerationService } from './content-generation.service';
 
 describe('ContentGenerationService', () => {
-  it('genera copy, imagen y post pending_approval sin Canva', async () => {
+  it('genera imagen y post pending_approval con caption del usuario (sin LLM mock)', async () => {
     const posts = {
       create: vi.fn().mockResolvedValue({
         id: 'post-1',
         status: 'pending_approval',
-        caption: '[Mock LLM] Brief',
-        hashtags: ['#mock'],
+        caption: 'Mi texto de promo',
+        hashtags: ['#verano'],
         post_targets: [],
       }),
       findById: vi.fn().mockResolvedValue({
         id: 'post-1',
         status: 'pending_approval',
-        caption: '[Mock LLM] Brief',
-        hashtags: ['#mock'],
+        caption: 'Mi texto de promo',
+        hashtags: ['#verano'],
         post_targets: [{ id: 't1' }],
       }),
     };
     const generations = {
-      create: vi
-        .fn()
-        .mockResolvedValueOnce({ id: 'gen-copy', status: 'pending' })
-        .mockResolvedValueOnce({ id: 'gen-image', status: 'pending' }),
+      create: vi.fn().mockResolvedValue({ id: 'gen-image', status: 'pending' }),
       updateStatus: vi.fn().mockResolvedValue({}),
       linkPost: vi.fn().mockResolvedValue(true),
       findByPost: vi.fn().mockResolvedValue([
-        { id: 'gen-copy', kind: 'copy', status: 'completed' },
         { id: 'gen-image', kind: 'image', status: 'completed' },
       ]),
     };
@@ -43,13 +39,6 @@ describe('ContentGenerationService', () => {
       findByAgency: vi.fn().mockResolvedValue([
         { id: 'sa1', platform: 'facebook', is_active: true },
       ]),
-    };
-    const llm = {
-      generateCopy: vi.fn().mockResolvedValue({
-        caption: '[Mock LLM] Brief',
-        hashtags: ['#mock'],
-        byPlatform: { facebook: { caption: 'x', hashtags: ['#mock'] } },
-      }),
     };
     const image = {
       generateImage: vi.fn().mockResolvedValue({
@@ -67,19 +56,19 @@ describe('ContentGenerationService', () => {
       mediaAssets as never,
       approvals as never,
       socialAccounts as never,
-      llm as never,
       image as never,
     );
 
     const result = await service.generateFromBrief('agency-1', 'user-1', {
       clientId: 'client-1',
-      brief: 'Promo verano',
+      brief: 'Promo verano visual',
+      caption: 'Mi texto de promo',
+      hashtags: ['#verano'],
       socialAccountIds: ['sa1'],
     });
 
-    expect(llm.generateCopy).toHaveBeenCalled();
     expect(image.generateImage).toHaveBeenCalledWith({
-      brief: 'Promo verano',
+      brief: 'Promo verano visual',
       agencyId: 'agency-1',
     });
     expect(mediaAssets.create).toHaveBeenCalledWith(
@@ -93,12 +82,15 @@ describe('ContentGenerationService', () => {
     expect(posts.create).toHaveBeenCalledWith(
       'agency-1',
       'user-1',
-      expect.objectContaining({ caption: '[Mock LLM] Brief' }),
+      expect.objectContaining({
+        caption: 'Mi texto de promo',
+        hashtags: ['#verano'],
+      }),
       'pending_approval',
     );
     expect(approvals.createPending).toHaveBeenCalledWith('post-1');
     expect(result.post?.status).toBe('pending_approval');
-    expect(result.generations).toHaveLength(2);
+    expect(result.generations).toHaveLength(1);
     expect(result.media[0].source).toBe('ai_generated');
   });
 });

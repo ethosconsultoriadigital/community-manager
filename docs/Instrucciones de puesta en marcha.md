@@ -2,7 +2,8 @@
 
 Guía para levantar el proyecto en una máquina nueva (otra PC, otro desarrollador).  
 Para el estado actual del desarrollo, ver `Estado del Proyecto.md`.  
-Para **hostear en producción** (Vercel + Neon + Railway + Redis + R2), ver `Guia_Despliegue_Produccion.md`.
+Para **hostear en producción** (Vercel + Neon + Railway/Render + Redis + R2), ver `Guia_Despliegue_Produccion.md`.  
+Para entender **qué es cada servicio** (web vs API vs DB), ver `Arquitectura_Hosting.md`.
 
 ---
 
