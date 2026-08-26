@@ -29,6 +29,10 @@ export {
   SocialAccountsRepository,
   type UpsertSocialAccountData,
 } from './repositories/social-accounts.repository';
+export {
+  hashResetToken,
+  PasswordResetTokensRepository,
+} from './repositories/password-reset-tokens.repository';
 export { type CreateUserData, UsersRepository } from './repositories/users.repository';
 export {
   type AssignUserClientData,

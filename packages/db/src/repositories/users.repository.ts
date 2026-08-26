@@ -57,6 +57,14 @@ export class UsersRepository {
     return result.count > 0;
   }
 
+  async updatePasswordHashById(userId: string, passwordHash: string) {
+    const result = await this.prisma.users.updateMany({
+      where: { id: userId },
+      data: { password_hash: passwordHash, updated_at: new Date() },
+    });
+    return result.count > 0;
+  }
+
   async setActive(agencyId: string, userId: string, isActive: boolean) {
     const result = await this.prisma.users.updateMany({
       where: { agency_id: agencyId, id: userId },

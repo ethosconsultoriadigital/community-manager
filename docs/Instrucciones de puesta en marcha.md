@@ -197,6 +197,25 @@ En la web: panel **Admin** (`/admin`) para owner/admin — crear clientes, usuar
 
 ---
 
+## 9c. Contraseñas — perfil y recuperación (Fase E)
+
+Migración: `schema_password_reset_tokens.sql` (`pnpm migrate`).
+
+| Acción | Dónde |
+|--------|--------|
+| Cambiar contraseña (logueado) | Web → **Perfil** o `POST /auth/change-password` |
+| Olvidé mi contraseña | `/forgot-password` → email con enlace |
+| Restablecer con token | `/reset-password?token=...` |
+
+**Email en producción:** configurar en Render (API):
+
+- `RESEND_API_KEY` — API key de [Resend](https://resend.com)
+- `EMAIL_FROM` — remitente verificado (ej. `Community Manager <noreply@tudominio.com>`)
+
+Sin `RESEND_API_KEY`, en local el enlace de reset aparece en los **logs de la API** (no se envía correo).
+
+---
+
 ## 10. Probar OAuth Meta (Fase 3)
 
 ### En Meta Developer Dashboard

@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-26 (Fase D — UX usuario cliente sin selector ajeno)
+**Última actualización:** 2026-08-26 (Fase E — contraseñas perfil y recuperación)
 
 ---
 
@@ -11,14 +11,28 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Fase D cerrada → revisión / despliegue |
-| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–D** |
-| **Próximo paso** | Revisión en producción con login manager |
+| **Fase actual** | Fase E cerrada → revisión / despliegue |
+| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–E** |
+| **Próximo paso** | Aplicar migración en prod + configurar Resend |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-26 — Fase E: contraseñas (perfil + olvidé) ✅
+
+**Objetivo:** el usuario cambia o recupera su contraseña sin depender siempre del admin.
+
+**Implementado:**
+- Migración `schema_password_reset_tokens.sql`
+- `POST /auth/change-password`, `POST /auth/forgot-password`, `POST /auth/reset-password`
+- Email vía Resend (`RESEND_API_KEY`); sin clave, enlace en logs de la API (dev)
+- Web: `/perfil`, `/forgot-password`, `/reset-password`
+
+**Criterio de aceptación:** ✅ Usuario cambia/recupera contraseña; admin puede seguir reseteando.
 
 ---
 

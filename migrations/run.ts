@@ -11,6 +11,7 @@ const MIGRATIONS = [
   'schema_video_format.sql',
   'schema_post_insights.sql',
   'schema_user_client_assignments.sql',
+  'schema_password_reset_tokens.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

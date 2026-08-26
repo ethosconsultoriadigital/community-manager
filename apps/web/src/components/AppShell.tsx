@@ -13,6 +13,7 @@ const BASE_NAV = [
   { href: '/calendar', label: 'Calendario' },
   { href: '/reportes', label: 'Reportes' },
   { href: '/cuentas', label: 'Cuentas' },
+  { href: '/perfil', label: 'Perfil' },
 ];
 
 const ADMIN_NAV = { href: '/admin', label: 'Admin' };

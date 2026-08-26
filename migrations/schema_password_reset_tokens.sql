@@ -1,0 +1,15 @@
+-- ============================================================
+-- Fase E — Tokens de recuperación de contraseña
+-- ============================================================
+
+create table password_reset_tokens (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid        not null references users(id) on delete cascade,
+  token_hash  text        not null,
+  expires_at  timestamptz not null,
+  used_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+
+create index idx_password_reset_user on password_reset_tokens (user_id);
+create unique index idx_password_reset_token_hash on password_reset_tokens (token_hash);

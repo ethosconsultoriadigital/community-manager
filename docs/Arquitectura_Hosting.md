@@ -74,7 +74,8 @@ Si falta, el front usa por defecto `http://localhost:4000` y el login falla en p
 
 **Variables clave en Render:**  
 `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `TOKEN_ENCRYPTION_KEY`,  
-`FRONTEND_URL` (= URL exacta de Vercel), `META_*`, `S3_*`, `MEDIA_PUBLIC_BASE_URL`, etc.
+`FRONTEND_URL` (= URL exacta de Vercel), `META_*`, `S3_*`, `MEDIA_PUBLIC_BASE_URL`,  
+`RESEND_API_KEY`, `EMAIL_FROM` (Fase E — recuperación de contraseña).
 
 ```text
 FRONTEND_URL=https://tu-app.vercel.app

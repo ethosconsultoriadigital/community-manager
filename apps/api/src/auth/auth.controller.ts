@@ -24,6 +24,20 @@ class LoginDto {
   password!: string;
 }
 
+class ChangePasswordDto {
+  currentPassword!: string;
+  newPassword!: string;
+}
+
+class ForgotPasswordDto {
+  email!: string;
+}
+
+class ResetPasswordDto {
+  token!: string;
+  newPassword!: string;
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -50,5 +64,21 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
     return this.auth.getProfile(user.id);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  changePassword(@CurrentUser() user: AuthUser, @Body() body: ChangePasswordDto) {
+    return this.auth.changePassword(user.id, body.currentPassword, body.newPassword);
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.auth.requestPasswordReset(body.email);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() body: ResetPasswordDto) {
+    return this.auth.resetPasswordWithToken(body.token, body.newPassword);
   }
 }

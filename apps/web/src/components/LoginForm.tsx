@@ -1,13 +1,16 @@
 ﻿'use client';
 
-import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { FormEvent, Suspense, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
-export function LoginForm() {
+function LoginFormInner() {
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resetOk = searchParams.get('reset') === '1';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +32,11 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
+      {resetOk && (
+        <p className="text-sm text-emerald-600">
+          Contraseña restablecida. Ya puedes iniciar sesión.
+        </p>
+      )}
       <div>
         <label htmlFor="email" className="mb-1 block text-sm font-medium text-[#1C1E21]">
           Email
@@ -43,9 +51,14 @@ export function LoginForm() {
         />
       </div>
       <div>
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-[#1C1E21]">
-          Contraseña
-        </label>
+        <div className="mb-1 flex items-center justify-between">
+          <label htmlFor="password" className="text-sm font-medium text-[#1C1E21]">
+            Contraseña
+          </label>
+          <Link href="/forgot-password" className="text-xs text-brand hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
         <input
           id="password"
           type="password"
@@ -64,5 +77,13 @@ export function LoginForm() {
         {submitting ? 'Entrando…' : 'Iniciar sesión'}
       </button>
     </form>
+  );
+}
+
+export function LoginForm() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">Cargando…</p>}>
+      <LoginFormInner />
+    </Suspense>
   );
 }
