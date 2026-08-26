@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, apiUploadMedia } from '@/lib/api';
+import { ClientScopeField } from '@/components/ClientScopeField';
+import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
-  Client,
   GenerateFromBriefResult,
   MediaAsset,
   Post,
@@ -18,9 +19,16 @@ type MediaMode = 'ai' | 'upload' | 'reel';
 
 export default function ComposerPage() {
   const searchParams = useSearchParams();
-  const [clients, setClients] = useState<Client[]>([]);
+  const {
+    clients,
+    clientId,
+    setClientId,
+    selectedClient,
+    showClientSelector,
+    loading: clientsLoading,
+    error: clientsError,
+  } = useAssignedClients();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
-  const [clientId, setClientId] = useState('');
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [aiBrief, setAiBrief] = useState('');
@@ -37,17 +45,13 @@ export default function ComposerPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadClients = useCallback(async () => {
-    const data = await apiFetch<Client[]>('/clients');
-    setClients(data.filter((c) => c.is_active));
-    if (data.length > 0) setClientId((prev) => prev || data[0].id);
-  }, []);
+  useEffect(() => {
+    if (!clientsLoading) setLoading(false);
+  }, [clientsLoading]);
 
   useEffect(() => {
-    loadClients()
-      .catch(() => setError('No se pudieron cargar los clientes'))
-      .finally(() => setLoading(false));
-  }, [loadClients]);
+    if (clientsError) setError(clientsError);
+  }, [clientsError]);
 
   const loadPostIntoForm = useCallback(async (postId: string) => {
     const post = await apiFetch<Post>(`/posts/${postId}`);
@@ -328,23 +332,14 @@ export default function ComposerPage() {
           </div>
         </div>
 
-        <div>
-          <label htmlFor="client" className="mb-1 block text-sm text-muted">
-            Cliente
-          </label>
-          <select
-            id="client"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-          >
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ClientScopeField
+          clients={clients}
+          clientId={clientId}
+          onClientIdChange={setClientId}
+          showSelector={showClientSelector}
+          selectedClient={selectedClient}
+          className="block"
+        />
 
         <div>
           <label htmlFor="caption" className="mb-1 block text-sm text-muted">

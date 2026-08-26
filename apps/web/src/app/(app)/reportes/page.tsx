@@ -2,11 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '@/lib/api';
-import type { AnalyticsSummary, Client } from '@/lib/types';
+import { ClientScopeField } from '@/components/ClientScopeField';
+import { useAssignedClients } from '@/lib/use-assigned-clients';
+import type { AnalyticsSummary } from '@/lib/types';
 
 export default function ReportesPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [clientId, setClientId] = useState('');
+  const {
+    clients,
+    clientId,
+    setClientId,
+    selectedClient,
+    showClientSelector,
+    loading: clientsLoading,
+    error: clientsError,
+  } = useAssignedClients();
   const [days, setDays] = useState('30');
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,22 +31,17 @@ export default function ReportesPage() {
   }, [clientId, days]);
 
   useEffect(() => {
-    apiFetch<Client[]>('/clients')
-      .then((data) => {
-        const active = data.filter((c) => c.is_active);
-        setClients(active);
-        setClientId((prev) => prev || active[0]?.id || '');
-      })
-      .catch(() => setError('No se pudieron cargar los clientes'));
-  }, []);
+    if (clientsError) setError(clientsError);
+  }, [clientsError]);
 
   useEffect(() => {
+    if (clientsLoading) return;
     setLoading(true);
     setError(null);
     loadSummary()
       .catch(() => setError('No se pudieron cargar las métricas'))
       .finally(() => setLoading(false));
-  }, [loadSummary]);
+  }, [loadSummary, clientsLoading]);
 
   async function syncMetrics() {
     setSyncing(true);
@@ -78,21 +82,15 @@ export default function ReportesPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Cliente</span>
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
-          >
-            <option value="">Todos</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ClientScopeField
+          clients={clients}
+          clientId={clientId}
+          onClientIdChange={setClientId}
+          showSelector={showClientSelector}
+          selectedClient={selectedClient}
+          allowAll={showClientSelector}
+          selectClassName="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
+        />
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted">Período (días)</span>
           <select

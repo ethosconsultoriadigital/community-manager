@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-26 (Fase C — editar/eliminar en panel admin)
+**Última actualización:** 2026-08-26 (Fase D — UX usuario cliente sin selector ajeno)
 
 ---
 
@@ -11,14 +11,28 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Fase C cerrada → revisión → Fase D (UX usuario cliente) |
-| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–C** |
-| **Próximo paso** | Fase D: UX del usuario cliente (sin selector ajeno) |
+| **Fase actual** | Fase D cerrada → revisión / despliegue |
+| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–D** |
+| **Próximo paso** | Revisión en producción con login manager |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-26 — Fase D: UX usuario cliente (sin selector ajeno) ✅
+
+**Objetivo:** managers y viewers ven solo su negocio asignado, sin dropdown de otros clientes.
+
+**Implementado:**
+- Hook `useAssignedClients` + componente `ClientScopeField`
+- **Composer**, **Cuentas** y **Reportes**: selector oculto si no eres admin/owner o solo hay un cliente
+- Muestra nombre del negocio en texto; mensaje si no hay cliente asignado
+- Admins con varios clientes siguen viendo el selector (Reportes mantiene opción «Todos»)
+
+**Criterio de aceptación:** ✅ Manager entra y opera su cliente sin elegir otros negocios.
 
 ---
 
@@ -49,7 +63,7 @@
 - Acciones: activar/desactivar, resetear contraseña, **editar**, **eliminar**
 - **Conectar Meta** por cliente (OAuth existente)
 
-**Pendiente Fase D:** ocultar selector de otros clientes para managers en Composer/Cuentas.
+**Pendiente Fase D:** ~~ocultar selector de otros clientes para managers en Composer/Cuentas~~ ✅ (ver entrada Fase D arriba).
 
 **Criterio de aceptación:** ✅ Admin opera sin Postman; managers no ven enlace Admin.
 

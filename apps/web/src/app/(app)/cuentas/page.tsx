@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch } from '@/lib/api';
+import { ClientScopeField } from '@/components/ClientScopeField';
 import { useAuth } from '@/lib/auth';
-import type { Client, SocialAccount } from '@/lib/types';
+import { useAssignedClients } from '@/lib/use-assigned-clients';
+import type { SocialAccount } from '@/lib/types';
 
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
@@ -18,8 +20,15 @@ function platformLabel(platform: string) {
 export default function CuentasPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [clientId, setClientId] = useState('');
+  const {
+    clients,
+    clientId,
+    setClientId,
+    selectedClient,
+    showClientSelector,
+    loading: clientsLoading,
+    error: clientsError,
+  } = useAssignedClients();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -31,13 +40,6 @@ export default function CuentasPage() {
     () => user != null && ['manager', 'admin', 'owner'].includes(user.role),
     [user],
   );
-
-  const loadClients = useCallback(async () => {
-    const data = await apiFetch<Client[]>('/clients');
-    const active = data.filter((c) => c.is_active);
-    setClients(active);
-    setClientId((prev) => prev || active[0]?.id || '');
-  }, []);
 
   const loadAccounts = useCallback(async () => {
     if (!clientId) {
@@ -51,10 +53,12 @@ export default function CuentasPage() {
   }, [clientId]);
 
   useEffect(() => {
-    loadClients()
-      .catch(() => setError('No se pudieron cargar los clientes'))
-      .finally(() => setLoading(false));
-  }, [loadClients]);
+    if (!clientsLoading) setLoading(false);
+  }, [clientsLoading]);
+
+  useEffect(() => {
+    if (clientsError) setError(clientsError);
+  }, [clientsError]);
 
   useEffect(() => {
     if (searchParams.get('connected') === 'meta') {
@@ -129,24 +133,14 @@ export default function CuentasPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Cliente</span>
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
-          >
-            {clients.length === 0 ? (
-              <option value="">Sin clientes</option>
-            ) : (
-              clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
+        <ClientScopeField
+          clients={clients}
+          clientId={clientId}
+          onClientIdChange={setClientId}
+          showSelector={showClientSelector}
+          selectedClient={selectedClient}
+          selectClassName="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
+        />
         {canManage && (
           <button
             type="button"
