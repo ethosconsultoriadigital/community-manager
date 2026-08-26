@@ -53,6 +53,12 @@ export class UserClientAssignmentsRepository {
     });
   }
 
+  countByClientId(agencyId: string, clientId: string) {
+    return this.prisma.user_client_assignments.count({
+      where: scopedWhere(agencyId, { client_id: clientId }),
+    });
+  }
+
   async assign(agencyId: string, data: AssignUserClientData) {
     const user = await this.prisma.users.findFirst({
       where: scopedWhere(agencyId, { id: data.userId }),
@@ -94,6 +100,32 @@ export class UserClientAssignmentsRepository {
             created_at: true,
           },
         },
+        clients: {
+          select: { id: true, name: true, is_active: true },
+        },
+      },
+    });
+  }
+
+  async reassign(agencyId: string, userId: string, clientId: string) {
+    const client = await this.prisma.clients.findFirst({
+      where: scopedWhere(agencyId, { id: clientId }),
+    });
+    if (!client) {
+      throw new UserClientAssignmentsValidationError('Cliente no encontrado en la agencia');
+    }
+
+    const existing = await this.prisma.user_client_assignments.findFirst({
+      where: scopedWhere(agencyId, { user_id: userId }),
+    });
+    if (!existing) {
+      return this.assign(agencyId, { userId, clientId });
+    }
+
+    return this.prisma.user_client_assignments.update({
+      where: { id: existing.id },
+      data: { client_id: clientId },
+      include: {
         clients: {
           select: { id: true, name: true, is_active: true },
         },

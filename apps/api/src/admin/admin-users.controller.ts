@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -24,6 +25,12 @@ class CreateAdminUserDto {
 
 class ResetPasswordDto {
   password!: string;
+}
+
+class UpdateAdminUserDto {
+  fullName?: string;
+  role?: 'manager' | 'viewer';
+  clientId?: string;
 }
 
 @Controller('admin/users')
@@ -59,5 +66,19 @@ export class AdminUsersController {
     @Body() body: ResetPasswordDto,
   ) {
     return this.adminUsers.resetPassword(user.agencyId, id, body.password);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: UpdateAdminUserDto,
+  ) {
+    return this.adminUsers.updateUser(user.agencyId, id, body);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.adminUsers.deleteUser(user.agencyId, user.id, id);
   }
 }

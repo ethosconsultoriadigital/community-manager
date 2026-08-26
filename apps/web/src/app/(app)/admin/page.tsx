@@ -31,6 +31,15 @@ export default function AdminPage() {
 
   const [connectingClientId, setConnectingClientId] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [busyClientId, setBusyClientId] = useState<string | null>(null);
+
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [editClientName, setEditClientName] = useState('');
+
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserFullName, setEditUserFullName] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'manager' | 'viewer'>('manager');
+  const [editUserClientId, setEditUserClientId] = useState('');
 
   const loadData = useCallback(async () => {
     const [clientsData, usersData] = await Promise.all([
@@ -174,6 +183,137 @@ export default function AdminPage() {
     }
   }
 
+  function startEditClient(client: Client) {
+    setEditingClientId(client.id);
+    setEditClientName(client.name);
+    setError(null);
+    setMessage(null);
+  }
+
+  function cancelEditClient() {
+    setEditingClientId(null);
+    setEditClientName('');
+  }
+
+  async function saveEditClient(clientId: string) {
+    const name = editClientName.trim();
+    if (!name) return;
+    setBusyClientId(clientId);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/clients/${clientId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
+      setEditingClientId(null);
+      setEditClientName('');
+      setMessage('Cliente actualizado');
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al editar cliente');
+    } finally {
+      setBusyClientId(null);
+    }
+  }
+
+  async function deleteClient(client: Client) {
+    const linked = usersByClientId.get(client.id) ?? [];
+    if (linked.length > 0) {
+      setError(
+        `No se puede eliminar «${client.name}»: tiene ${linked.length} usuario(s) asignado(s). Reasígnalos o elimínalos primero.`,
+      );
+      return;
+    }
+    if (
+      !confirm(
+        `¿Eliminar el cliente «${client.name}»? Se borrarán también sus cuentas Meta, posts y datos asociados.`,
+      )
+    ) {
+      return;
+    }
+    setBusyClientId(client.id);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/clients/${client.id}`, { method: 'DELETE' });
+      setMessage(`Cliente «${client.name}» eliminado`);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al eliminar cliente');
+    } finally {
+      setBusyClientId(null);
+    }
+  }
+
+  function startEditUser(target: AdminUserListItem) {
+    setEditingUserId(target.id);
+    setEditUserFullName(target.fullName ?? '');
+    setEditUserRole(target.role === 'viewer' ? 'viewer' : 'manager');
+    setEditUserClientId(target.client?.id ?? clients[0]?.id ?? '');
+    setError(null);
+    setMessage(null);
+  }
+
+  function cancelEditUser() {
+    setEditingUserId(null);
+  }
+
+  function isEditableClientUser(role: UserRole) {
+    return role === 'manager' || role === 'viewer';
+  }
+
+  async function saveEditUser(userId: string) {
+    setBusyUserId(userId);
+    setError(null);
+    setMessage(null);
+    try {
+      const target = users.find((u) => u.id === userId);
+      const body: { fullName?: string; role?: 'manager' | 'viewer'; clientId?: string } = {
+        fullName: editUserFullName.trim(),
+      };
+      if (target && isEditableClientUser(target.role)) {
+        body.role = editUserRole;
+        body.clientId = editUserClientId;
+      }
+      await apiFetch(`/admin/users/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      setEditingUserId(null);
+      setMessage('Usuario actualizado');
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al editar usuario');
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  async function deleteUser(target: AdminUserListItem) {
+    if (target.role === 'owner') return;
+    if (
+      !confirm(
+        `¿Eliminar al usuario ${target.email}? Perderá acceso de inmediato y no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    setBusyUserId(target.id);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/admin/users/${target.id}`, { method: 'DELETE' });
+      setMessage(`Usuario ${target.email} eliminado`);
+      if (editingUserId === target.id) setEditingUserId(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al eliminar usuario');
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
   if (authLoading || loading) {
     return <p className="text-muted">Cargando administración…</p>;
   }
@@ -225,22 +365,73 @@ export default function AdminPage() {
                   key={client.id}
                   className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line-strong bg-white px-3 py-3"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-ink">{client.name}</p>
+                  <div className="min-w-0 flex-1">
+                    {editingClientId === client.id ? (
+                      <input
+                        type="text"
+                        value={editClientName}
+                        onChange={(e) => setEditClientName(e.target.value)}
+                        className="w-full max-w-xs rounded-md border border-line-strong bg-white px-2 py-1 text-sm text-ink"
+                        autoFocus
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-ink">{client.name}</p>
+                    )}
                     <p className="text-xs text-muted">
                       {linked.length === 0
                         ? 'Sin usuario asignado'
                         : `${linked.length} usuario(s): ${linked.map((u) => u.email).join(', ')}`}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => connectMeta(client.id)}
-                    disabled={connectingClientId === client.id}
-                    className="rounded-md border border-brand px-3 py-1.5 text-xs text-brand hover:bg-[#E7F3FF] disabled:opacity-50"
-                  >
-                    {connectingClientId === client.id ? 'Redirigiendo…' : 'Conectar Meta'}
-                  </button>
+                  <div className="flex flex-wrap gap-1">
+                    {editingClientId === client.id ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busyClientId === client.id}
+                          onClick={() => saveEditClient(client.id)}
+                          className="rounded border border-brand px-2 py-1 text-xs text-brand hover:bg-[#E7F3FF] disabled:opacity-50"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyClientId === client.id}
+                          onClick={cancelEditClient}
+                          className="rounded border border-line-strong px-2 py-1 text-xs text-muted hover:bg-canvas disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busyClientId === client.id}
+                          onClick={() => startEditClient(client)}
+                          className="rounded border border-line-strong px-2 py-1 text-xs text-muted hover:bg-canvas disabled:opacity-50"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyClientId === client.id}
+                          onClick={() => deleteClient(client)}
+                          className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Eliminar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => connectMeta(client.id)}
+                          disabled={connectingClientId === client.id}
+                          className="rounded-md border border-brand px-3 py-1.5 text-xs text-brand hover:bg-[#E7F3FF] disabled:opacity-50"
+                        >
+                          {connectingClientId === client.id ? 'Redirigiendo…' : 'Conectar Meta'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </li>
               );
             })}
@@ -340,13 +531,48 @@ export default function AdminPage() {
               {users.map((u) => (
                 <tr key={u.id} className="border-t border-line bg-surface">
                   <td className="px-3 py-2 text-ink">
-                    {u.email}
-                    {u.fullName ? (
-                      <span className="block text-xs text-muted">{u.fullName}</span>
-                    ) : null}
+                    {editingUserId === u.id ? (
+                      <span className="text-sm">{u.email}</span>
+                    ) : (
+                      <>
+                        {u.email}
+                        {u.fullName ? (
+                          <span className="block text-xs text-muted">{u.fullName}</span>
+                        ) : null}
+                      </>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-muted">{u.role}</td>
-                  <td className="px-3 py-2 text-muted">{u.client?.name ?? '—'}</td>
+                  <td className="px-3 py-2 text-muted">
+                    {editingUserId === u.id && isEditableClientUser(u.role) ? (
+                      <select
+                        value={editUserRole}
+                        onChange={(e) => setEditUserRole(e.target.value as 'manager' | 'viewer')}
+                        className="rounded border border-line-strong bg-white px-2 py-1 text-xs text-ink"
+                      >
+                        <option value="manager">manager</option>
+                        <option value="viewer">viewer</option>
+                      </select>
+                    ) : (
+                      u.role
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-muted">
+                    {editingUserId === u.id && isEditableClientUser(u.role) ? (
+                      <select
+                        value={editUserClientId}
+                        onChange={(e) => setEditUserClientId(e.target.value)}
+                        className="rounded border border-line-strong bg-white px-2 py-1 text-xs text-ink"
+                      >
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      u.client?.name ?? '—'
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs ${
@@ -361,8 +587,44 @@ export default function AdminPage() {
                   <td className="px-3 py-2">
                     {u.role === 'owner' ? (
                       <span className="text-xs text-muted">Propietario</span>
+                    ) : editingUserId === u.id ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={editUserFullName}
+                          onChange={(e) => setEditUserFullName(e.target.value)}
+                          placeholder="Nombre (opcional)"
+                          className="block w-full min-w-[140px] rounded border border-line-strong bg-white px-2 py-1 text-xs text-ink"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            disabled={busyUserId === u.id}
+                            onClick={() => saveEditUser(u.id)}
+                            className="rounded border border-brand px-2 py-1 text-xs text-brand hover:bg-[#E7F3FF] disabled:opacity-50"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyUserId === u.id}
+                            onClick={cancelEditUser}
+                            className="rounded border border-line-strong px-2 py-1 text-xs text-muted hover:bg-canvas disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          disabled={busyUserId === u.id}
+                          onClick={() => startEditUser(u)}
+                          className="rounded border border-line-strong px-2 py-1 text-xs text-muted hover:bg-canvas disabled:opacity-50"
+                        >
+                          Editar
+                        </button>
                         <button
                           type="button"
                           disabled={busyUserId === u.id}
@@ -378,6 +640,14 @@ export default function AdminPage() {
                           className="rounded border border-line-strong px-2 py-1 text-xs text-muted hover:bg-canvas disabled:opacity-50"
                         >
                           Reset pass
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyUserId === u.id}
+                          onClick={() => deleteUser(u)}
+                          className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Eliminar
                         </button>
                       </div>
                     )}

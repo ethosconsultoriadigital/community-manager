@@ -153,4 +153,81 @@ export class AdminUsersService {
     if (!updated) throw new NotFoundException('Usuario no encontrado');
     return { id: userId, passwordReset: true };
   }
+
+  async updateUser(
+    agencyId: string,
+    userId: string,
+    input: {
+      fullName?: string;
+      role?: AssignableRole;
+      clientId?: string;
+    },
+  ): Promise<AdminUserListItem> {
+    const user = await this.users.findByIdInAgency(agencyId, userId);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (user.role === 'owner') {
+      throw new ForbiddenException('No se puede editar al propietario de la agencia');
+    }
+
+    const isClientUser = user.role === 'manager' || user.role === 'viewer';
+
+    if (input.role !== undefined) {
+      if (!isClientUser) {
+        throw new BadRequestException('Solo se puede cambiar el rol de usuarios manager o viewer');
+      }
+      if (!ASSIGNABLE_ROLES.includes(input.role)) {
+        throw new BadRequestException('Rol no permitido');
+      }
+    }
+
+    if (input.clientId !== undefined && !isClientUser) {
+      throw new BadRequestException('Solo usuarios manager o viewer tienen cliente asignado');
+    }
+
+    const profileUpdate: { fullName?: string; role?: AssignableRole } = {};
+    if (input.fullName !== undefined) {
+      profileUpdate.fullName = input.fullName.trim();
+    }
+    if (input.role !== undefined) {
+      profileUpdate.role = input.role;
+    }
+
+    if (Object.keys(profileUpdate).length > 0) {
+      const updated = await this.users.updateProfile(agencyId, userId, profileUpdate);
+      if (!updated) throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (input.clientId !== undefined) {
+      try {
+        await this.assignments.reassign(agencyId, userId, input.clientId);
+      } catch (error) {
+        if (error instanceof UserClientAssignmentsValidationError) {
+          throw new BadRequestException(error.message);
+        }
+        throw error;
+      }
+    }
+
+    const items = await this.listUsers(agencyId);
+    const item = items.find((row) => row.id === userId);
+    if (!item) throw new NotFoundException('Usuario no encontrado');
+    return item;
+  }
+
+  async deleteUser(agencyId: string, actorId: string, userId: string) {
+    if (actorId === userId) {
+      throw new ForbiddenException('No puedes eliminar tu propio usuario');
+    }
+
+    const user = await this.users.findByIdInAgency(agencyId, userId);
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    if (user.role === 'owner') {
+      throw new ForbiddenException('No se puede eliminar al propietario de la agencia');
+    }
+
+    await this.assignments.removeByUserId(agencyId, userId);
+    const deleted = await this.users.deleteInAgency(agencyId, userId);
+    if (!deleted) throw new NotFoundException('Usuario no encontrado');
+    return { id: userId, deleted: true };
+  }
 }

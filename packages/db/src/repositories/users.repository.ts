@@ -65,6 +65,31 @@ export class UsersRepository {
     return result.count > 0;
   }
 
+  async updateProfile(
+    agencyId: string,
+    userId: string,
+    data: { fullName?: string; role?: user_role },
+  ) {
+    const updateData: {
+      full_name?: string | null;
+      role?: user_role;
+      updated_at: Date;
+    } = { updated_at: new Date() };
+
+    if (data.fullName !== undefined) {
+      updateData.full_name = data.fullName.trim() || null;
+    }
+    if (data.role !== undefined) {
+      updateData.role = data.role;
+    }
+
+    const result = await this.prisma.users.updateMany({
+      where: { agency_id: agencyId, id: userId, role: { not: 'owner' } },
+      data: updateData,
+    });
+    return result.count > 0;
+  }
+
   async deleteInAgency(agencyId: string, userId: string) {
     const result = await this.prisma.users.deleteMany({
       where: { agency_id: agencyId, id: userId, role: { not: 'owner' } },

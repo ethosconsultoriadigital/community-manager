@@ -11,11 +11,14 @@ describe('AdminUsersService', () => {
     findByIdInAgency: vi.fn(),
     setActive: vi.fn(),
     updatePasswordHash: vi.fn(),
+    updateProfile: vi.fn(),
     deleteInAgency: vi.fn(),
   };
   const assignments = {
     findByAgency: vi.fn(),
     assign: vi.fn(),
+    reassign: vi.fn(),
+    removeByUserId: vi.fn(),
   };
 
   const service = new AdminUsersService(users as never, assignments as never);
@@ -82,6 +85,60 @@ describe('AdminUsersService', () => {
     users.findByIdInAgency.mockResolvedValue({ id: 'owner-1', role: 'owner' });
 
     await expect(service.setUserActive('agency-1', 'owner-1', false)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('actualiza nombre, rol y cliente de un manager', async () => {
+    users.findByIdInAgency.mockResolvedValue({ id: 'user-1', role: 'manager' });
+    users.updateProfile.mockResolvedValue(true);
+    assignments.reassign.mockResolvedValue({});
+    users.findByAgency.mockResolvedValue([
+      {
+        id: 'user-1',
+        email: 'mgr@test.com',
+        full_name: 'Nuevo',
+        role: 'viewer',
+        is_active: true,
+        created_at: new Date(),
+      },
+    ]);
+    assignments.findByAgency.mockResolvedValue([
+      {
+        user_id: 'user-1',
+        clients: { id: 'client-2', name: 'Otro', is_active: true },
+      },
+    ]);
+
+    const result = await service.updateUser('agency-1', 'user-1', {
+      fullName: 'Nuevo',
+      role: 'viewer',
+      clientId: 'client-2',
+    });
+
+    expect(users.updateProfile).toHaveBeenCalledWith('agency-1', 'user-1', {
+      fullName: 'Nuevo',
+      role: 'viewer',
+    });
+    expect(assignments.reassign).toHaveBeenCalledWith('agency-1', 'user-1', 'client-2');
+    expect(result.role).toBe('viewer');
+    expect(result.client?.id).toBe('client-2');
+  });
+
+  it('elimina usuario y su asignación', async () => {
+    users.findByIdInAgency.mockResolvedValue({ id: 'user-3', role: 'manager' });
+    assignments.removeByUserId.mockResolvedValue(true);
+    users.deleteInAgency.mockResolvedValue(true);
+
+    const result = await service.deleteUser('agency-1', 'admin-1', 'user-3');
+
+    expect(assignments.removeByUserId).toHaveBeenCalledWith('agency-1', 'user-3');
+    expect(users.deleteInAgency).toHaveBeenCalledWith('agency-1', 'user-3');
+    expect(result.deleted).toBe(true);
+  });
+
+  it('no permite eliminar el propio usuario', async () => {
+    await expect(service.deleteUser('agency-1', 'admin-1', 'admin-1')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });

@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-26 (Fase C — panel admin web)
+**Última actualización:** 2026-08-26 (Fase C — editar/eliminar en panel admin)
 
 ---
 
@@ -22,6 +22,20 @@
 
 ---
 
+## 2026-08-26 — Panel admin: editar y eliminar ✅
+
+**Ampliación Fase C:** CRUD completo de clientes y usuarios desde `/admin`.
+
+**Implementado:**
+- Clientes: editar nombre (`PATCH /clients/:id`), eliminar (`DELETE /clients/:id`) con bloqueo si hay usuarios asignados
+- Usuarios: editar nombre, rol y cliente (`PATCH /admin/users/:id`), eliminar (`DELETE /admin/users/:id`)
+- UI inline en listados con confirmación antes de borrar
+- Protecciones: no editar/eliminar owner; no eliminar cliente con usuarios; no auto-eliminarse
+
+**Criterio de aceptación:** ✅ Casos reales de corrección y baja cubiertos sin Postman.
+
+---
+
 ## 2026-08-26 — Fase C: panel admin en la web ✅
 
 **Objetivo:** el administrador gestiona clientes, usuarios y Meta desde el navegador.
@@ -32,7 +46,7 @@
 - Crear cliente (`POST /clients`)
 - Crear usuario + asignación a cliente (`POST /admin/users`)
 - Listado de usuarios con rol, cliente, estado
-- Acciones: activar/desactivar, resetear contraseña
+- Acciones: activar/desactivar, resetear contraseña, **editar**, **eliminar**
 - **Conectar Meta** por cliente (OAuth existente)
 
 **Pendiente Fase D:** ocultar selector de otros clientes para managers en Composer/Cuentas.

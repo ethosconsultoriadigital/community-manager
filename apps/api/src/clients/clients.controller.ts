@@ -3,13 +3,14 @@ import {
   Controller,
   Delete,
   Get,
+  BadRequestException,
   NotFoundException,
   Param,
   Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ClientsRepository } from '@cm/db';
+import { ClientsRepository, UserClientAssignmentsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { ClientAccessService } from '../access/client-access.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -35,6 +36,7 @@ export class ClientsController {
   constructor(
     private readonly clients: ClientsRepository,
     private readonly clientAccess: ClientAccessService,
+    private readonly assignments: UserClientAssignmentsRepository,
   ) {}
 
   @Post()
@@ -80,6 +82,13 @@ export class ClientsController {
   @UseGuards(RolesGuard)
   @Roles('owner', 'admin')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const assignedCount = await this.assignments.countByClientId(user.agencyId, id);
+    if (assignedCount > 0) {
+      throw new BadRequestException(
+        'No se puede eliminar: hay usuarios asignados a este cliente. Reasígnalos o elimínalos primero.',
+      );
+    }
+
     const deleted = await this.clients.delete(user.agencyId, id);
     if (!deleted) throw new NotFoundException('Cliente no encontrado');
     return { deleted: true };
