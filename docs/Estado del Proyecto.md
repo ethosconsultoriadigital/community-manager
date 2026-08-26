@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-25 (Fase A — admin usuarios + asignación cliente)
+**Última actualización:** 2026-08-26 (Fase B — aislamiento por cliente en API)
 
 ---
 
@@ -11,14 +11,34 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Fase A cerrada → revisión → Fase B (aislamiento API) |
-| **Fases completadas** | 0–8 + A–E, I, F (imagen) + landing + tema + **Admin Fase A** |
-| **Próximo paso** | Fase B: filtrar datos por cliente asignado al usuario |
+| **Fase actual** | Fase B cerrada → revisión → Fase C (panel admin web) |
+| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fase A** + **Fase B** |
+| **Próximo paso** | Fase C: UI `/admin` para gestionar usuarios y Meta |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-26 — Fase B: aislamiento por cliente en API ✅
+
+**Objetivo:** un `manager`/`viewer` solo accede a datos de su cliente asignado; `owner`/`admin` ven todo.
+
+**Implementado:**
+- `ClientAccessService` + `AccessModule` global
+- Filtrado en controladores: `clients`, `posts`, `social-accounts`, `content-sources`, `source-items`, `generations`, `analytics`, Canva edit
+- OAuth Meta: `startConnect` valida acceso al `clientId`
+- Sync métricas: solo posts del cliente asignado para managers
+- Acceso denegado → `404` en recursos ajenos (no filtra por ID)
+- Tests unitarios + integración (`client-scope.integration.test.ts`)
+
+**Sin cambios de UX web:** el panel aún muestra selector de clientes (Fase D).
+
+**Criterio de aceptación:** ✅ Manager A no ve posts/cuentas de Manager B vía API; admin sin cambios.
+
+**Pendiente Fase C:** panel admin en Next.js.
 
 ---
 

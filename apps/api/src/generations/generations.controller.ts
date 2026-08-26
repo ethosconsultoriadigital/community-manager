@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PostsValidationError } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
+import { ClientAccessService } from '../access/client-access.service';
 import { ContentGenerationService } from '../ai/content-generation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -24,7 +25,10 @@ class GenerateFromBriefDto {
 @Controller('generations')
 @UseGuards(JwtAuthGuard)
 export class GenerationsController {
-  constructor(private readonly generation: ContentGenerationService) {}
+  constructor(
+    private readonly generation: ContentGenerationService,
+    private readonly clientAccess: ClientAccessService,
+  ) {}
 
   @Post('from-brief')
   @UseGuards(RolesGuard)
@@ -33,6 +37,7 @@ export class GenerationsController {
     @CurrentUser() user: AuthUser,
     @Body() body: GenerateFromBriefDto,
   ) {
+    await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
       return await this.generation.generateFromBrief(user.agencyId, user.id, body);
     } catch (error) {

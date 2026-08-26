@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ClientsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
+import { ClientAccessService } from '../access/client-access.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -31,7 +32,10 @@ class UpdateClientDto {
 @Controller('clients')
 @UseGuards(JwtAuthGuard)
 export class ClientsController {
-  constructor(private readonly clients: ClientsRepository) {}
+  constructor(
+    private readonly clients: ClientsRepository,
+    private readonly clientAccess: ClientAccessService,
+  ) {}
 
   @Post()
   @UseGuards(RolesGuard)
@@ -41,12 +45,19 @@ export class ClientsController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser) {
+  async findAll(@CurrentUser() user: AuthUser) {
+    const scope = await this.clientAccess.resolveListScope(user);
+    if (scope.mode === 'none') return [];
+    if (scope.mode === 'single') {
+      const client = await this.clients.findById(user.agencyId, scope.clientId);
+      return client ? [client] : [];
+    }
     return this.clients.findAll(user.agencyId);
   }
 
   @Get(':id')
   async findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.clientAccess.assertClientAccess(user, id);
     const client = await this.clients.findById(user.agencyId, id);
     if (!client) throw new NotFoundException('Cliente no encontrado');
     return client;

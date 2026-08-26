@@ -7,9 +7,11 @@ import {
   Param,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SocialAccountsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
+import { ClientAccessService } from '../access/client-access.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -22,17 +24,29 @@ export class SocialAccountsController {
   constructor(
     private readonly socialAccounts: SocialAccountsRepository,
     private readonly socialAccountsService: SocialAccountsService,
+    private readonly clientAccess: ClientAccessService,
   ) {}
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
-    return this.socialAccounts.findByAgency(user.agencyId, clientId);
+  async findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
+    const scope = await this.clientAccess.resolveListScope(user, clientId);
+    if (scope.mode === 'none') return [];
+    const filter = scope.mode === 'single' ? scope.clientId : undefined;
+    return this.socialAccounts.findByAgency(user.agencyId, filter);
   }
 
   @Get(':id')
   async findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     const account = await this.socialAccounts.findById(user.agencyId, id);
     if (!account) throw new NotFoundException('Cuenta social no encontrada');
+    try {
+      await this.clientAccess.assertClientAccess(user, account.client_id);
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new NotFoundException('Cuenta social no encontrada');
+      }
+      throw error;
+    }
     return account;
   }
 
@@ -41,6 +55,9 @@ export class SocialAccountsController {
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async disconnect(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const account = await this.socialAccounts.findById(user.agencyId, id);
+    if (!account) throw new NotFoundException('Cuenta social no encontrada');
+    await this.clientAccess.assertClientAccess(user, account.client_id);
     await this.socialAccountsService.disconnect(user.agencyId, id);
   }
 }

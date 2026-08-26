@@ -9,6 +9,7 @@ import { ClientsRepository, SocialAccountsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { encryptToken } from '@cm/shared';
 import { randomBytes } from 'node:crypto';
+import { ClientAccessService } from '../../access/client-access.service';
 import { MetaGraphClient } from './meta-graph.client';
 import { META_OAUTH_SCOPES, type MetaOAuthState } from './meta.types';
 
@@ -20,10 +21,12 @@ export class MetaOAuthService {
     private readonly meta: MetaGraphClient,
     private readonly clients: ClientsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
+    private readonly clientAccess: ClientAccessService,
   ) {}
 
   async startConnect(user: AuthUser, clientId: string): Promise<string> {
     await this.assertClientBelongsToAgency(user.agencyId, clientId);
+    await this.clientAccess.assertClientAccess(user, clientId);
 
     const redirectUri = this.getRedirectUri();
     const state = this.jwt.sign(

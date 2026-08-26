@@ -12,11 +12,13 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApprovalsRepository, PostsRepository, PostsValidationError } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
+import { ClientAccessService } from '../access/client-access.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -57,10 +59,12 @@ export class PostsController {
     private readonly approvals: ApprovalsRepository,
     private readonly publishQueue: PublishQueueService,
     private readonly mediaUpload: MediaUploadService,
+    private readonly clientAccess: ClientAccessService,
   ) {}
 
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() body: CreatePostDto) {
+    await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
       return await this.posts.create(user.agencyId, user.id, body);
     } catch (error) {
@@ -72,15 +76,16 @@ export class PostsController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
-    return this.posts.findAll(user.agencyId, clientId);
+  async findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
+    const scope = await this.clientAccess.resolveListScope(user, clientId);
+    if (scope.mode === 'none') return [];
+    const filter = scope.mode === 'single' ? scope.clientId : undefined;
+    return this.posts.findAll(user.agencyId, filter);
   }
 
   @Get(':id')
   async findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    const post = await this.posts.findById(user.agencyId, id);
-    if (!post) throw new NotFoundException('Post no encontrado');
-    return post;
+    return this.getPostOrThrow(user, id);
   }
 
   @Patch(':id')
@@ -89,6 +94,7 @@ export class PostsController {
     @Param('id') id: string,
     @Body() body: UpdatePostDto,
   ) {
+    await this.getPostOrThrow(user, id);
     try {
       const post = await this.posts.update(user.agencyId, id, body);
       if (!post) throw new NotFoundException('Post no encontrado');
@@ -113,6 +119,7 @@ export class PostsController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    await this.getPostOrThrow(user, id);
     try {
       return await this.mediaUpload.uploadToPost(user.agencyId, id, file);
     } catch (error) {
@@ -127,6 +134,7 @@ export class PostsController {
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async submitForApproval(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getPostOrThrow(user, id);
     try {
       const post = await this.posts.submitForApproval(user.agencyId, id);
       if (!post) throw new NotFoundException('Post no encontrado');
@@ -143,6 +151,7 @@ export class PostsController {
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async approve(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getPostOrThrow(user, id);
     const approval = await this.approvals.approveLatest(user.agencyId, id, user.id);
     if (!approval) {
       throw new BadRequestException('No hay solicitud de aprobación pendiente');
@@ -161,6 +170,7 @@ export class PostsController {
     @Param('id') id: string,
     @Body() body: RejectPostDto,
   ) {
+    await this.getPostOrThrow(user, id);
     const approval = await this.approvals.rejectLatest(
       user.agencyId,
       id,
@@ -184,6 +194,7 @@ export class PostsController {
     @Param('id') id: string,
     @Body() body: SchedulePostDto,
   ) {
+    await this.getPostOrThrow(user, id);
     const scheduledAt = new Date(body.scheduledAt);
     if (Number.isNaN(scheduledAt.getTime())) {
       throw new BadRequestException('scheduledAt debe ser una fecha ISO válida');
@@ -205,8 +216,23 @@ export class PostsController {
 
   @Delete(':id')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getPostOrThrow(user, id);
     const deleted = await this.posts.delete(user.agencyId, id);
     if (!deleted) throw new NotFoundException('Post no encontrado');
     return { deleted: true };
+  }
+
+  private async getPostOrThrow(user: AuthUser, id: string) {
+    const post = await this.posts.findById(user.agencyId, id);
+    if (!post) throw new NotFoundException('Post no encontrado');
+    try {
+      await this.clientAccess.assertPostAccess(user, post);
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new NotFoundException('Post no encontrado');
+      }
+      throw error;
+    }
+    return post;
   }
 }

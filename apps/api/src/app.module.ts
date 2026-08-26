@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'node:path';
+import { AccessModule } from './access/access.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AgenciesModule } from './agencies/agencies.module';
@@ -24,6 +25,7 @@ import { SocialAccountsModule } from './social-accounts/social-accounts.module';
       envFilePath: join(__dirname, '..', '..', '..', '.env'),
     }),
     DbModule,
+    AccessModule,
     AuthModule,
     AdminModule,
     AgenciesModule,

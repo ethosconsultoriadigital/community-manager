@@ -10,6 +10,12 @@ export type SyncInsightsResult = {
   skipped: number;
 };
 
+export type SyncInsightsOptions = {
+  agencyId?: string;
+  clientId?: string;
+  limit?: number;
+};
+
 @Injectable()
 export class SyncPostInsightsService {
   private readonly logger = new Logger(SyncPostInsightsService.name);
@@ -21,7 +27,7 @@ export class SyncPostInsightsService {
     private readonly metaMetrics: MetaMetricsService,
   ) {}
 
-  async syncStaleMetrics(options?: { agencyId?: string; limit?: number }): Promise<SyncInsightsResult> {
+  async syncStaleMetrics(options?: SyncInsightsOptions): Promise<SyncInsightsResult> {
     const staleHours = Number(this.config.get<string>('METRICS_STALE_HOURS') ?? '6');
     const staleBefore = new Date(Date.now() - staleHours * 60 * 60 * 1000);
     const limit = options?.limit ?? 50;
@@ -33,6 +39,10 @@ export class SyncPostInsightsService {
 
     for (const target of targets) {
       if (options?.agencyId && target.posts.agency_id !== options.agencyId) {
+        skipped += 1;
+        continue;
+      }
+      if (options?.clientId && target.posts.client_id !== options.clientId) {
         skipped += 1;
         continue;
       }

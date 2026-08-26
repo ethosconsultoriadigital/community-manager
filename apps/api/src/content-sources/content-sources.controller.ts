@@ -8,6 +8,7 @@ import {
   BadRequestException,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ContentSourcesRepository,
@@ -16,6 +17,7 @@ import {
   SourceItemsValidationError,
 } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
+import { ClientAccessService } from '../access/client-access.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -42,13 +44,14 @@ export class ContentSourcesController {
     private readonly contentSources: ContentSourcesRepository,
     private readonly sourceItems: SourceItemsRepository,
     private readonly ingestion: IngestionService,
-    private readonly promoteItem: PromoteItemService,
+    private readonly clientAccess: ClientAccessService,
   ) {}
 
   @Post()
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async create(@CurrentUser() user: AuthUser, @Body() body: CreateContentSourceDto) {
+    await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
       return await this.contentSources.create(user.agencyId, body);
     } catch (error) {
@@ -60,8 +63,11 @@ export class ContentSourcesController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
-    return this.contentSources.findAll(user.agencyId, clientId);
+  async findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
+    const scope = await this.clientAccess.resolveListScope(user, clientId);
+    if (scope.mode === 'none') return [];
+    const filter = scope.mode === 'single' ? scope.clientId : undefined;
+    return this.contentSources.findAll(user.agencyId, filter);
   }
 
   @Get(':id/items')
@@ -70,8 +76,7 @@ export class ContentSourcesController {
     @Param('id') id: string,
     @Query('minScoreOnly') minScoreOnly?: string,
   ) {
-    const source = await this.contentSources.findById(user.agencyId, id);
-    if (!source) throw new NotFoundException('Fuente no encontrada');
+    const source = await this.getSourceOrThrow(user, id);
 
     const minScore =
       minScoreOnly === 'true' && source.min_score
@@ -85,6 +90,7 @@ export class ContentSourcesController {
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async ingest(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getSourceOrThrow(user, id);
     try {
       return await this.ingestion.ingest(user.agencyId, id);
     } catch (error) {
@@ -94,6 +100,20 @@ export class ContentSourcesController {
       throw error;
     }
   }
+
+  private async getSourceOrThrow(user: AuthUser, id: string) {
+    const source = await this.contentSources.findById(user.agencyId, id);
+    if (!source) throw new NotFoundException('Fuente no encontrada');
+    try {
+      await this.clientAccess.assertClientAccess(user, source.client_id);
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new NotFoundException('Fuente no encontrada');
+      }
+      throw error;
+    }
+    return source;
+  }
 }
 
 @Controller('source-items')
@@ -102,12 +122,14 @@ export class SourceItemsController {
   constructor(
     private readonly sourceItems: SourceItemsRepository,
     private readonly promoteItem: PromoteItemService,
+    private readonly clientAccess: ClientAccessService,
   ) {}
 
   @Post(':id/approve')
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async approve(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getItemOrThrow(user, id);
     try {
       const item = await this.sourceItems.approve(user.agencyId, id);
       if (!item) throw new NotFoundException('Item no encontrado');
@@ -128,6 +150,7 @@ export class SourceItemsController {
     @Param('id') id: string,
     @Body() body: PromoteItemDto,
   ) {
+    await this.getItemOrThrow(user, id);
     try {
       const result = await this.promoteItem.promote(user.agencyId, user.id, id, body);
       if (!result) throw new NotFoundException('Item no encontrado');
@@ -138,5 +161,19 @@ export class SourceItemsController {
       }
       throw error;
     }
+  }
+
+  private async getItemOrThrow(user: AuthUser, id: string) {
+    const item = await this.sourceItems.findById(user.agencyId, id);
+    if (!item) throw new NotFoundException('Item no encontrado');
+    try {
+      await this.clientAccess.assertClientAccess(user, item.client_id);
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new NotFoundException('Item no encontrado');
+      }
+      throw error;
+    }
+    return item;
   }
 }
