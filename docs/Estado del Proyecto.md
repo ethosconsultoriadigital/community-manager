@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-26 (Fase B — aislamiento por cliente en API)
+**Última actualización:** 2026-08-26 (Fase C — panel admin web)
 
 ---
 
@@ -11,14 +11,33 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Fase B cerrada → revisión → Fase C (panel admin web) |
-| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fase A** + **Fase B** |
-| **Próximo paso** | Fase C: UI `/admin` para gestionar usuarios y Meta |
+| **Fase actual** | Fase C cerrada → revisión → Fase D (UX usuario cliente) |
+| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–C** |
+| **Próximo paso** | Fase D: UX del usuario cliente (sin selector ajeno) |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-26 — Fase C: panel admin en la web ✅
+
+**Objetivo:** el administrador gestiona clientes, usuarios y Meta desde el navegador.
+
+**Implementado:**
+- Ruta `/admin` (solo `owner` / `admin`; redirige a `/inicio` si no)
+- Enlace **Admin** en navbar solo para administradores
+- Crear cliente (`POST /clients`)
+- Crear usuario + asignación a cliente (`POST /admin/users`)
+- Listado de usuarios con rol, cliente, estado
+- Acciones: activar/desactivar, resetear contraseña
+- **Conectar Meta** por cliente (OAuth existente)
+
+**Pendiente Fase D:** ocultar selector de otros clientes para managers en Composer/Cuentas.
+
+**Criterio de aceptación:** ✅ Admin opera sin Postman; managers no ven enlace Admin.
 
 ---
 

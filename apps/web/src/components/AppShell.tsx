@@ -6,7 +6,7 @@ import { EthosLogo } from '@/components/EthosLogo';
 import { SiteFooter } from '@/components/SiteFooter';
 import { useAuth } from '@/lib/auth';
 
-const NAV = [
+const BASE_NAV = [
   { href: '/inicio', label: 'Inicio' },
   { href: '/composer', label: 'Composer' },
   { href: '/approvals', label: 'Aprobaciones' },
@@ -14,6 +14,12 @@ const NAV = [
   { href: '/reportes', label: 'Reportes' },
   { href: '/cuentas', label: 'Cuentas' },
 ];
+
+const ADMIN_NAV = { href: '/admin', label: 'Admin' };
+
+function isAgencyAdmin(role: string) {
+  return role === 'owner' || role === 'admin';
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -33,6 +39,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  const nav = isAgencyAdmin(user.role) ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV;
+
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
       <header className="border-b border-line bg-surface shadow-sm">
@@ -42,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <p className="hidden text-xs text-muted sm:block">{agencyName}</p>
           </div>
           <nav className="flex flex-wrap gap-1">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

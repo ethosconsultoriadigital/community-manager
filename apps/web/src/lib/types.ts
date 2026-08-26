@@ -110,3 +110,19 @@ export type GenerateFromBriefResult = {
   post: Post;
   media: MediaAsset[];
 };
+
+export type AdminUserClient = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+export type AdminUserListItem = {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+  client: AdminUserClient | null;
+};

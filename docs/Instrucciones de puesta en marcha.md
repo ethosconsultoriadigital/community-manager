@@ -193,6 +193,8 @@ Invoke-RestMethod -Uri "http://localhost:4000/admin/users" -Headers $headers
 
 En producción: `ALLOW_PUBLIC_REGISTER=false` y aplicar migración `schema_user_client_assignments.sql` (`pnpm migrate`).
 
+En la web: panel **Admin** (`/admin`) para owner/admin — crear clientes, usuarios y conectar Meta.
+
 ---
 
 ## 10. Probar OAuth Meta (Fase 3)
