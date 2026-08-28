@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (Radar Google Sheets → Aprobaciones)
+**Última actualización:** 2026-08-28 (Radar: solo hoy + url_radarmex + multi-sheet)
 
 ---
 
@@ -11,9 +11,9 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Radar Sheet (R1–R4) |
-| **Fases completadas** | 0–8 + A–E + preview/edit + **Radar Sheets** |
-| **Próximo paso** | Configurar `GOOGLE_SERVICE_ACCOUNT_JSON` en Render + compartir Sheet Radarmex |
+| **Fase actual** | Radar filtros fecha + multi-sheet |
+| **Fases completadas** | 0–8 + A–E + preview/edit + Radar Sheets |
+| **Próximo paso** | Redeploy → Limpiar aprobaciones inválidas → Sync solo hoy |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |

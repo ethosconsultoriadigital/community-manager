@@ -162,6 +162,10 @@ export type RadarSyncResult = {
     duplicates: number;
     belowMinScore: number;
     notFlagged: number;
+    skippedNoRadarmexUrl?: number;
+    skippedOutOfDateRange?: number;
+    dateFrom?: string;
+    dateTo?: string;
   };
   promote: {
     itemsConsidered: number;

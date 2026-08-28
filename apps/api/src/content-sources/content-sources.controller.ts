@@ -27,7 +27,9 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { IngestionService } from './ingestion.service';
 import { PromoteItemService } from './promote-item.service';
 import { RadarSyncService } from './radar-sync.service';
+import { PurgeInvalidPendingService } from './purge-invalid-pending.service';
 import { parseServiceAccountJson } from './google-sheets-auth';
+import { calendarDateInTz } from './radarmex-columns';
 
 class CreateContentSourceDto {
   clientId!: string;
@@ -56,6 +58,7 @@ export class ContentSourcesController {
     private readonly sourceItems: SourceItemsRepository,
     private readonly ingestion: IngestionService,
     private readonly radarSync: RadarSyncService,
+    private readonly purgePending: PurgeInvalidPendingService,
     private readonly clientAccess: ClientAccessService,
     private readonly config: ConfigService,
   ) {}
@@ -74,6 +77,34 @@ export class ContentSourcesController {
     } catch {
       return { configured: false, clientEmail: null as string | null };
     }
+  }
+
+  @Post('purge-invalid-pending')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async purgeInvalidPending(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId?: string,
+  ) {
+    if (clientId) {
+      await this.clientAccess.assertClientAccess(user, clientId);
+    } else {
+      const scope = await this.clientAccess.resolveListScope(user);
+      if (scope.mode === 'none') {
+        return { scanned: 0, deleted: 0, kept: 0 };
+      }
+      if (scope.mode === 'single') {
+        return this.purgePending.purge(user.agencyId, scope.clientId);
+      }
+    }
+    return this.purgePending.purge(user.agencyId, clientId);
+  }
+
+  @Get('today')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  today() {
+    return { today: calendarDateInTz(new Date()) };
   }
 
   @Post()

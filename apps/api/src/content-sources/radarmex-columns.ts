@@ -89,6 +89,16 @@ export function parseSheetDate(value: unknown): Date | null {
   const raw = String(value).trim();
   if (!raw) return null;
 
+  // ISO date-only primero (evita que 2026-08-28 se malinterprete o cambie de día por UTC)
+  const isoDay = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (isoDay) {
+    const year = Number(isoDay[1]);
+    const month = Number(isoDay[2]);
+    const day = Number(isoDay[3]);
+    const d = new Date(year, month - 1, day);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
   const dmy = raw.match(
     /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
   );
@@ -113,4 +123,56 @@ export function decodeHtmlEntities(url: string | undefined): string | undefined 
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/g, "'");
+}
+
+/** Fecha YYYY-MM-DD en zona (default CDMX). */
+export function calendarDateInTz(
+  date: Date = new Date(),
+  timeZone = 'America/Mexico_City',
+): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/** Extrae YYYY-MM-DD de un Date o string de Sheet. */
+export function toCalendarDate(
+  value: Date | string | null | undefined,
+  timeZone = 'America/Mexico_City',
+): string | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'string') {
+    const isoDay = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoDay) return `${isoDay[1]}-${isoDay[2]}-${isoDay[3]}`;
+  }
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return calendarDateInTz(value, timeZone);
+  }
+  const parsed = parseSheetDate(value);
+  if (!parsed) return null;
+  // Fechas parseadas desde dd/mm/yyyy ya están en hora local del servidor
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function isDateInRange(
+  dateKey: string | null,
+  fromKey: string,
+  toKey: string,
+): boolean {
+  if (!dateKey) return false;
+  return dateKey >= fromKey && dateKey <= toKey;
+}
+
+/** Heurística: URL de la web propia Radarmex (no medios externos). */
+export function looksLikeRadarmexUrl(url: string | null | undefined): boolean {
+  if (!url?.trim()) return false;
+  const u = url.trim().toLowerCase();
+  return u.includes('radarmex') || u.includes('radar.mex') || u.includes('radar-mex');
 }

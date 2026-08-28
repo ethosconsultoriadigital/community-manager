@@ -17,6 +17,8 @@ export type SheetRow = {
   flagged_publish?: boolean;
   /** URL propia del medio (p. ej. url_radarmex); se prioriza en el caption. */
   article_url?: string;
+  /** fecha_publicacion del Sheet */
+  published_at?: string;
 };
 
 export type IngestSheetInput = {

@@ -224,9 +224,11 @@ Sin `RESEND_API_KEY`, en local el enlace de reset aparece en los **logs de la AP
 1. Crea una **service account** en Google Cloud con acceso a Google Sheets API.
 2. Pon el JSON completo en `GOOGLE_SERVICE_ACCOUNT_JSON` (una línea en Render).
 3. Comparte el Sheet del cliente con el `client_email` de esa cuenta (solo lectura).
-4. En la web → **Radar**: pega URL/ID del spreadsheet + `gid` de la pestaña → Guardar → **Sincronizar ahora**.
-5. Las filas con `publicar=TRUE` y sentimiento Positivo (o score ≥ mínimo) generan posts en **Aprobaciones** (uno para Facebook y otro para Instagram si hay copy y cuenta conectada).
-6. El enlace del caption usa **solo** `url_radarmex` (nunca `url_original` de terceros).
+4. En la web → **Radar**: pega URL/ID del spreadsheet + `gid` → rango de fechas (por defecto **solo hoy**) → Guardar → **Sincronizar**.
+5. Solo filas con `publicar=TRUE`, `url_radarmex` no vacía, `fecha_publicacion` en el rango, y score/sentimiento positivo → posts en Aprobaciones (FB + IG).
+6. El enlace del caption usa **solo** `url_radarmex`.
+7. **Limpiar aprobaciones inválidas** borra pendientes del Radar sin URL Radarmex.
+8. **+ Otro Sheet** permite varios spreadsheets por cliente; **Sincronizar todos** los recorre.
 
 Sync automático: cada 15 min (`RADAR_SYNC_CRON`) si `RADAR_SYNC_ENABLED=true`.
 

@@ -80,6 +80,7 @@ export class SourceItemsRepository {
         post_id: null,
         flagged_publish: true,
         status: { in: statuses },
+        NOT: { OR: [{ source_url: null }, { source_url: '' }] },
       }),
       orderBy: { created_at: 'desc' },
     });

@@ -1,62 +1,83 @@
 import { describe, expect, it, vi } from 'vitest';
-import { IngestionService } from './ingestion.service';
+import { IngestionService, rowPassesFilters, resolveDateRange } from './ingestion.service';
+import { calendarDateInTz } from './radarmex-columns';
 
-describe('IngestionService', () => {
-  it('exige publicar=true y score/sentimiento positivo', async () => {
+describe('IngestionService filters', () => {
+  it('resolveDateRange usa hoy si no hay config', () => {
+    const today = calendarDateInTz(new Date());
+    expect(resolveDateRange({})).toEqual({ dateFrom: today, dateTo: today });
+    expect(resolveDateRange({ dateFrom: '2026-08-01', dateTo: '2026-08-10' })).toEqual({
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-10',
+    });
+  });
+
+  it('exige url_radarmex y fecha_publicacion en rango', () => {
+    const today = calendarDateInTz(new Date());
+    const base = {
+      external_id: 'n1',
+      flagged_publish: true,
+      sentiment: 'Positivo',
+      sentiment_score: 0.9,
+      article_url: 'https://www.radarmex.mx/nota/1',
+      published_at: today,
+    };
+    expect(rowPassesFilters(base, 0.7, today, today)).toBe('ok');
+    expect(
+      rowPassesFilters({ ...base, article_url: '' }, 0.7, today, today),
+    ).toBe('no_radarmex_url');
+    expect(
+      rowPassesFilters({ ...base, published_at: '2020-01-01' }, 0.7, today, today),
+    ).toBe('out_of_range');
+  });
+
+  it('filtra e ingesta solo filas válidas', async () => {
+    const today = calendarDateInTz(new Date());
     const source = {
       id: 'source-1',
       client_id: 'client-1',
       type: 'sheet',
       is_active: true,
       min_score: 0.7,
-      config: { useMock: true },
+      config: { useMock: true, dateFrom: today, dateTo: today },
     };
 
-    const contentSources = {
-      findById: vi.fn().mockResolvedValue(source),
-    };
+    const contentSources = { findById: vi.fn().mockResolvedValue(source) };
     const sourceItems = {
       findByDedupHash: vi.fn().mockResolvedValue(null),
       findByExternalId: vi.fn().mockResolvedValue(null),
-      upsert: vi
-        .fn()
-        .mockResolvedValueOnce({ id: 'i1', status: 'new', external_id: 'noticia_001' })
-        .mockResolvedValueOnce({ id: 'i2', status: 'new', external_id: 'noticia_003' }),
-      findBySource: vi.fn().mockResolvedValue([
-        { id: 'i1', sentiment_score: 0.82 },
-        { id: 'i2', sentiment_score: 0.91 },
-      ]),
+      upsert: vi.fn().mockResolvedValue({ id: 'i1', status: 'new', external_id: 'n1' }),
+      findBySource: vi.fn().mockResolvedValue([{ id: 'i1' }]),
     };
     const sheet = {
       fetchRows: vi.fn().mockResolvedValue({
         rows: [
           {
-            external_id: 'noticia_001',
-            sentiment_score: 0.82,
-            sentiment: 'Positivo',
+            external_id: 'n1',
             flagged_publish: true,
-            title: 'A',
+            sentiment: 'Positivo',
+            sentiment_score: 0.9,
+            article_url: 'https://radarmex.mx/a',
+            published_at: today,
+            title: 'OK',
           },
           {
-            external_id: 'noticia_002',
-            sentiment_score: 0.91,
+            external_id: 'n2',
+            flagged_publish: true,
             sentiment: 'Positivo',
-            flagged_publish: false,
-            title: 'B',
+            sentiment_score: 0.9,
+            article_url: '',
+            published_at: today,
+            title: 'Sin URL',
           },
           {
-            external_id: 'noticia_003',
-            sentiment_score: 0.91,
+            external_id: 'n3',
+            flagged_publish: true,
             sentiment: 'Positivo',
-            flagged_publish: true,
-            title: 'C',
-          },
-          {
-            external_id: 'noticia_004',
-            sentiment_score: 0.4,
-            sentiment: 'Neutral',
-            flagged_publish: true,
-            title: 'D',
+            sentiment_score: 0.9,
+            article_url: 'https://radarmex.mx/b',
+            published_at: '2020-01-01',
+            title: 'Vieja',
           },
         ],
       }),
@@ -67,12 +88,9 @@ describe('IngestionService', () => {
       sourceItems as never,
       sheet as never,
     );
-
     const result = await service.ingest('agency-1', 'source-1');
-
-    expect(result.ingested).toBe(2);
-    expect(result.notFlagged).toBe(1);
-    expect(result.belowMinScore).toBe(1);
-    expect(sourceItems.upsert).toHaveBeenCalledTimes(2);
+    expect(result.ingested).toBe(1);
+    expect(result.skippedNoRadarmexUrl).toBe(1);
+    expect(result.skippedOutOfDateRange).toBe(1);
   });
 });

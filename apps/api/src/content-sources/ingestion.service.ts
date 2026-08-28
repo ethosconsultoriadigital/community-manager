@@ -8,24 +8,67 @@ import {
   computeDedupHash,
 } from './mocks/mock-sheet-ingest.provider';
 import type { SheetIngestProvider, SheetRow } from './interfaces/sheet-ingest-provider.interface';
-import { isPositiveSentiment, parseSheetDate } from './radarmex-columns';
+import {
+  calendarDateInTz,
+  isDateInRange,
+  isPositiveSentiment,
+  parseSheetDate,
+  toCalendarDate,
+} from './radarmex-columns';
 
 export type IngestResult = {
   ingested: number;
   duplicates: number;
   belowMinScore: number;
   notFlagged: number;
+  skippedNoRadarmexUrl: number;
+  skippedOutOfDateRange: number;
+  dateFrom: string;
+  dateTo: string;
   items: Awaited<ReturnType<SourceItemsRepository['findBySource']>>;
 };
 
-function rowPassesFilters(
+export type RowFilterReason =
+  | 'ok'
+  | 'not_flagged'
+  | 'below_score'
+  | 'no_radarmex_url'
+  | 'out_of_range';
+
+export function resolveDateRange(config: Record<string, unknown>): {
+  dateFrom: string;
+  dateTo: string;
+} {
+  const today = calendarDateInTz(new Date());
+  const fromRaw = typeof config.dateFrom === 'string' ? config.dateFrom.trim() : '';
+  const toRaw = typeof config.dateTo === 'string' ? config.dateTo.trim() : '';
+  const dateFrom = fromRaw || today;
+  const dateTo = toRaw || fromRaw || today;
+  return {
+    dateFrom,
+    dateTo: dateTo < dateFrom ? dateFrom : dateTo,
+  };
+}
+
+export function rowPassesFilters(
   row: SheetRow,
   minScore: number | null,
-): 'ok' | 'not_flagged' | 'below_score' {
+  dateFrom: string,
+  dateTo: string,
+): RowFilterReason {
   if (!row.flagged_publish) return 'not_flagged';
+
+  if (!row.article_url?.trim()) return 'no_radarmex_url';
+
+  const pubKey = toCalendarDate(row.published_at);
+  if (!isDateInRange(pubKey, dateFrom, dateTo)) return 'out_of_range';
+
   const score = row.sentiment_score ?? null;
   const positive = isPositiveSentiment(row.sentiment);
-  const scoreOk = minScore === null ? score !== null && score >= 0 : score !== null && score >= minScore;
+  const scoreOk =
+    minScore === null
+      ? score !== null && score >= 0
+      : score !== null && score >= minScore;
   if (positive || scoreOk) return 'ok';
   return 'below_score';
 }
@@ -57,16 +100,27 @@ export class IngestionService {
 
     const { rows } = await this.sheet.fetchRows({ config });
     const minScore = source.min_score != null ? Number(source.min_score) : 0.7;
+    const { dateFrom, dateTo } = resolveDateRange(config);
 
     let ingested = 0;
     let duplicates = 0;
     let belowMinScore = 0;
     let notFlagged = 0;
+    let skippedNoRadarmexUrl = 0;
+    let skippedOutOfDateRange = 0;
 
     for (const row of rows) {
-      const filter = rowPassesFilters(row, minScore);
+      const filter = rowPassesFilters(row, minScore, dateFrom, dateTo);
       if (filter === 'not_flagged') {
         notFlagged += 1;
+        continue;
+      }
+      if (filter === 'no_radarmex_url') {
+        skippedNoRadarmexUrl += 1;
+        continue;
+      }
+      if (filter === 'out_of_range') {
+        skippedOutOfDateRange += 1;
         continue;
       }
       if (filter === 'below_score') {
@@ -95,7 +149,6 @@ export class IngestionService {
         externalId: row.external_id,
         capturedAt: parseSheetDate(row.captured_at),
         origin: row.origin,
-        // Enlace del post: solo url_radarmex (nunca url_original de El Universal, etc.)
         sourceUrl: row.article_url?.trim() || null,
         title: row.title,
         summary: row.summary,
@@ -131,6 +184,16 @@ export class IngestionService {
       minScore: minScore ?? undefined,
     });
 
-    return { ingested, duplicates, belowMinScore, notFlagged, items };
+    return {
+      ingested,
+      duplicates,
+      belowMinScore,
+      notFlagged,
+      skippedNoRadarmexUrl,
+      skippedOutOfDateRange,
+      dateFrom,
+      dateTo,
+      items,
+    };
   }
 }

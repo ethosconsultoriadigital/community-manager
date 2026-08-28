@@ -21,6 +21,7 @@ import { RadarSyncService } from './radar-sync.service';
     PromoteItemService,
     AutoPromoteService,
     RadarSyncService,
+    PurgeInvalidPendingService,
     GoogleSheetsIngestProvider,
     MockSheetIngestProvider,
     HybridSheetIngestProvider,

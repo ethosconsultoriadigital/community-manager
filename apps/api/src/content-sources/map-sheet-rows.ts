@@ -68,6 +68,7 @@ export function mapTableToSheetRows(
       flagged_publish: parseBool(raw.flagged_publish),
       // Solo url_radarmex: nunca url_original de terceros
       article_url: decodeHtmlEntities(articleUrl),
+      published_at: raw.published_at || undefined,
     });
   }
 
