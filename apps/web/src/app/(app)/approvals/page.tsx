@@ -8,10 +8,27 @@ import { PostCard } from '@/components/PostCard';
 import { paginate } from '@/lib/pagination';
 import type { Client, Post } from '@/lib/types';
 
+/** Redes disponibles hoy + las que vendrán (mismo filtro cuando existan targets). */
+const PLATFORM_FILTERS = [
+  { value: 'all', label: 'Todas las redes' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'x', label: 'X' },
+  { value: 'threads', label: 'Threads' },
+  { value: 'tiktok', label: 'TikTok' },
+] as const;
+
+type PlatformFilter = (typeof PLATFORM_FILTERS)[number]['value'];
+
 function defaultScheduleValue() {
   const d = new Date(Date.now() + 5 * 60 * 1000);
   d.setSeconds(0, 0);
   return d.toISOString().slice(0, 16);
+}
+
+function postMatchesPlatform(post: Post, platform: PlatformFilter) {
+  if (platform === 'all') return true;
+  return post.post_targets.some((t) => t.social_accounts.platform === platform);
 }
 
 export default function ApprovalsPage() {
@@ -23,6 +40,7 @@ export default function ApprovalsPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({});
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [pendingPage, setPendingPage] = useState(1);
   const [approvedPage, setApprovedPage] = useState(1);
 
@@ -42,11 +60,20 @@ export default function ApprovalsPage() {
   }, [load]);
 
   const pending = useMemo(
-    () => posts.filter((p) => p.status === 'pending_approval'),
-    [posts],
+    () =>
+      posts.filter(
+        (p) => p.status === 'pending_approval' && postMatchesPlatform(p, platformFilter),
+      ),
+    [posts, platformFilter],
   );
   const approved = useMemo(
-    () => posts.filter((p) => p.status === 'approved'),
+    () =>
+      posts.filter((p) => p.status === 'approved' && postMatchesPlatform(p, platformFilter)),
+    [posts, platformFilter],
+  );
+
+  const pendingTotalAll = useMemo(
+    () => posts.filter((p) => p.status === 'pending_approval').length,
     [posts],
   );
 
@@ -103,12 +130,44 @@ export default function ApprovalsPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-emerald-600">{message}</p>}
 
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-sm text-ink">
+          <span className="mb-1 block text-xs font-medium text-muted">Red social</span>
+          <select
+            value={platformFilter}
+            onChange={(e) => {
+              setPlatformFilter(e.target.value as PlatformFilter);
+              setPendingPage(1);
+              setApprovedPage(1);
+            }}
+            className="min-w-[200px] rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+          >
+            {PLATFORM_FILTERS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {platformFilter !== 'all' && (
+          <p className="pb-2 text-xs text-muted">
+            Mostrando {pending.length} de {pendingTotalAll} pendientes
+          </p>
+        )}
+      </div>
+
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted">
-          Pendientes ({pending.length})
+          Pendientes ({pending.length}
+          {platformFilter !== 'all' ? ` · ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label}` : ''}
+          )
         </h2>
         {pending.length === 0 ? (
-          <p className="text-sm text-muted">No hay posts pendientes de aprobación.</p>
+          <p className="text-sm text-muted">
+            {platformFilter === 'all'
+              ? 'No hay posts pendientes de aprobación.'
+              : `No hay pendientes de ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label}.`}
+          </p>
         ) : (
           <>
             {pendingPaginated.slice.map((post) => (
@@ -193,10 +252,16 @@ export default function ApprovalsPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted">
-          Aprobados — programar ({approved.length})
+          Aprobados — programar ({approved.length}
+          {platformFilter !== 'all' ? ` · ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label}` : ''}
+          )
         </h2>
         {approved.length === 0 ? (
-          <p className="text-sm text-muted">No hay posts aprobados sin programar.</p>
+          <p className="text-sm text-muted">
+            {platformFilter === 'all'
+              ? 'No hay posts aprobados sin programar.'
+              : `No hay aprobados de ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label} sin programar.`}
+          </p>
         ) : (
           <>
             {approvedPaginated.slice.map((post) => (

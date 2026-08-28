@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (Radar: solo hoy + url_radarmex + multi-sheet)
+**Última actualización:** 2026-08-28 (Aprobaciones: filtro por red social)
 
 ---
 
@@ -11,14 +11,24 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Radar filtros fecha + multi-sheet |
+| **Fase actual** | Aprobaciones filtro por red |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar Sheets |
-| **Próximo paso** | Redeploy → Limpiar aprobaciones inválidas → Sync solo hoy |
+| **Próximo paso** | Publicar / programar posts filtrados; X/Threads/TikTok cuando existan targets |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — Filtro por red en Aprobaciones ✅
+
+**Objetivo:** en `/approvals`, filtrar pendientes (y aprobados) por red social.
+
+**Implementado:** selector Todas / Facebook / Instagram / X / Threads / TikTok; filtra por `post_targets.social_accounts.platform`. FB e IG operativos; X/Threads/TikTok listos cuando existan targets.
+
+**Criterio de aceptación:** ✅ Facebook muestra solo pendientes FB; Instagram solo IG.
 
 ---
 
