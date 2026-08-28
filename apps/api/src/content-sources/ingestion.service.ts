@@ -143,6 +143,21 @@ export class IngestionService {
         existingByExternal?.post_id || existingByExternal?.status === 'published',
       );
 
+      // Si se vació la bandeja (rejected) y la fila vuelve a pasar filtros (p. ej. hoy),
+      // reabrir como new para que auto-promote la cree de nuevo.
+      let nextStatus: 'new' | 'duplicate' | 'rejected' | 'pending_approval' | 'approved' | 'published';
+      if (alreadyPromoted) {
+        nextStatus = existingByExternal!.status;
+      } else if (existingByDedup && existingByDedup.external_id !== row.external_id) {
+        nextStatus = 'duplicate';
+      } else if (existingByExternal?.status === 'rejected') {
+        nextStatus = 'new';
+      } else if (existingByExternal) {
+        nextStatus = existingByExternal.status;
+      } else {
+        nextStatus = 'new';
+      }
+
       const item = await this.sourceItems.upsert(agencyId, {
         sourceId,
         clientId: source.client_id,
@@ -163,13 +178,7 @@ export class IngestionService {
         hashtags: row.hashtags ?? [],
         flaggedPublish: row.flagged_publish ?? false,
         dedupHash,
-        status: alreadyPromoted
-          ? existingByExternal!.status
-          : existingByDedup && existingByDedup.external_id !== row.external_id
-            ? 'duplicate'
-            : existingByExternal
-              ? existingByExternal.status
-              : 'new',
+        status: nextStatus,
         preservePromotion: alreadyPromoted,
       });
 

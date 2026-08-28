@@ -187,8 +187,10 @@ export default function ApprovalsPage() {
 
       <div className="flex flex-wrap gap-2 rounded-lg border border-line bg-canvas/60 p-3">
         <p className="w-full text-xs text-muted">
-          Limpieza masiva ({pendingTotalAll} pendientes). El historial del Radar se puede
-          vaciar sin volver a importarse al sincronizar.
+          <strong className="font-medium text-ink">Cómo funcionan:</strong> borran posts
+          pendientes de la bandeja. El historial viejo queda rechazado y no vuelve. Las
+          noticias que sigan pasando el filtro del Radar (p. ej. hoy + url Radarmex) se
+          pueden volver a crear al sincronizar.
         </p>
         <button
           type="button"
@@ -209,7 +211,7 @@ export default function ApprovalsPage() {
           onClick={() =>
             runPurge(
               'all_radar',
-              `¿Vaciar TODOS los pendientes del Radar? Se borrarán de la bandeja y no se regenerarán en el próximo sync. Quedarán solo posts manuales/IA si los hay.`,
+              `¿Vaciar TODOS los pendientes del Radar? Se quitan de la bandeja. Al sincronizar de nuevo solo volverán las que pasen el filtro actual (hoy + url Radarmex).`,
             )
           }
           className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"

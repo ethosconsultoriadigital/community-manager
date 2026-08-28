@@ -93,4 +93,55 @@ describe('IngestionService filters', () => {
     expect(result.skippedNoRadarmexUrl).toBe(1);
     expect(result.skippedOutOfDateRange).toBe(1);
   });
+
+  it('reabre source_items rejected cuando la fila vuelve a pasar filtros', async () => {
+    const today = calendarDateInTz(new Date());
+    const source = {
+      id: 'source-1',
+      client_id: 'client-1',
+      type: 'sheet',
+      is_active: true,
+      min_score: 0.7,
+      config: { dateFrom: today, dateTo: today },
+    };
+    const contentSources = { findById: vi.fn().mockResolvedValue(source) };
+    const upsert = vi.fn().mockResolvedValue({ id: 'i1', status: 'new', external_id: 'n1' });
+    const sourceItems = {
+      findByDedupHash: vi.fn().mockResolvedValue(null),
+      findByExternalId: vi.fn().mockResolvedValue({
+        id: 'i1',
+        external_id: 'n1',
+        post_id: null,
+        status: 'rejected',
+      }),
+      upsert,
+      findBySource: vi.fn().mockResolvedValue([]),
+    };
+    const sheet = {
+      fetchRows: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            external_id: 'n1',
+            flagged_publish: true,
+            sentiment: 'Positivo',
+            sentiment_score: 0.9,
+            article_url: 'https://radarmex.mx/a',
+            published_at: today,
+            title: 'Hoy',
+          },
+        ],
+      }),
+    };
+
+    const service = new IngestionService(
+      contentSources as never,
+      sourceItems as never,
+      sheet as never,
+    );
+    await service.ingest('agency-1', 'source-1');
+    expect(upsert).toHaveBeenCalledWith(
+      'agency-1',
+      expect.objectContaining({ status: 'new', preservePromotion: false }),
+    );
+  });
 });

@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (Aprobaciones: limpieza masiva de pendientes)
+**Última actualización:** 2026-08-28 (fix: reabrir rejected al sync de hoy)
 
 ---
 
@@ -11,14 +11,22 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Limpieza masiva pendientes en Aprobaciones |
+| **Fase actual** | Fix re-sync tras vaciar pendientes |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar Sheets |
-| **Próximo paso** | Redeploy → Vaciar pendientes del Radar en /approvals |
+| **Próximo paso** | Redeploy → Sincronizar Radar → ver pendientes de hoy |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — Fix re-sync tras vaciar pendientes ✅
+
+**Problema:** “Vaciar Radar” marcaba items como `rejected` y el sync no volvía a promover ni las de hoy.
+
+**Fix:** si una fila del Sheet vuelve a pasar filtros (hoy + url Radarmex), `rejected` → `new` y auto-promote la recrea. El historial fuera de rango sigue rechazado.
 
 ---
 
