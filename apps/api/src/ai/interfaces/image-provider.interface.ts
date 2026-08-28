@@ -11,7 +11,7 @@ export type GenerateImageResult = {
   url: string;
   width: number;
   height: number;
-  /** Modelo usado (p. ej. dall-e-3, mock-image). */
+  /** Modelo usado (p. ej. gpt-image-2, mock-image). */
   model?: string;
   provider?: 'openai' | 'mock';
 };

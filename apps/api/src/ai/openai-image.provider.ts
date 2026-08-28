@@ -38,7 +38,12 @@ export class OpenAiImageProvider implements ImageProvider {
       throw new BadRequestException('agencyId es obligatorio para guardar la imagen generada');
     }
 
-    const model = this.config.get<string>('IMAGE_MODEL')?.trim() || 'dall-e-3';
+    // dall-e-2/3 retirados (mayo 2026). Por defecto gpt-image-2.
+    const configured = this.config.get<string>('IMAGE_MODEL')?.trim() || '';
+    const model =
+      !configured || configured.startsWith('dall-e')
+        ? 'gpt-image-2'
+        : configured;
     const prompt = buildImagePrompt({
       brief: input.brief,
       caption: input.caption,

@@ -13,7 +13,7 @@
 |------|--------|
 | **Fase actual** | Edición en aprobaciones + mejora IA imagen |
 | **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–E** + preview + edit aprobaciones |
-| **Próximo paso** | Redeploy web/API + `IMAGE_API_KEY` OpenAI en Render |
+| **Próximo paso** | Redeploy API + `IMAGE_MODEL=gpt-image-2` en Render (dall-e-3 retirado) |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |

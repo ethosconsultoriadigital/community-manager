@@ -54,7 +54,7 @@ Editar `.env` y completar al menos:
 | `MEDIA_PUBLIC_BASE_URL` | URL base para media subida en local | `http://localhost:4000` |
 | `S3_PUBLIC_BASE_URL` | URL pública del bucket (si usas S3/R2) | Opcional |
 | `IMAGE_API_KEY` | Clave OpenAI para generar imágenes (Composer → Generar imagen) | Dashboard OpenAI |
-| `IMAGE_MODEL` | Modelo de imágenes (opcional) | `dall-e-3` |
+| `IMAGE_MODEL` | Modelo de imágenes (opcional) | `gpt-image-2` |
 | `OPENAI_API_KEY` | Alias opcional de `IMAGE_API_KEY` | Si no defines `IMAGE_API_KEY` |
 
 **Importante:**
@@ -444,11 +444,12 @@ El flujo de media del Composer **no depende de Canva**. Opciones:
 
 ```
 IMAGE_API_KEY=sk-...
-IMAGE_MODEL=dall-e-3
+IMAGE_MODEL=gpt-image-2
 ```
 
 Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador usa **mock** (picsum) para desarrollo local.
 La clave debe ser de **OpenAI** (no Anthropic `sk-ant-…`). El brief + caption anclan el tema de la imagen.
+`dall-e-3` ya no existe en la API (retirado mayo 2026); usa `gpt-image-2`.
 Si se usó mock, el Composer lo avisa en el mensaje de éxito.
 
 ### Prueba manual

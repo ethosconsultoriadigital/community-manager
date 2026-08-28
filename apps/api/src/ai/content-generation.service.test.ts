@@ -45,7 +45,7 @@ describe('ContentGenerationService', () => {
         url: 'https://storage.local/ai.png',
         width: 1024,
         height: 1024,
-        model: 'dall-e-3',
+        model: 'gpt-image-2',
         provider: 'openai',
       }),
     };

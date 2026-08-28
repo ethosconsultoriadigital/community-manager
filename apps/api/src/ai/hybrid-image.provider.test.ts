@@ -12,7 +12,7 @@ describe('HybridImageProvider', () => {
         width: 1024,
         height: 1024,
         provider: 'openai',
-        model: 'dall-e-3',
+        model: 'gpt-image-2',
       }),
     };
     const mock = {

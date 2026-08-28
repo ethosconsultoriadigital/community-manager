@@ -150,7 +150,7 @@ S3_REGION=auto
 S3_PUBLIC_BASE_URL=https://media.tudominio.com
 MEDIA_PUBLIC_BASE_URL=https://media.tudominio.com
 IMAGE_API_KEY=...         # opcional; sin ella usa mock de imagen
-IMAGE_MODEL=dall-e-3
+IMAGE_MODEL=gpt-image-2
 METRICS_STALE_HOURS=6
 ```
 
