@@ -11,6 +11,7 @@ import { HybridSheetIngestProvider } from './hybrid-sheet-ingest.provider';
 import { IngestionService } from './ingestion.service';
 import { MockSheetIngestProvider } from './mocks/mock-sheet-ingest.provider';
 import { PromoteItemService } from './promote-item.service';
+import { PurgeInvalidPendingService } from './purge-invalid-pending.service';
 import { RadarSyncService } from './radar-sync.service';
 
 @Module({
