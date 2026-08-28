@@ -15,6 +15,8 @@ export type SheetRow = {
   copy_x?: string;
   hashtags?: string[];
   flagged_publish?: boolean;
+  /** URL propia del medio (p. ej. url_radarmex); se prioriza en el caption. */
+  article_url?: string;
 };
 
 export type IngestSheetInput = {

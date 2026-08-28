@@ -52,4 +52,43 @@ export class ContentSourcesRepository {
       },
     });
   }
+
+  async update(
+    agencyId: string,
+    id: string,
+    data: {
+      name?: string;
+      config?: Record<string, unknown>;
+      minScore?: number | null;
+      isActive?: boolean;
+    },
+  ) {
+    const existing = await this.findById(agencyId, id);
+    if (!existing) return null;
+
+    await this.prisma.content_sources.updateMany({
+      where: scopedWhere(agencyId, { id }),
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.config !== undefined
+          ? { config: data.config as Prisma.InputJsonValue }
+          : {}),
+        ...(data.minScore !== undefined ? { min_score: data.minScore } : {}),
+        ...(data.isActive !== undefined ? { is_active: data.isActive } : {}),
+        updated_at: new Date(),
+      },
+    });
+    return this.findById(agencyId, id);
+  }
+
+  findActiveSheetSources(agencyId?: string) {
+    return this.prisma.content_sources.findMany({
+      where: {
+        is_active: true,
+        type: { in: ['sheet', 'news_radar'] },
+        ...(agencyId ? { agency_id: agencyId } : {}),
+      },
+      orderBy: { updated_at: 'asc' },
+    });
+  }
 }

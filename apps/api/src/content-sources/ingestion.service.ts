@@ -7,14 +7,28 @@ import { SHEET_INGEST_PROVIDER } from './content-sources.tokens';
 import {
   computeDedupHash,
 } from './mocks/mock-sheet-ingest.provider';
-import type { SheetIngestProvider } from './interfaces/sheet-ingest-provider.interface';
+import type { SheetIngestProvider, SheetRow } from './interfaces/sheet-ingest-provider.interface';
+import { isPositiveSentiment } from './radarmex-columns';
 
 export type IngestResult = {
   ingested: number;
   duplicates: number;
   belowMinScore: number;
+  notFlagged: number;
   items: Awaited<ReturnType<SourceItemsRepository['findBySource']>>;
 };
+
+function rowPassesFilters(
+  row: SheetRow,
+  minScore: number | null,
+): 'ok' | 'not_flagged' | 'below_score' {
+  if (!row.flagged_publish) return 'not_flagged';
+  const score = row.sentiment_score ?? null;
+  const positive = isPositiveSentiment(row.sentiment);
+  const scoreOk = minScore === null ? score !== null && score >= 0 : score !== null && score >= minScore;
+  if (positive || scoreOk) return 'ok';
+  return 'below_score';
+}
 
 @Injectable()
 export class IngestionService {
@@ -33,7 +47,7 @@ export class IngestionService {
       throw new Error('La fuente de contenido está inactiva');
     }
     if (source.type !== 'sheet' && source.type !== 'news_radar') {
-      throw new Error(`Tipo de fuente no soportado para ingesta mock: ${source.type}`);
+      throw new Error(`Tipo de fuente no soportado para ingesta: ${source.type}`);
     }
 
     const config =
@@ -42,16 +56,20 @@ export class IngestionService {
         : {};
 
     const { rows } = await this.sheet.fetchRows({ config });
-    const minScore = source.min_score ? Number(source.min_score) : null;
+    const minScore = source.min_score != null ? Number(source.min_score) : 0.7;
 
     let ingested = 0;
     let duplicates = 0;
     let belowMinScore = 0;
+    let notFlagged = 0;
 
     for (const row of rows) {
-      const score = row.sentiment_score ?? null;
-      const passesScore = minScore === null || (score !== null && score >= minScore);
-      if (!passesScore) {
+      const filter = rowPassesFilters(row, minScore);
+      if (filter === 'not_flagged') {
+        notFlagged += 1;
+        continue;
+      }
+      if (filter === 'below_score') {
         belowMinScore += 1;
         continue;
       }
@@ -62,6 +80,14 @@ export class IngestionService {
         sourceId,
         dedupHash,
       );
+      const existingByExternal = await this.sourceItems.findByExternalId(
+        agencyId,
+        sourceId,
+        row.external_id,
+      );
+      const alreadyPromoted = Boolean(
+        existingByExternal?.post_id || existingByExternal?.status === 'published',
+      );
 
       const item = await this.sourceItems.upsert(agencyId, {
         sourceId,
@@ -69,7 +95,7 @@ export class IngestionService {
         externalId: row.external_id,
         capturedAt: row.captured_at ? new Date(row.captured_at) : null,
         origin: row.origin,
-        sourceUrl: row.source_url,
+        sourceUrl: row.article_url || row.source_url,
         title: row.title,
         summary: row.summary,
         category: row.category,
@@ -83,12 +109,19 @@ export class IngestionService {
         hashtags: row.hashtags ?? [],
         flaggedPublish: row.flagged_publish ?? false,
         dedupHash,
-        status: existingByDedup ? 'duplicate' : 'new',
+        status: alreadyPromoted
+          ? existingByExternal!.status
+          : existingByDedup && existingByDedup.external_id !== row.external_id
+            ? 'duplicate'
+            : existingByExternal
+              ? existingByExternal.status
+              : 'new',
+        preservePromotion: alreadyPromoted,
       });
 
       if (item.status === 'duplicate') {
         duplicates += 1;
-      } else {
+      } else if (!existingByExternal) {
         ingested += 1;
       }
     }
@@ -97,6 +130,6 @@ export class IngestionService {
       minScore: minScore ?? undefined,
     });
 
-    return { ingested, duplicates, belowMinScore, items };
+    return { ingested, duplicates, belowMinScore, notFlagged, items };
   }
 }

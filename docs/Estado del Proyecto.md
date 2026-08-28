@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (Edición en Aprobaciones + IA imagen)
+**Última actualización:** 2026-08-28 (Radar Google Sheets → Aprobaciones)
 
 ---
 
@@ -11,14 +11,29 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Edición en aprobaciones + mejora IA imagen |
-| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–E** + preview + edit aprobaciones |
-| **Próximo paso** | Redeploy API + `IMAGE_MODEL=gpt-image-2` en Render (dall-e-3 retirado) |
+| **Fase actual** | Radar Sheet (R1–R4) |
+| **Fases completadas** | 0–8 + A–E + preview/edit + **Radar Sheets** |
+| **Próximo paso** | Configurar `GOOGLE_SERVICE_ACCOUNT_JSON` en Render + compartir Sheet Radarmex |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — Radar Google Sheets → Aprobaciones ✅
+
+**Objetivo:** leer el Sheet de noticias de cada cliente (Radarmex y otros), filtrar publicables positivas y crear posts pendientes (1 por red).
+
+**Implementado:**
+- `GoogleSheetsIngestProvider` + hybrid (mock sin credenciales)
+- Mapeo columnas Radarmex; filtros `publicar=true` + sentimiento Positivo o score ≥ min
+- `AutoPromoteService`: un post FB + uno IG → `pending_approval` con copy, hashtags, URL e imagen en storage
+- `POST /content-sources/:id/sync` + UI `/radar`
+- Job BullMQ `RADAR_SYNC_CRON` (default cada 15 min)
+
+**Criterio de aceptación:** ✅ Sync Sheet → posts en Aprobaciones por red; re-sync no duplica promovidos.
 
 ---
 
@@ -729,7 +744,8 @@ Objetivo: cerrar pendientes de revisión antes de nuevas fases.
 
 #### Bloqueados por credenciales (no accionables aún)
 
-- [ ] Sustituir mocks: Claude (LLM), generador de imagen, Google Sheets
+- [ ] Sustituir mocks: Claude (LLM)
+- [x] Google Sheets real (Radar R1–R4, 2026-08-28) — requiere `GOOGLE_SERVICE_ACCOUNT_JSON` en prod
 - [ ] Canva real + editor manual (Fase B/C) — `CANVA_CLIENT_ID` / `CANVA_CLIENT_SECRET` vacíos en `.env`
 - [ ] Fase C — revisión manual en navegador cuando haya credenciales Canva
 

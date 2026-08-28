@@ -129,3 +129,50 @@ export type AdminUserListItem = {
   createdAt: string;
   client: AdminUserClient | null;
 };
+
+export type ContentSource = {
+  id: string;
+  client_id: string;
+  type: string;
+  name: string;
+  config: Record<string, unknown>;
+  min_score: number | string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SourceItem = {
+  id: string;
+  external_id: string;
+  title: string | null;
+  sentiment: string | null;
+  sentiment_score: number | string | null;
+  flagged_publish: boolean;
+  status: string;
+  post_id: string | null;
+  image_url: string | null;
+  source_url: string | null;
+  created_at: string;
+};
+
+export type RadarSyncResult = {
+  ingest: {
+    ingested: number;
+    duplicates: number;
+    belowMinScore: number;
+    notFlagged: number;
+  };
+  promote: {
+    itemsConsidered: number;
+    postsCreated: number;
+    skippedNoAccount: number;
+    skippedNoCopy: number;
+    errors: string[];
+  };
+};
+
+export type GoogleSheetStatus = {
+  configured: boolean;
+  clientEmail: string | null;
+};

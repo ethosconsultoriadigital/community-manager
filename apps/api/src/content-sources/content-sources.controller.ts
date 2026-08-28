@@ -4,12 +4,14 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   BadRequestException,
   Query,
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ContentSourcesRepository,
   ContentSourcesValidationError,
@@ -24,6 +26,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { IngestionService } from './ingestion.service';
 import { PromoteItemService } from './promote-item.service';
+import { RadarSyncService } from './radar-sync.service';
+import { parseServiceAccountJson } from './google-sheets-auth';
 
 class CreateContentSourceDto {
   clientId!: string;
@@ -31,6 +35,13 @@ class CreateContentSourceDto {
   name!: string;
   config?: Record<string, unknown>;
   minScore?: number;
+}
+
+class UpdateContentSourceDto {
+  name?: string;
+  config?: Record<string, unknown>;
+  minScore?: number | null;
+  isActive?: boolean;
 }
 
 class PromoteItemDto {
@@ -44,8 +55,26 @@ export class ContentSourcesController {
     private readonly contentSources: ContentSourcesRepository,
     private readonly sourceItems: SourceItemsRepository,
     private readonly ingestion: IngestionService,
+    private readonly radarSync: RadarSyncService,
     private readonly clientAccess: ClientAccessService,
+    private readonly config: ConfigService,
   ) {}
+
+  @Get('google-status')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  googleStatus() {
+    const raw = this.config.get<string>('GOOGLE_SERVICE_ACCOUNT_JSON')?.trim();
+    if (!raw) {
+      return { configured: false, clientEmail: null as string | null };
+    }
+    try {
+      const sa = parseServiceAccountJson(raw);
+      return { configured: true, clientEmail: sa.client_email };
+    } catch {
+      return { configured: false, clientEmail: null as string | null };
+    }
+  }
 
   @Post()
   @UseGuards(RolesGuard)
@@ -53,7 +82,11 @@ export class ContentSourcesController {
   async create(@CurrentUser() user: AuthUser, @Body() body: CreateContentSourceDto) {
     await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
-      return await this.contentSources.create(user.agencyId, body);
+      return await this.contentSources.create(user.agencyId, {
+        ...body,
+        minScore: body.minScore ?? 0.7,
+        config: body.config ?? {},
+      });
     } catch (error) {
       if (error instanceof ContentSourcesValidationError) {
         throw new BadRequestException(error.message);
@@ -68,6 +101,20 @@ export class ContentSourcesController {
     if (scope.mode === 'none') return [];
     const filter = scope.mode === 'single' ? scope.clientId : undefined;
     return this.contentSources.findAll(user.agencyId, filter);
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: UpdateContentSourceDto,
+  ) {
+    await this.getSourceOrThrow(user, id);
+    const updated = await this.contentSources.update(user.agencyId, id, body);
+    if (!updated) throw new NotFoundException('Fuente no encontrada');
+    return updated;
   }
 
   @Get(':id/items')
@@ -93,6 +140,21 @@ export class ContentSourcesController {
     await this.getSourceOrThrow(user, id);
     try {
       return await this.ingestion.ingest(user.agencyId, id);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post(':id/sync')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async sync(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getSourceOrThrow(user, id);
+    try {
+      return await this.radarSync.syncSource(user.agencyId, user.id, id);
     } catch (error) {
       if (error instanceof Error) {
         throw new BadRequestException(error.message);

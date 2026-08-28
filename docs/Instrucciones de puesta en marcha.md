@@ -56,6 +56,9 @@ Editar `.env` y completar al menos:
 | `IMAGE_API_KEY` | Clave OpenAI para generar imágenes (Composer → Generar imagen) | Dashboard OpenAI |
 | `IMAGE_MODEL` | Modelo de imágenes (opcional) | `gpt-image-2` |
 | `OPENAI_API_KEY` | Alias opcional de `IMAGE_API_KEY` | Si no defines `IMAGE_API_KEY` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | JSON de service account para leer Sheets (Radar) | Google Cloud → IAM |
+| `RADAR_SYNC_ENABLED` | Sync periódico BullMQ | `true` |
+| `RADAR_SYNC_CRON` | Cron del sync Radar | `*/15 * * * *` |
 
 **Importante:**
 - Sin espacios después del `=` en `.env` (ej. `META_APP_ID=123`, no `META_APP_ID= 123`).
@@ -213,6 +216,20 @@ Migración: `schema_password_reset_tokens.sql` (`pnpm migrate`).
 - `EMAIL_FROM` — remitente verificado (ej. `Community Manager <noreply@tudominio.com>`)
 
 Sin `RESEND_API_KEY`, en local el enlace de reset aparece en los **logs de la API** (no se envía correo).
+
+---
+
+## 9d. Radar de noticias (Google Sheets)
+
+1. Crea una **service account** en Google Cloud con acceso a Google Sheets API.
+2. Pon el JSON completo en `GOOGLE_SERVICE_ACCOUNT_JSON` (una línea en Render).
+3. Comparte el Sheet del cliente con el `client_email` de esa cuenta (solo lectura).
+4. En la web → **Radar**: pega URL/ID del spreadsheet + `gid` de la pestaña → Guardar → **Sincronizar ahora**.
+5. Las filas con `publicar=TRUE` y sentimiento Positivo (o score ≥ mínimo) generan posts en **Aprobaciones** (uno para Facebook y otro para Instagram si hay copy y cuenta conectada).
+
+Sync automático: cada 15 min (`RADAR_SYNC_CRON`) si `RADAR_SYNC_ENABLED=true`.
+
+Ejemplo Radarmex: spreadsheet `1r0R3caLAVIpYJaFIQef1YiERNLzSXH8PJmIfL6Q9hAo`, gid `1413170342`.
 
 ---
 

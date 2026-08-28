@@ -29,6 +29,8 @@ export type UpsertSourceItemData = {
   flaggedPublish?: boolean;
   dedupHash?: string | null;
   status?: item_status;
+  /** No pisar post_id/status si el item ya fue promovido. */
+  preservePromotion?: boolean;
 };
 
 export class SourceItemsRepository {
@@ -64,6 +66,25 @@ export class SourceItemsRepository {
     });
   }
 
+  findByExternalId(agencyId: string, sourceId: string, externalId: string) {
+    return this.prisma.source_items.findFirst({
+      where: scopedWhere(agencyId, { source_id: sourceId, external_id: externalId }),
+    });
+  }
+
+  findPromotable(agencyId: string, sourceId: string) {
+    const statuses: item_status[] = ['new', 'pending_approval', 'approved'];
+    return this.prisma.source_items.findMany({
+      where: scopedWhere(agencyId, {
+        source_id: sourceId,
+        post_id: null,
+        flagged_publish: true,
+        status: { in: statuses },
+      }),
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
   async upsert(agencyId: string, data: UpsertSourceItemData) {
     if (data.dedupHash) {
       const duplicate = await this.findByDedupHash(agencyId, data.sourceId, data.dedupHash);
@@ -73,6 +94,12 @@ export class SourceItemsRepository {
         });
       }
     }
+
+    const existing = await this.findByExternalId(agencyId, data.sourceId, data.externalId);
+    const preserve =
+      data.preservePromotion ||
+      Boolean(existing?.post_id) ||
+      existing?.status === 'published';
 
     return this.prisma.source_items.upsert({
       where: {
@@ -99,7 +126,11 @@ export class SourceItemsRepository {
         hashtags: data.hashtags ?? [],
         flagged_publish: data.flaggedPublish ?? false,
         dedup_hash: data.dedupHash,
-        ...(data.status ? { status: data.status } : {}),
+        ...(preserve
+          ? {}
+          : data.status
+            ? { status: data.status }
+            : {}),
       },
     });
   }
@@ -124,7 +155,7 @@ export class SourceItemsRepository {
 
   async linkPost(agencyId: string, id: string, postId: string) {
     const result = await this.prisma.source_items.updateMany({
-      where: scopedWhere(agencyId, { id, status: 'approved' as item_status }),
+      where: scopedWhere(agencyId, { id }),
       data: { post_id: postId, status: 'published' },
     });
     return result.count > 0;
