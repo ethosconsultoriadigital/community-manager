@@ -60,6 +60,13 @@ export class SourceItemsRepository {
     });
   }
 
+  findByPostIds(agencyId: string, postIds: string[]) {
+    if (postIds.length === 0) return Promise.resolve([]);
+    return this.prisma.source_items.findMany({
+      where: scopedWhere(agencyId, { post_id: { in: postIds } }),
+    });
+  }
+
   findByDedupHash(agencyId: string, sourceId: string, dedupHash: string) {
     return this.prisma.source_items.findFirst({
       where: scopedWhere(agencyId, { source_id: sourceId, dedup_hash: dedupHash }),

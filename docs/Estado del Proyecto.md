@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (Aprobaciones: filtro por red social)
+**Última actualización:** 2026-08-28 (Aprobaciones: limpieza masiva de pendientes)
 
 ---
 
@@ -11,14 +11,24 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Aprobaciones filtro por red |
+| **Fase actual** | Limpieza masiva pendientes en Aprobaciones |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar Sheets |
-| **Próximo paso** | Publicar / programar posts filtrados; X/Threads/TikTok cuando existan targets |
+| **Próximo paso** | Redeploy → Vaciar pendientes del Radar en /approvals |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — Limpieza masiva de pendientes ✅
+
+**Problema:** ~1300+ pendientes históricos del Radar (con url_radarmex) no se borraban con “limpiar inválidas”.
+
+**Implementado:** en `/approvals` botones Limpiar días anteriores / Vaciar Radar / Eliminar todos; API `mode=stale|all_radar|all`; marca `source_items` como `rejected` para no regenerarlos en sync.
+
+**Criterio de aceptación:** ✅ Vaciar Radar deja bandeja limpia y re-sync no recrea el historial rechazado.
 
 ---
 

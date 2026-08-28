@@ -175,6 +175,48 @@ export class PostsRepository {
     return result.count > 0;
   }
 
+  /**
+   * Borra posts pending_approval en lote.
+   * Marca source_items enlazados como rejected para que el sync del Radar no los vuelva a promover.
+   */
+  async deleteManyPendingApproval(
+    agencyId: string,
+    options: {
+      clientId?: string;
+      /** Solo posts creados desde una fuente (Radar/Sheets). */
+      radarOnly?: boolean;
+      ids?: string[];
+    } = {},
+  ): Promise<number> {
+    if (options.ids !== undefined && options.ids.length === 0) return 0;
+
+    const where = scopedWhere(agencyId, {
+      status: 'pending_approval' as const,
+      ...(options.clientId ? { client_id: options.clientId } : {}),
+      ...(options.radarOnly ? { content_source_id: { not: null } } : {}),
+      ...(options.ids !== undefined ? { id: { in: options.ids } } : {}),
+    });
+
+    const rows = await this.prisma.posts.findMany({
+      where,
+      select: { id: true },
+    });
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) return 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.source_items.updateMany({
+        where: { agency_id: agencyId, post_id: { in: ids } },
+        data: { status: 'rejected' },
+      });
+      await tx.posts.deleteMany({
+        where: { agency_id: agencyId, id: { in: ids } },
+      });
+    });
+
+    return ids.length;
+  }
+
   async submitForApproval(agencyId: string, id: string) {
     const post = await this.findById(agencyId, id);
     if (!post) return null;

@@ -27,7 +27,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { IngestionService } from './ingestion.service';
 import { PromoteItemService } from './promote-item.service';
 import { RadarSyncService } from './radar-sync.service';
-import { PurgeInvalidPendingService } from './purge-invalid-pending.service';
+import { PurgeInvalidPendingService, type PurgePendingMode } from './purge-invalid-pending.service';
 import { parseServiceAccountJson } from './google-sheets-auth';
 import { calendarDateInTz } from './radarmex-columns';
 
@@ -85,19 +85,21 @@ export class ContentSourcesController {
   async purgeInvalidPending(
     @CurrentUser() user: AuthUser,
     @Query('clientId') clientId?: string,
+    @Query('mode') modeRaw?: string,
   ) {
+    const mode = parsePurgeMode(modeRaw);
     if (clientId) {
       await this.clientAccess.assertClientAccess(user, clientId);
     } else {
       const scope = await this.clientAccess.resolveListScope(user);
       if (scope.mode === 'none') {
-        return { scanned: 0, deleted: 0, kept: 0 };
+        return { scanned: 0, deleted: 0, kept: 0, mode };
       }
       if (scope.mode === 'single') {
-        return this.purgePending.purge(user.agencyId, scope.clientId);
+        return this.purgePending.purge(user.agencyId, scope.clientId, mode);
       }
     }
-    return this.purgePending.purge(user.agencyId, clientId);
+    return this.purgePending.purge(user.agencyId, clientId, mode);
   }
 
   @Get('today')
@@ -269,4 +271,12 @@ export class SourceItemsController {
     }
     return item;
   }
+}
+
+function parsePurgeMode(raw?: string): PurgePendingMode {
+  const allowed: PurgePendingMode[] = ['invalid_url', 'stale', 'all_radar', 'all'];
+  if (raw && (allowed as string[]).includes(raw)) {
+    return raw as PurgePendingMode;
+  }
+  return 'invalid_url';
 }

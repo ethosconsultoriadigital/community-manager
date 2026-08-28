@@ -113,6 +113,35 @@ export default function ApprovalsPage() {
     }
   }
 
+  async function runPurge(
+    mode: 'stale' | 'all_radar' | 'all',
+    confirmText: string,
+  ) {
+    if (!window.confirm(confirmText)) return;
+    setActionId('purge');
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await apiFetch<{
+        scanned: number;
+        deleted: number;
+        kept: number;
+        mode: string;
+      }>(`/content-sources/purge-invalid-pending?mode=${mode}`, { method: 'POST' });
+      await load();
+      setPendingPage(1);
+      setMessage(
+        `Limpieza (${result.mode}): eliminados ${result.deleted}` +
+          (result.kept ? `, conservados ${result.kept}` : '') +
+          '.',
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al limpiar pendientes');
+    } finally {
+      setActionId(null);
+    }
+  }
+
   if (loading) {
     return <p className="text-muted">Cargando bandeja…</p>;
   }
@@ -154,6 +183,52 @@ export default function ApprovalsPage() {
             Mostrando {pending.length} de {pendingTotalAll} pendientes
           </p>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 rounded-lg border border-line bg-canvas/60 p-3">
+        <p className="w-full text-xs text-muted">
+          Limpieza masiva ({pendingTotalAll} pendientes). El historial del Radar se puede
+          vaciar sin volver a importarse al sincronizar.
+        </p>
+        <button
+          type="button"
+          disabled={actionId !== null || pendingTotalAll === 0}
+          onClick={() =>
+            runPurge(
+              'stale',
+              `¿Eliminar pendientes del Radar que NO son de hoy (${pendingTotalAll} en bandeja)? Se conservan solo los de captura/creación de hoy.`,
+            )
+          }
+          className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface disabled:opacity-50"
+        >
+          Limpiar días anteriores
+        </button>
+        <button
+          type="button"
+          disabled={actionId !== null || pendingTotalAll === 0}
+          onClick={() =>
+            runPurge(
+              'all_radar',
+              `¿Vaciar TODOS los pendientes del Radar? Se borrarán de la bandeja y no se regenerarán en el próximo sync. Quedarán solo posts manuales/IA si los hay.`,
+            )
+          }
+          className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+        >
+          Vaciar pendientes del Radar
+        </button>
+        <button
+          type="button"
+          disabled={actionId !== null || pendingTotalAll === 0}
+          onClick={() =>
+            runPurge(
+              'all',
+              `¿Eliminar TODOS los ${pendingTotalAll} posts pendientes (Radar + manuales)? Esta acción no se puede deshacer.`,
+            )
+          }
+          className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+        >
+          Eliminar todos los pendientes
+        </button>
       </div>
 
       <section className="space-y-3">
