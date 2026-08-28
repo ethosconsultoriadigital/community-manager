@@ -8,7 +8,7 @@ import {
   computeDedupHash,
 } from './mocks/mock-sheet-ingest.provider';
 import type { SheetIngestProvider, SheetRow } from './interfaces/sheet-ingest-provider.interface';
-import { isPositiveSentiment } from './radarmex-columns';
+import { isPositiveSentiment, parseSheetDate } from './radarmex-columns';
 
 export type IngestResult = {
   ingested: number;
@@ -93,7 +93,7 @@ export class IngestionService {
         sourceId,
         clientId: source.client_id,
         externalId: row.external_id,
-        capturedAt: row.captured_at ? new Date(row.captured_at) : null,
+        capturedAt: parseSheetDate(row.captured_at),
         origin: row.origin,
         sourceUrl: row.article_url || row.source_url,
         title: row.title,

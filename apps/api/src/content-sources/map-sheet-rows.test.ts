@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { mapTableToSheetRows } from './map-sheet-rows';
-import { isPositiveSentiment, normalizeHeader, parseBool, parseScore } from './radarmex-columns';
+import {
+  isPositiveSentiment,
+  normalizeHeader,
+  parseBool,
+  parseScore,
+  parseSheetDate,
+} from './radarmex-columns';
 
 describe('radarmex-columns + mapTableToSheetRows', () => {
   it('normaliza headers con guiones y acentos', () => {
@@ -14,6 +20,15 @@ describe('radarmex-columns + mapTableToSheetRows', () => {
     expect(parseBool('false')).toBe(false);
     expect(parseScore('0,82')).toBe(0.82);
     expect(isPositiveSentiment('Positivo')).toBe(true);
+  });
+
+  it('parsea fecha estilo Radarmex sin Invalid Date', () => {
+    const d = parseSheetDate('28/8/2026 0:23:34');
+    expect(d).toBeInstanceOf(Date);
+    expect(d!.getFullYear()).toBe(2026);
+    expect(d!.getMonth()).toBe(7);
+    expect(d!.getDate()).toBe(28);
+    expect(parseSheetDate('no-es-fecha')).toBeNull();
   });
 
   it('mapea filas estilo Radarmex', () => {
@@ -49,7 +64,7 @@ describe('radarmex-columns + mapTableToSheetRows', () => {
         '0.91',
         'Buena noticia',
         'TRUE',
-        'https://example.com/img.jpg',
+        'https://example.com/img.jpg?a=1&amp;b=2',
         'Copy FB',
         'Copy IG',
         'Copy X',
@@ -66,5 +81,7 @@ describe('radarmex-columns + mapTableToSheetRows', () => {
     expect(rows[0].copy_facebook).toBe('Copy FB');
     expect(rows[0].hashtags).toEqual(['#liga', '#mx']);
     expect(rows[0].article_url).toBe('https://radarmex.example/n1');
+    expect(rows[0].image_url).toContain('&b=2');
+    expect(rows[0].image_url).not.toContain('&amp;');
   });
 });

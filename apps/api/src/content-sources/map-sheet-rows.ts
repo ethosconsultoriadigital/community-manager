@@ -5,6 +5,7 @@ import {
   parseHashtags,
   parseScore,
   RADARMEX_COLUMN_MAP,
+  decodeHtmlEntities,
 } from './radarmex-columns';
 
 export type ParsedSheetTable = {
@@ -59,13 +60,13 @@ export function mapTableToSheetRows(
       sentiment: raw.sentiment || undefined,
       sentiment_score: score,
       sentiment_reason: raw.sentiment_reason || undefined,
-      image_url: raw.image_url || undefined,
+      image_url: decodeHtmlEntities(raw.image_url) || undefined,
       copy_facebook: raw.copy_facebook || undefined,
       copy_instagram: raw.copy_instagram || undefined,
       copy_x: raw.copy_x || undefined,
       hashtags: parseHashtags(raw.hashtags),
       flagged_publish: parseBool(raw.flagged_publish),
-      article_url: articleUrl,
+      article_url: decodeHtmlEntities(articleUrl),
     });
   }
 
