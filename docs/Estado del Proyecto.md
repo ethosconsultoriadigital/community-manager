@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-26 (Fase E — contraseñas perfil y recuperación)
+**Última actualización:** 2026-08-28 (Vista previa en Aprobaciones)
 
 ---
 
@@ -11,14 +11,28 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Fase E cerrada → revisión / despliegue |
+| **Fase actual** | Mejora UX aprobaciones (preview) |
 | **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–E** |
-| **Próximo paso** | Aplicar migración en prod + configurar Resend |
+| **Próximo paso** | Redeploy web (Vercel) + probar bandeja con media |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — Vista previa en Aprobaciones ✅
+
+**Objetivo:** ver cómo quedará la publicación (media + texto) antes de aprobar o programar.
+
+**Implementado:**
+- Componente `PostFeedPreview`: maqueta tipo feed (cabecera, imagen/video, caption, hashtags)
+- Integrado en `PostCard` (activo por defecto) → Aprobaciones y Calendario
+- Video con controles; badge Reel; aviso si no hay media; miniaturas si hay varios assets
+- Sin cambios de API ni de flujo approve/reject/schedule
+
+**Criterio de aceptación:** ✅ En bandeja de aprobación se ve foto/video y textos antes de pulsar Aprobar.
 
 ---
 

@@ -90,7 +90,8 @@ export default function ApprovalsPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Bandeja de aprobación</h1>
         <p className="text-sm text-muted">
-          Revisa, aprueba o rechaza contenido antes de programarlo.
+          Revisa la vista previa (foto, video y texto), luego aprueba o rechaza antes de
+          programar.
         </p>
       </div>
 

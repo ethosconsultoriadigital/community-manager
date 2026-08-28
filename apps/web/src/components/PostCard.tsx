@@ -1,4 +1,5 @@
 import type { Post } from '@/lib/types';
+import { PostFeedPreview } from '@/components/PostFeedPreview';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Borrador',
@@ -38,14 +39,17 @@ export function PostCard({
   post,
   clientName,
   children,
+  showPreview = true,
 }: {
   post: Post;
   clientName?: string;
   children?: React.ReactNode;
+  /** Vista previa visual (media + texto). Por defecto activa. */
+  showPreview?: boolean;
 }) {
   return (
     <article className="rounded-lg border border-line bg-surface p-4 shadow-sm">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-canvas px-2 py-0.5 text-xs text-muted">
           {statusLabel(post.status)}
         </span>
@@ -56,10 +60,22 @@ export function PostCard({
           </span>
         )}
       </div>
-      <p className="mb-2 whitespace-pre-wrap text-sm text-ink">{post.caption ?? '(sin caption)'}</p>
-      {post.hashtags.length > 0 && (
-        <p className="mb-2 text-xs text-brand">{post.hashtags.join(' ')}</p>
+
+      {showPreview ? (
+        <div className="mb-3">
+          <PostFeedPreview post={post} clientName={clientName} />
+        </div>
+      ) : (
+        <>
+          <p className="mb-2 whitespace-pre-wrap text-sm text-ink">
+            {post.caption ?? '(sin caption)'}
+          </p>
+          {post.hashtags.length > 0 && (
+            <p className="mb-2 text-xs text-brand">{post.hashtags.join(' ')}</p>
+          )}
+        </>
       )}
+
       {post.post_targets.length > 0 ? (
         <ul className="space-y-1.5">
           {post.post_targets.map((t) => (
