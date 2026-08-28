@@ -44,3 +44,9 @@ backups/
 
 # Media uploads locales (Fase A)
 uploads/
+
+# Google service account keys (nunca versionar)
+community-manager-*.json
+*service-account*.json
+*-credentials.json
+
