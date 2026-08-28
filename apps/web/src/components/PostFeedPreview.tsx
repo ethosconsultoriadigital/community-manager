@@ -66,7 +66,6 @@ export function PostFeedPreview({
               Tu navegador no reproduce este video.
             </video>
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element -- URLs dinámicas de R2/media
             <img
               src={primary.storage_url}
               alt="Vista previa de la publicación"
@@ -109,7 +108,6 @@ export function PostFeedPreview({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={asset.storage_url}
                   alt=""
