@@ -95,7 +95,8 @@ export class IngestionService {
         externalId: row.external_id,
         capturedAt: parseSheetDate(row.captured_at),
         origin: row.origin,
-        sourceUrl: row.article_url || row.source_url,
+        // Enlace del post: solo url_radarmex (nunca url_original de El Universal, etc.)
+        sourceUrl: row.article_url?.trim() || null,
         title: row.title,
         summary: row.summary,
         category: row.category,

@@ -133,7 +133,8 @@ export class AutoPromoteService {
       const caption = buildCaption({
         copy: text,
         hashtags: item.hashtags ?? [],
-        url: item.source_url,
+        // item.source_url solo guarda url_radarmex tras la ingesta
+        url: item.source_url?.trim() || null,
       });
 
       const post = await this.posts.create(

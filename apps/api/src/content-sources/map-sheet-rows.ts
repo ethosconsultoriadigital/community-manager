@@ -46,7 +46,7 @@ export function mapTableToSheetRows(
       `row_${i}`;
     if (!externalId) continue;
 
-    const articleUrl = raw.article_url || raw.source_url || undefined;
+    const articleUrl = raw.article_url?.trim() || undefined;
     const score = parseScore(raw.sentiment_score);
 
     rows.push({
@@ -66,6 +66,7 @@ export function mapTableToSheetRows(
       copy_x: raw.copy_x || undefined,
       hashtags: parseHashtags(raw.hashtags),
       flagged_publish: parseBool(raw.flagged_publish),
+      // Solo url_radarmex: nunca url_original de terceros
       article_url: decodeHtmlEntities(articleUrl),
     });
   }

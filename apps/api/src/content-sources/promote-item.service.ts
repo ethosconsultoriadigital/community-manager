@@ -36,10 +36,15 @@ export class PromoteItemService {
       throw new SourceItemsValidationError('El item ya fue promovido a un post');
     }
 
-    const caption =
+    const link = item.source_url?.trim();
+    const baseCaption =
       item.copy_facebook?.trim() ||
       item.copy_instagram?.trim() ||
       [item.title, item.summary].filter(Boolean).join('\n\n');
+    const hashtagLine = (item.hashtags ?? []).join(' ').trim();
+    const caption = [baseCaption, hashtagLine || null, link || null]
+      .filter(Boolean)
+      .join('\n\n');
 
     const post = await this.posts.create(
       agencyId,
