@@ -448,13 +448,15 @@ IMAGE_MODEL=dall-e-3
 ```
 
 Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador usa **mock** (picsum) para desarrollo local.
+La clave debe ser de **OpenAI** (no Anthropic `sk-ant-…`). El brief + caption anclan el tema de la imagen.
+Si se usó mock, el Composer lo avisa en el mensaje de éxito.
 
 ### Prueba manual
 
 1. `pnpm dev:api` + `pnpm dev:web`
 2. Login → Composer → **Generar imagen (IA)**
-3. Brief + destinos → **Generar y enviar a aprobación**
-4. Aprobaciones → programar → publicar
+3. Brief visual detallado + caption + destinos → **Generar imagen y enviar a aprobación**
+4. Aprobaciones → **Editar** si hace falta (texto/media) → **Aprobar** o **Cancelar** → programar → publicar
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 

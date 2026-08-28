@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ApprovalEditForm } from '@/components/ApprovalEditForm';
 import { ApiError, apiFetch } from '@/lib/api';
 import { Pagination } from '@/components/Pagination';
 import { PostCard } from '@/components/PostCard';
@@ -18,7 +19,9 @@ export default function ApprovalsPage() {
   const [clients, setClients] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({});
   const [pendingPage, setPendingPage] = useState(1);
   const [approvedPage, setApprovedPage] = useState(1);
@@ -68,12 +71,14 @@ export default function ApprovalsPage() {
     }
   }, [approvedPage, approvedPaginated.totalPages, approvedPaginated.safePage]);
 
-  async function runAction(postId: string, fn: () => Promise<unknown>) {
+  async function runAction(postId: string, fn: () => Promise<unknown>, okMessage?: string) {
     setActionId(postId);
     setError(null);
+    setMessage(null);
     try {
       await fn();
       await load();
+      if (okMessage) setMessage(okMessage);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error en la acción');
     } finally {
@@ -90,12 +95,13 @@ export default function ApprovalsPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Bandeja de aprobación</h1>
         <p className="text-sm text-muted">
-          Revisa la vista previa (foto, video y texto), luego aprueba o rechaza antes de
+          Revisa la vista previa, edita si hace falta, luego aprueba o cancela antes de
           programar.
         </p>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {message && <p className="text-sm text-emerald-600">{message}</p>}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted">
@@ -106,35 +112,73 @@ export default function ApprovalsPage() {
         ) : (
           <>
             {pendingPaginated.slice.map((post) => (
-              <PostCard key={post.id} post={post} clientName={clients[post.client_id]}>
-                <button
-                  type="button"
-                  disabled={actionId === post.id}
-                  onClick={() =>
-                    runAction(post.id, () =>
-                      apiFetch(`/posts/${post.id}/approve`, { method: 'POST' }),
-                    )
-                  }
-                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  Aprobar
-                </button>
-                <button
-                  type="button"
-                  disabled={actionId === post.id}
-                  onClick={() =>
-                    runAction(post.id, () =>
-                      apiFetch(`/posts/${post.id}/reject`, {
-                        method: 'POST',
-                        body: JSON.stringify({ comment: 'Rechazado desde UI' }),
-                      }),
-                    )
-                  }
-                  className="rounded-md border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Rechazar
-                </button>
-              </PostCard>
+              <div key={post.id}>
+                <PostCard post={post} clientName={clients[post.client_id]}>
+                  {editingId !== post.id && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() => {
+                          setEditingId(post.id);
+                          setError(null);
+                          setMessage(null);
+                        }}
+                        className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() =>
+                          runAction(
+                            post.id,
+                            () => apiFetch(`/posts/${post.id}/approve`, { method: 'POST' }),
+                            'Post aprobado. Ya puedes programarlo abajo.',
+                          )
+                        }
+                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        Aprobar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() =>
+                          runAction(
+                            post.id,
+                            () =>
+                              apiFetch(`/posts/${post.id}/reject`, {
+                                method: 'POST',
+                                body: JSON.stringify({
+                                  comment: 'Cancelado desde bandeja de aprobación',
+                                }),
+                              }),
+                            'Publicación cancelada (vuelve a borrador).',
+                          )
+                        }
+                        className="rounded-md border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  )}
+                </PostCard>
+                {editingId === post.id && (
+                  <ApprovalEditForm
+                    post={post}
+                    busy={actionId === post.id}
+                    onError={(msg) => setError(msg || null)}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={async () => {
+                      setEditingId(null);
+                      setMessage('Cambios guardados. Revisa la vista previa y aprueba.');
+                      await load();
+                    }}
+                  />
+                )}
+              </div>
             ))}
             <Pagination
               page={pendingPaginated.safePage}
@@ -156,33 +200,67 @@ export default function ApprovalsPage() {
         ) : (
           <>
             {approvedPaginated.slice.map((post) => (
-              <PostCard key={post.id} post={post} clientName={clients[post.client_id]}>
-                <input
-                  type="datetime-local"
-                  value={scheduleAt[post.id] ?? defaultScheduleValue()}
-                  onChange={(e) =>
-                    setScheduleAt((prev) => ({ ...prev, [post.id]: e.target.value }))
-                  }
-                  className="rounded-md border border-line-strong bg-white px-2 py-1 text-xs text-ink"
-                />
-                <button
-                  type="button"
-                  disabled={actionId === post.id}
-                  onClick={() => {
-                    const raw = scheduleAt[post.id] ?? defaultScheduleValue();
-                    const iso = new Date(raw).toISOString();
-                    return runAction(post.id, () =>
-                      apiFetch(`/posts/${post.id}/schedule`, {
-                        method: 'POST',
-                        body: JSON.stringify({ scheduledAt: iso }),
-                      }),
-                    );
-                  }}
-                  className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-                >
-                  Programar
-                </button>
-              </PostCard>
+              <div key={post.id}>
+                <PostCard post={post} clientName={clients[post.client_id]}>
+                  {editingId !== post.id && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() => {
+                          setEditingId(post.id);
+                          setError(null);
+                          setMessage(null);
+                        }}
+                        className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+                      >
+                        Editar
+                      </button>
+                      <input
+                        type="datetime-local"
+                        value={scheduleAt[post.id] ?? defaultScheduleValue()}
+                        onChange={(e) =>
+                          setScheduleAt((prev) => ({ ...prev, [post.id]: e.target.value }))
+                        }
+                        className="rounded-md border border-line-strong bg-white px-2 py-1 text-xs text-ink"
+                      />
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() => {
+                          const raw = scheduleAt[post.id] ?? defaultScheduleValue();
+                          const iso = new Date(raw).toISOString();
+                          return runAction(
+                            post.id,
+                            () =>
+                              apiFetch(`/posts/${post.id}/schedule`, {
+                                method: 'POST',
+                                body: JSON.stringify({ scheduledAt: iso }),
+                              }),
+                            'Post programado.',
+                          );
+                        }}
+                        className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                      >
+                        Programar
+                      </button>
+                    </>
+                  )}
+                </PostCard>
+                {editingId === post.id && (
+                  <ApprovalEditForm
+                    post={post}
+                    busy={actionId === post.id}
+                    onError={(msg) => setError(msg || null)}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={async () => {
+                      setEditingId(null);
+                      setMessage('Cambios guardados en el post aprobado.');
+                      await load();
+                    }}
+                  />
+                )}
+              </div>
             ))}
             <Pagination
               page={approvedPaginated.safePage}

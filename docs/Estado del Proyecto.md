@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (Vista previa en Aprobaciones)
+**Última actualización:** 2026-08-28 (Edición en Aprobaciones + IA imagen)
 
 ---
 
@@ -11,14 +11,33 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Mejora UX aprobaciones (preview) |
-| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–E** |
-| **Próximo paso** | Redeploy web (Vercel) + probar bandeja con media |
+| **Fase actual** | Edición en aprobaciones + mejora IA imagen |
+| **Fases completadas** | 0–8 + A–E, I, F + Admin **Fases A–E** + preview + edit aprobaciones |
+| **Próximo paso** | Redeploy web/API + `IMAGE_API_KEY` OpenAI en Render |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — Edición en Aprobaciones + IA imagen ✅
+
+**Objetivo:** corregir contenido en la bandeja antes de aprobar; que la generación de imagen respete mejor el brief.
+
+**Fase 1 — Edición en bandeja:**
+- UI `ApprovalEditForm`: caption, hashtags, reemplazar imagen/video
+- Acciones: **Editar** → Guardar → **Aprobar** o **Cancelar** (reject → borrador)
+- También editable en posts **aprobados** aún no programados
+- API media: permite upload en `draft` / `pending_approval` / `approved`
+
+**Fase 2 — Generación de imagen:**
+- Prompt enriquecido (`buildImagePrompt`: brief + caption + hashtags + instrucciones de feed)
+- Rechazo claro si `IMAGE_API_KEY` es Anthropic (`sk-ant-`)
+- Respuesta `usedMock` / `imageProvider` y aviso en Composer si se usó picsum
+
+**Criterio de aceptación:** ✅ Editar y aprobar desde `/approvals`; Composer avisa mock vs OpenAI; prompt anclado al caption.
 
 ---
 

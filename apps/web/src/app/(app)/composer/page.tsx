@@ -215,9 +215,16 @@ export default function ComposerPage() {
         handleMediaChange(null);
       }
 
-      setMessage(
-        `Imagen generada con IA y enviada a aprobación (${result.post.id.slice(0, 8)}…)`,
-      );
+      if (result.usedMock || result.imageProvider === 'mock') {
+        setMessage(
+          `Imagen mock (picsum) enviada a aprobación (${result.post.id.slice(0, 8)}…). ` +
+            'No usa IA real: configura IMAGE_API_KEY de OpenAI en la API (no Anthropic) y regenera.',
+        );
+      } else {
+        setMessage(
+          `Imagen generada con IA (${result.imageModel ?? 'openai'}) y enviada a aprobación (${result.post.id.slice(0, 8)}…)`,
+        );
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar con IA');
     } finally {
@@ -398,9 +405,10 @@ export default function ComposerPage() {
             <div>
               <h2 className="text-sm font-medium text-brand">Generar imagen con IA</h2>
               <p className="text-xs text-muted">
-                El brief solo define la imagen. Caption y hashtags los escribes arriba. OpenAI
-                Images si hay <code className="text-muted">IMAGE_API_KEY</code>; si no, mock
-                local.
+                Describe la escena visual con detalle (producto, colores, estilo). El caption de
+                arriba también se usa para anclar el tema. Requiere{' '}
+                <code className="text-muted">IMAGE_API_KEY</code> de OpenAI; sin ella se usa un
+                mock (foto aleatoria) solo para desarrollo.
               </p>
             </div>
 
@@ -409,7 +417,7 @@ export default function ComposerPage() {
               value={aiBrief}
               onChange={(e) => setAiBrief(e.target.value)}
               className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-              placeholder="Brief visual: promo de verano, colores cálidos, producto en primer plano…"
+              placeholder="Ej: foto de un latte en taza blanca sobre mesa de madera, luz natural, estilo café boutique…"
             />
 
             <button

@@ -22,6 +22,10 @@ export type GenerateFromBriefResult = {
   post: Awaited<ReturnType<PostsRepository['findById']>>;
   media: Awaited<ReturnType<MediaAssetsRepository['findByPost']>>;
   generations: Awaited<ReturnType<GenerationsRepository['findByPost']>>;
+  /** true si se usó picsum mock (sin IMAGE_API_KEY de OpenAI). */
+  usedMock: boolean;
+  imageProvider: 'openai' | 'mock' | 'unknown';
+  imageModel: string | null;
 };
 
 @Injectable()
@@ -64,6 +68,8 @@ export class ContentGenerationService {
     try {
       generatedImage = await this.image.generateImage({
         brief: input.brief,
+        caption: input.caption,
+        hashtags: input.hashtags,
         agencyId,
       });
       await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {
@@ -126,6 +132,9 @@ export class ContentGenerationService {
       post: fullPost,
       media: postMedia,
       generations: postGenerations,
+      usedMock: generatedImage.provider === 'mock',
+      imageProvider: generatedImage.provider ?? 'unknown',
+      imageModel: generatedImage.model ?? null,
     };
   }
 

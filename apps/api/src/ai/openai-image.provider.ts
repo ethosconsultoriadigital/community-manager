@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MediaStorageService } from '../media/media-storage.service';
+import { buildImagePrompt } from './build-image-prompt';
 import type {
   GenerateImageInput,
   GenerateImageResult,
@@ -28,13 +29,22 @@ export class OpenAiImageProvider implements ImageProvider {
         'Falta IMAGE_API_KEY (o OPENAI_API_KEY) para generar imágenes con OpenAI',
       );
     }
+    if (apiKey.startsWith('sk-ant-')) {
+      throw new BadRequestException(
+        'IMAGE_API_KEY parece una clave de Anthropic. Para imágenes usa una clave de OpenAI (DALL·E / Images API).',
+      );
+    }
     if (!input.agencyId) {
       throw new BadRequestException('agencyId es obligatorio para guardar la imagen generada');
     }
 
     const model = this.config.get<string>('IMAGE_MODEL')?.trim() || 'dall-e-3';
-    const prompt = input.brief.trim().slice(0, 3500);
-    if (!prompt) {
+    const prompt = buildImagePrompt({
+      brief: input.brief,
+      caption: input.caption,
+      hashtags: input.hashtags,
+    });
+    if (!input.brief.trim()) {
       throw new BadRequestException('El brief es obligatorio para generar la imagen');
     }
 

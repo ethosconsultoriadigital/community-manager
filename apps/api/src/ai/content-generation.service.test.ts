@@ -69,6 +69,8 @@ describe('ContentGenerationService', () => {
 
     expect(image.generateImage).toHaveBeenCalledWith({
       brief: 'Promo verano visual',
+      caption: 'Mi texto de promo',
+      hashtags: ['#verano'],
       agencyId: 'agency-1',
     });
     expect(mediaAssets.create).toHaveBeenCalledWith(
@@ -92,5 +94,7 @@ describe('ContentGenerationService', () => {
     expect(result.post?.status).toBe('pending_approval');
     expect(result.generations).toHaveLength(1);
     expect(result.media[0].source).toBe('ai_generated');
+    expect(result.usedMock).toBe(false);
+    expect(result.imageProvider).toBe('openai');
   });
 });

@@ -1,5 +1,8 @@
 export type GenerateImageInput = {
   brief: string;
+  /** Caption del post: ancla el tema visual al mensaje real. */
+  caption?: string;
+  hashtags?: string[];
   /** Necesario para guardar la imagen en storage propio (OpenAI real). */
   agencyId?: string;
 };

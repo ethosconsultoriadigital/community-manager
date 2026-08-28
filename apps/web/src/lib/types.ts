@@ -109,6 +109,9 @@ export type CanvaStatus = {
 export type GenerateFromBriefResult = {
   post: Post;
   media: MediaAsset[];
+  usedMock?: boolean;
+  imageProvider?: 'openai' | 'mock' | 'unknown';
+  imageModel?: string | null;
 };
 
 export type AdminUserClient = {
