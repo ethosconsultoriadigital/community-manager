@@ -8,8 +8,8 @@ import { useAuth } from '@/lib/auth';
 
 const BASE_NAV = [
   { href: '/inicio', label: 'Inicio' },
-  { href: '/composer', label: 'Composer' },
-  { href: '/radar', label: 'Radar' },
+  { href: '/composer', label: 'Generar Contenido' },
+  { href: '/radar', label: 'Conectar fuente' },
   { href: '/approvals', label: 'Aprobaciones' },
   { href: '/calendar', label: 'Calendario' },
   { href: '/reportes', label: 'Reportes' },
@@ -46,17 +46,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
       <header className="border-b border-line bg-surface shadow-sm">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-3">
             <EthosLogo href="/inicio" compact />
-            <p className="hidden text-xs text-muted sm:block">{agencyName}</p>
+            <p className="hidden text-xs text-muted xl:block">{agencyName}</p>
           </div>
-          <nav className="flex flex-wrap gap-1">
+          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+                className={`shrink-0 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
                   pathname === item.href
                     ? 'bg-brand text-white'
                     : 'text-muted hover:bg-canvas hover:text-ink'
@@ -66,8 +66,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <span className="hidden max-w-[140px] truncate text-xs text-muted md:inline">
+          <div className="flex shrink-0 items-center gap-2 border-l border-line pl-3">
+            <span className="hidden max-w-[160px] truncate text-xs text-muted lg:inline">
               {user.email}
             </span>
             <button
@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
       <SiteFooter />
     </div>
   );

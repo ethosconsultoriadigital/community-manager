@@ -306,7 +306,7 @@ export default function ComposerPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-ink">Composer</h1>
+        <h1 className="text-xl font-semibold text-ink">Generar Contenido</h1>
         <p className="text-sm text-muted">
           Elige cómo quieres el media: generar imagen con IA, subir un archivo o publicar un Reel.
         </p>

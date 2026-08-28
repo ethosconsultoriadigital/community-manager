@@ -284,13 +284,13 @@ export default function RadarPage() {
   }
 
   if (clientsLoading || loading) {
-    return <p className="text-muted">Cargando Radar…</p>;
+    return <p className="text-muted">Cargando conexión…</p>;
   }
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-ink">Radar de noticias</h1>
+        <h1 className="text-xl font-semibold text-ink">Conectar fuente</h1>
         <p className="text-sm text-muted">
           Solo entran a Aprobaciones noticias con <strong>url_radarmex</strong> y{' '}
           <strong>fecha_publicacion</strong> en el rango (por defecto: hoy). Puedes conectar

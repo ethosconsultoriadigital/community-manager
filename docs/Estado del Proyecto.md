@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (fix: reabrir rejected al sync de hoy)
+**Última actualización:** 2026-08-28 (UX nav, aprobar in-place, calendario grid)
 
 ---
 
@@ -11,14 +11,20 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Fix re-sync tras vaciar pendientes |
+| **Fase actual** | UX Aprobaciones + Calendario + renombres nav |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar Sheets |
-| **Próximo paso** | Redeploy → Sincronizar Radar → ver pendientes de hoy |
+| **Próximo paso** | Redeploy Vercel y validar bandeja / calendario |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-08-28 — UX nav, aprobar in-place, calendario grid ✅
+
+**Cambios:** nav «Generar Contenido» / «Conectar fuente»; email+Salir a la derecha de Admin; Aprobaciones unifica bandeja (calendario al aprobar sin bajar el post); Calendario en cuadrícula 2–4 cols con filtro red/fecha y modal «Ver post».
 
 ---
 

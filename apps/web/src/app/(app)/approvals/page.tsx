@@ -6,29 +6,18 @@ import { ApiError, apiFetch } from '@/lib/api';
 import { Pagination } from '@/components/Pagination';
 import { PostCard } from '@/components/PostCard';
 import { paginate } from '@/lib/pagination';
+import {
+  PLATFORM_FILTERS,
+  platformFilterLabel,
+  postMatchesPlatform,
+  type PlatformFilter,
+} from '@/lib/platform-filters';
 import type { Client, Post } from '@/lib/types';
-
-/** Redes disponibles hoy + las que vendrán (mismo filtro cuando existan targets). */
-const PLATFORM_FILTERS = [
-  { value: 'all', label: 'Todas las redes' },
-  { value: 'facebook', label: 'Facebook' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'x', label: 'X' },
-  { value: 'threads', label: 'Threads' },
-  { value: 'tiktok', label: 'TikTok' },
-] as const;
-
-type PlatformFilter = (typeof PLATFORM_FILTERS)[number]['value'];
 
 function defaultScheduleValue() {
   const d = new Date(Date.now() + 5 * 60 * 1000);
   d.setSeconds(0, 0);
   return d.toISOString().slice(0, 16);
-}
-
-function postMatchesPlatform(post: Post, platform: PlatformFilter) {
-  if (platform === 'all') return true;
-  return post.post_targets.some((t) => t.social_accounts.platform === platform);
 }
 
 export default function ApprovalsPage() {
@@ -41,8 +30,7 @@ export default function ApprovalsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({});
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
-  const [pendingPage, setPendingPage] = useState(1);
-  const [approvedPage, setApprovedPage] = useState(1);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     const [postsData, clientsData] = await Promise.all([
@@ -59,44 +47,29 @@ export default function ApprovalsPage() {
       .finally(() => setLoading(false));
   }, [load]);
 
-  const pending = useMemo(
-    () =>
-      posts.filter(
-        (p) => p.status === 'pending_approval' && postMatchesPlatform(p, platformFilter),
-      ),
-    [posts, platformFilter],
-  );
-  const approved = useMemo(
-    () =>
-      posts.filter((p) => p.status === 'approved' && postMatchesPlatform(p, platformFilter)),
-    [posts, platformFilter],
-  );
+  /** Pendientes + aprobados sin programar, en el mismo listado (aprobar no mueve el post abajo). */
+  const inbox = useMemo(() => {
+    return posts
+      .filter(
+        (p) =>
+          (p.status === 'pending_approval' || p.status === 'approved') &&
+          postMatchesPlatform(p, platformFilter),
+      )
+      .sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+  }, [posts, platformFilter]);
 
   const pendingTotalAll = useMemo(
     () => posts.filter((p) => p.status === 'pending_approval').length,
     [posts],
   );
 
-  const pendingPaginated = useMemo(
-    () => paginate(pending, pendingPage),
-    [pending, pendingPage],
-  );
-  const approvedPaginated = useMemo(
-    () => paginate(approved, approvedPage),
-    [approved, approvedPage],
-  );
+  const paginated = useMemo(() => paginate(inbox, page), [inbox, page]);
 
   useEffect(() => {
-    if (pendingPage > pendingPaginated.totalPages) {
-      setPendingPage(pendingPaginated.safePage);
-    }
-  }, [pendingPage, pendingPaginated.totalPages, pendingPaginated.safePage]);
-
-  useEffect(() => {
-    if (approvedPage > approvedPaginated.totalPages) {
-      setApprovedPage(approvedPaginated.safePage);
-    }
-  }, [approvedPage, approvedPaginated.totalPages, approvedPaginated.safePage]);
+    if (page > paginated.totalPages) setPage(paginated.safePage);
+  }, [page, paginated.totalPages, paginated.safePage]);
 
   async function runAction(postId: string, fn: () => Promise<unknown>, okMessage?: string) {
     setActionId(postId);
@@ -129,7 +102,7 @@ export default function ApprovalsPage() {
         mode: string;
       }>(`/content-sources/purge-invalid-pending?mode=${mode}`, { method: 'POST' });
       await load();
-      setPendingPage(1);
+      setPage(1);
       setMessage(
         `Limpieza (${result.mode}): eliminados ${result.deleted}` +
           (result.kept ? `, conservados ${result.kept}` : '') +
@@ -151,8 +124,7 @@ export default function ApprovalsPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Bandeja de aprobación</h1>
         <p className="text-sm text-muted">
-          Revisa la vista previa, edita si hace falta, luego aprueba o cancela antes de
-          programar.
+          Aprueba aquí mismo y programa la fecha sin que el post se mueva a otra sección.
         </p>
       </div>
 
@@ -166,8 +138,7 @@ export default function ApprovalsPage() {
             value={platformFilter}
             onChange={(e) => {
               setPlatformFilter(e.target.value as PlatformFilter);
-              setPendingPage(1);
-              setApprovedPage(1);
+              setPage(1);
             }}
             className="min-w-[200px] rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
           >
@@ -178,19 +149,14 @@ export default function ApprovalsPage() {
             ))}
           </select>
         </label>
-        {platformFilter !== 'all' && (
-          <p className="pb-2 text-xs text-muted">
-            Mostrando {pending.length} de {pendingTotalAll} pendientes
-          </p>
-        )}
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-lg border border-line bg-canvas/60 p-3">
         <p className="w-full text-xs text-muted">
           <strong className="font-medium text-ink">Cómo funcionan:</strong> borran posts
           pendientes de la bandeja. El historial viejo queda rechazado y no vuelve. Las
-          noticias que sigan pasando el filtro del Radar (p. ej. hoy + url Radarmex) se
-          pueden volver a crear al sincronizar.
+          noticias que sigan pasando el filtro de Conectar fuente (p. ej. hoy + url Radarmex)
+          se pueden volver a crear al sincronizar.
         </p>
         <button
           type="button"
@@ -198,7 +164,7 @@ export default function ApprovalsPage() {
           onClick={() =>
             runPurge(
               'stale',
-              `¿Eliminar pendientes del Radar que NO son de hoy (${pendingTotalAll} en bandeja)? Se conservan solo los de captura/creación de hoy.`,
+              `¿Eliminar pendientes de la fuente que NO son de hoy (${pendingTotalAll} en bandeja)? Se conservan solo los de captura/creación de hoy.`,
             )
           }
           className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface disabled:opacity-50"
@@ -211,12 +177,12 @@ export default function ApprovalsPage() {
           onClick={() =>
             runPurge(
               'all_radar',
-              `¿Vaciar TODOS los pendientes del Radar? Se quitan de la bandeja. Al sincronizar de nuevo solo volverán las que pasen el filtro actual (hoy + url Radarmex).`,
+              `¿Vaciar TODOS los pendientes de la fuente? Se quitan de la bandeja. Al sincronizar de nuevo solo volverán las que pasen el filtro actual (hoy + url Radarmex).`,
             )
           }
           className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
         >
-          Vaciar pendientes del Radar
+          Vaciar pendientes de la fuente
         </button>
         <button
           type="button"
@@ -224,7 +190,7 @@ export default function ApprovalsPage() {
           onClick={() =>
             runPurge(
               'all',
-              `¿Eliminar TODOS los ${pendingTotalAll} posts pendientes (Radar + manuales)? Esta acción no se puede deshacer.`,
+              `¿Eliminar TODOS los ${pendingTotalAll} posts pendientes (fuente + manuales)? Esta acción no se puede deshacer.`,
             )
           }
           className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
@@ -235,22 +201,21 @@ export default function ApprovalsPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted">
-          Pendientes ({pending.length}
-          {platformFilter !== 'all' ? ` · ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label}` : ''}
-          )
+          Bandeja ({inbox.length}
+          {platformFilter !== 'all' ? ` · ${platformFilterLabel(platformFilter)}` : ''})
         </h2>
-        {pending.length === 0 ? (
+        {inbox.length === 0 ? (
           <p className="text-sm text-muted">
             {platformFilter === 'all'
-              ? 'No hay posts pendientes de aprobación.'
-              : `No hay pendientes de ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label}.`}
+              ? 'No hay posts pendientes ni aprobados por programar.'
+              : `No hay posts de ${platformFilterLabel(platformFilter)} en la bandeja.`}
           </p>
         ) : (
           <>
-            {pendingPaginated.slice.map((post) => (
-              <div key={post.id}>
+            {paginated.slice.map((post) => (
+              <div key={post.id} id={`approval-${post.id}`}>
                 <PostCard post={post} clientName={clients[post.client_id]}>
-                  {editingId !== post.id && (
+                  {editingId !== post.id && post.status === 'pending_approval' && (
                     <>
                       <button
                         type="button"
@@ -271,7 +236,7 @@ export default function ApprovalsPage() {
                           runAction(
                             post.id,
                             () => apiFetch(`/posts/${post.id}/approve`, { method: 'POST' }),
-                            'Post aprobado. Ya puedes programarlo abajo.',
+                            'Aprobado. Elige fecha aquí mismo y programa.',
                           )
                         }
                         className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
@@ -300,51 +265,7 @@ export default function ApprovalsPage() {
                       </button>
                     </>
                   )}
-                </PostCard>
-                {editingId === post.id && (
-                  <ApprovalEditForm
-                    post={post}
-                    busy={actionId === post.id}
-                    onError={(msg) => setError(msg || null)}
-                    onCancel={() => setEditingId(null)}
-                    onSaved={async () => {
-                      setEditingId(null);
-                      setMessage('Cambios guardados. Revisa la vista previa y aprueba.');
-                      await load();
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-            <Pagination
-              page={pendingPaginated.safePage}
-              totalPages={pendingPaginated.totalPages}
-              totalItems={pendingPaginated.totalItems}
-              onPageChange={setPendingPage}
-              label="pendientes"
-            />
-          </>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted">
-          Aprobados — programar ({approved.length}
-          {platformFilter !== 'all' ? ` · ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label}` : ''}
-          )
-        </h2>
-        {approved.length === 0 ? (
-          <p className="text-sm text-muted">
-            {platformFilter === 'all'
-              ? 'No hay posts aprobados sin programar.'
-              : `No hay aprobados de ${PLATFORM_FILTERS.find((p) => p.value === platformFilter)?.label} sin programar.`}
-          </p>
-        ) : (
-          <>
-            {approvedPaginated.slice.map((post) => (
-              <div key={post.id}>
-                <PostCard post={post} clientName={clients[post.client_id]}>
-                  {editingId !== post.id && (
+                  {editingId !== post.id && post.status === 'approved' && (
                     <>
                       <button
                         type="button"
@@ -358,14 +279,17 @@ export default function ApprovalsPage() {
                       >
                         Editar
                       </button>
-                      <input
-                        type="datetime-local"
-                        value={scheduleAt[post.id] ?? defaultScheduleValue()}
-                        onChange={(e) =>
-                          setScheduleAt((prev) => ({ ...prev, [post.id]: e.target.value }))
-                        }
-                        className="rounded-md border border-line-strong bg-white px-2 py-1 text-xs text-ink"
-                      />
+                      <label className="flex items-center gap-2 text-xs text-muted">
+                        <span className="font-medium text-ink">Publicar:</span>
+                        <input
+                          type="datetime-local"
+                          value={scheduleAt[post.id] ?? defaultScheduleValue()}
+                          onChange={(e) =>
+                            setScheduleAt((prev) => ({ ...prev, [post.id]: e.target.value }))
+                          }
+                          className="rounded-md border border-line-strong bg-white px-2 py-1 text-xs text-ink"
+                        />
+                      </label>
                       <button
                         type="button"
                         disabled={actionId === post.id}
@@ -379,7 +303,7 @@ export default function ApprovalsPage() {
                                 method: 'POST',
                                 body: JSON.stringify({ scheduledAt: iso }),
                               }),
-                            'Post programado.',
+                            'Post programado. Lo verás en Calendario.',
                           );
                         }}
                         className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-hover disabled:opacity-50"
@@ -397,7 +321,7 @@ export default function ApprovalsPage() {
                     onCancel={() => setEditingId(null)}
                     onSaved={async () => {
                       setEditingId(null);
-                      setMessage('Cambios guardados en el post aprobado.');
+                      setMessage('Cambios guardados.');
                       await load();
                     }}
                   />
@@ -405,11 +329,11 @@ export default function ApprovalsPage() {
               </div>
             ))}
             <Pagination
-              page={approvedPaginated.safePage}
-              totalPages={approvedPaginated.totalPages}
-              totalItems={approvedPaginated.totalItems}
-              onPageChange={setApprovedPage}
-              label="aprobados"
+              page={paginated.safePage}
+              totalPages={paginated.totalPages}
+              totalItems={paginated.totalItems}
+              onPageChange={setPage}
+              label="en bandeja"
             />
           </>
         )}

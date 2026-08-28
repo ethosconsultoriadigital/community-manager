@@ -67,6 +67,12 @@ export default function InicioPage() {
           Crear contenido
         </Link>
         <Link
+          href="/radar"
+          className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas"
+        >
+          Conectar fuente
+        </Link>
+        <Link
           href="/approvals"
           className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas"
         >
