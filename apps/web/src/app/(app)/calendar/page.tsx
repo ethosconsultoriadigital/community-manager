@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch } from '@/lib/api';
+import { CalendarPostDetail } from '@/components/CalendarPostDetail';
 import { Pagination } from '@/components/Pagination';
-import { PostCard, formatDate, statusLabel } from '@/components/PostCard';
+import { formatDate, statusLabel } from '@/components/PostCard';
+import { apiFetch } from '@/lib/api';
 import { paginate } from '@/lib/pagination';
+import { sumPostMetrics } from '@/lib/post-metrics';
 import {
   PLATFORM_FILTERS,
   isDateKeyInRange,
@@ -40,6 +42,7 @@ function CompactPostTile({
     post.status === 'published'
       ? formatDate(post.published_at)
       : formatDate(post.scheduled_at);
+  const metrics = post.status === 'published' ? sumPostMetrics(post) : null;
 
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
@@ -80,6 +83,11 @@ function CompactPostTile({
           {post.caption?.trim() || '(sin caption)'}
         </p>
         <p className="text-[10px] text-muted">{when}</p>
+        {metrics?.hasMetrics && (
+          <p className="text-[10px] text-muted">
+            {metrics.likes} me gusta · {metrics.comments} comentarios
+          </p>
+        )}
         <button
           type="button"
           onClick={onOpen}
@@ -166,12 +174,21 @@ export default function CalendarPage() {
 
   const load = useCallback(async () => {
     const [postsData, clientsData] = await Promise.all([
-      apiFetch<Post[]>('/posts'),
+      apiFetch<Post[]>('/posts?withMetrics=1'),
       apiFetch<Client[]>('/clients'),
     ]);
     setPosts(postsData);
     setClients(Object.fromEntries(clientsData.map((c) => [c.id, c.name])));
+    return postsData;
   }, []);
+
+  const refreshDetail = useCallback(async () => {
+    const postsData = await load();
+    setDetailPost((current) => {
+      if (!current) return null;
+      return postsData.find((p) => p.id === current.id) ?? null;
+    });
+  }, [load]);
 
   useEffect(() => {
     load()
@@ -247,8 +264,9 @@ export default function CalendarPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Calendario</h1>
         <p className="text-sm text-muted">
-          Vista en cuadrícula de programados y publicados. Filtra por red y fecha de
-          publicación.
+          Vista en cuadrícula de programados y publicados. Filtra por red y fecha. Puedes
+          editar o eliminar programados y posts con error; en publicados verás likes y
+          comentarios cuando estén sincronizados.
         </p>
       </div>
 
@@ -364,36 +382,12 @@ export default function CalendarPage() {
       />
 
       {detailPost && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Detalle del post"
-          onClick={() => setDetailPost(null)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-canvas p-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-ink">Vista del post</h3>
-              <button
-                type="button"
-                onClick={() => setDetailPost(null)}
-                className="rounded-md border border-line-strong px-2 py-1 text-xs text-muted hover:bg-surface"
-              >
-                Cerrar
-              </button>
-            </div>
-            <PostCard post={detailPost} clientName={clients[detailPost.client_id]}>
-              {detailPost.status === 'published' && (
-                <span className="text-xs text-muted">
-                  Publicado: {formatDate(detailPost.published_at)}
-                </span>
-              )}
-            </PostCard>
-          </div>
-        </div>
+        <CalendarPostDetail
+          post={detailPost}
+          clientName={clients[detailPost.client_id]}
+          onClose={() => setDetailPost(null)}
+          onChanged={refreshDetail}
+        />
       )}
     </div>
   );

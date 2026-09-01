@@ -82,6 +82,53 @@ describe('PostsRepository — programación y aprobación', () => {
     expect(scheduled?.scheduled_at?.toISOString()).toBe(scheduledAt.toISOString());
   });
 
+  it('desprograma un post programado', async () => {
+    const post = await postsRepo.create(agencyAId, null, {
+      clientId: clientAId,
+      caption: 'Para desprogramar',
+      socialAccountIds: [accountAId],
+    });
+
+    await postsRepo.submitForApproval(agencyAId, post.id);
+    await approvalsRepo.approveLatest(agencyAId, post.id, null);
+    await postsRepo.markApproved(agencyAId, post.id);
+
+    const scheduledAt = new Date(Date.now() + 120_000);
+    await postsRepo.schedule(agencyAId, post.id, scheduledAt);
+
+    const unscheduled = await postsRepo.unschedule(agencyAId, post.id);
+    expect(unscheduled?.status).toBe('approved');
+    expect(unscheduled?.scheduled_at).toBeNull();
+  });
+
+  it('reprograma un post fallido tras reset', async () => {
+    const post = await postsRepo.create(agencyAId, null, {
+      clientId: clientAId,
+      caption: 'Fallido',
+      socialAccountIds: [accountAId],
+    });
+
+    await postsRepo.submitForApproval(agencyAId, post.id);
+    await approvalsRepo.approveLatest(agencyAId, post.id, null);
+    await postsRepo.markApproved(agencyAId, post.id);
+
+    await prisma.posts.update({
+      where: { id: post.id },
+      data: { status: 'failed' },
+    });
+    await prisma.post_targets.updateMany({
+      where: { post_id: post.id },
+      data: { status: 'failed', error_message: 'Error de prueba' },
+    });
+
+    const scheduledAt = new Date(Date.now() + 180_000);
+    const scheduled = await postsRepo.schedule(agencyAId, post.id, scheduledAt);
+
+    expect(scheduled?.status).toBe('scheduled');
+    const targets = await prisma.post_targets.findMany({ where: { post_id: post.id } });
+    expect(targets.every((t) => t.status === 'pending')).toBe(true);
+  });
+
   it('rechaza programar sin aprobación', async () => {
     const post = await postsRepo.create(agencyAId, null, {
       clientId: clientAId,

@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-01 (Publicar feed + Stories Meta)
+**Última actualización:** 2026-09-01 (Calendario: gestión programados/errores + métricas)
 
 ---
 
@@ -11,14 +11,26 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Stories FB/IG vía Graph API |
+| **Fase actual** | Calendario operativo (editar/eliminar/reprogramar) |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories |
-| **Próximo paso** | `pnpm migrate` en prod + probar Story en Meta |
+| **Próximo paso** | Desplegar API + web; probar acciones en Calendario y sync métricas en Reportes |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-09-01 — Calendario: editar/eliminar programados y errores + métricas ✅
+
+**Implementado:**
+- **Programados:** editar caption/media, cambiar horario, quitar del calendario (vuelve a aprobado) o eliminar.
+- **Con errores:** editar, eliminar o reprogramar (resetea destinos fallidos y encola de nuevo).
+- **Publicados:** likes y comentarios en cuadrícula y modal (desde `post_insights`; requiere sync en Reportes).
+- API: `POST /posts/:id/unschedule`, cancelación de job BullMQ al desprogramar/eliminar/reprogramar; `GET /posts?withMetrics=1`.
+
+**Criterio de aceptación:** ✅ UI Calendario con acciones; métricas visibles cuando existen insights sincronizados.
 
 ---
 

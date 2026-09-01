@@ -38,6 +38,11 @@ export type PostTarget = {
   story_status?: string | null;
   story_error_message?: string | null;
   social_accounts: SocialAccount;
+  post_insights?: {
+    likes: number | null;
+    comments: number | null;
+    fetched_at?: string;
+  } | null;
 };
 
 export type Post = {

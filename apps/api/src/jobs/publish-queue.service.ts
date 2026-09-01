@@ -40,4 +40,13 @@ export class PublishQueueService {
       );
     }
   }
+
+  /** Cancela un job de publicación programado (si existe). */
+  async removePostJob(postId: string) {
+    const jobId = `publish-post-${postId}`;
+    const job = await this.queue.getJob(jobId);
+    if (job) {
+      await job.remove();
+    }
+  }
 }

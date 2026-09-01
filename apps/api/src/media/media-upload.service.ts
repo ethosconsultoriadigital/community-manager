@@ -3,8 +3,14 @@ import { MediaAssetsRepository, PostsRepository } from '@cm/db';
 import { MediaStorageService } from './media-storage.service';
 import { MediaValidationError, validateUploadFile } from './media-validation';
 
-/** Borrador, pendientes y aprobados sin programar aún (edición en bandeja). */
-const EDITABLE_POST_STATUSES = new Set(['draft', 'pending_approval', 'approved']);
+/** Estados en los que se puede reemplazar media (bandeja y calendario). */
+const EDITABLE_POST_STATUSES = new Set([
+  'draft',
+  'pending_approval',
+  'approved',
+  'scheduled',
+  'failed',
+]);
 
 @Injectable()
 export class MediaUploadService {
@@ -27,7 +33,7 @@ export class MediaUploadService {
     if (!post) throw new NotFoundException('Post no encontrado');
     if (!EDITABLE_POST_STATUSES.has(post.status)) {
       throw new MediaValidationError(
-        'Solo se puede adjuntar media a posts en borrador, pendientes o aprobados sin programar',
+        'Solo se puede adjuntar media a posts editables (borrador, pendiente, aprobado, programado o con error)',
       );
     }
 

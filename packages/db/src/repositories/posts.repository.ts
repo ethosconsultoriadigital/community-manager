@@ -26,17 +26,31 @@ export type UpdatePostData = {
   alsoPublishAsStory?: boolean;
 };
 
+const postTargetInclude = {
+  social_accounts: {
+    select: {
+      id: true,
+      platform: true,
+      external_account_id: true,
+      username: true,
+      client_id: true,
+    },
+  },
+} satisfies Prisma.post_targetsInclude;
+
 const postInclude = {
   post_targets: {
+    include: postTargetInclude,
+  },
+  media_assets: { orderBy: { position: 'asc' as const } },
+} satisfies Prisma.postsInclude;
+
+const postIncludeWithMetrics = {
+  post_targets: {
     include: {
-      social_accounts: {
-        select: {
-          id: true,
-          platform: true,
-          external_account_id: true,
-          username: true,
-          client_id: true,
-        },
+      ...postTargetInclude,
+      post_insights: {
+        select: { likes: true, comments: true, fetched_at: true },
       },
     },
   },
@@ -52,11 +66,11 @@ const publishInclude = {
 export class PostsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  findAll(agencyId: string, clientId?: string) {
+  findAll(agencyId: string, clientId?: string, options?: { withMetrics?: boolean }) {
     return this.prisma.posts.findMany({
       where: scopedWhere(agencyId, clientId ? { client_id: clientId } : undefined),
       orderBy: { created_at: 'desc' },
-      include: postInclude,
+      include: options?.withMetrics ? postIncludeWithMetrics : postInclude,
     });
   }
 
@@ -276,11 +290,65 @@ export class PostsRepository {
     return this.findById(agencyId, id);
   }
 
+  async unschedule(agencyId: string, id: string) {
+    const post = await this.findById(agencyId, id);
+    if (!post) return null;
+
+    if (post.status !== 'scheduled') {
+      throw new PostsValidationError('Solo se puede desprogramar un post programado');
+    }
+
+    await this.prisma.posts.updateMany({
+      where: scopedWhere(agencyId, { id }),
+      data: {
+        status: 'approved',
+        scheduled_at: null,
+        updated_at: new Date(),
+      },
+    });
+
+    return this.findById(agencyId, id);
+  }
+
+  /** Vuelve un post fallido a aprobado y reinicia destinos con error para reintentar. */
+  async resetFailedForRetry(agencyId: string, id: string) {
+    const post = await this.findById(agencyId, id);
+    if (!post) return null;
+
+    if (!['failed', 'publishing'].includes(post.status)) {
+      throw new PostsValidationError('El post no está en estado de error');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.posts.updateMany({
+        where: scopedWhere(agencyId, { id }),
+        data: {
+          status: 'approved',
+          scheduled_at: null,
+          updated_at: new Date(),
+        },
+      });
+      await tx.post_targets.updateMany({
+        where: { post_id: id, status: 'failed' },
+        data: {
+          status: 'pending',
+          error_message: null,
+          story_status: null,
+          story_error_message: null,
+        },
+      });
+    });
+
+    return this.findById(agencyId, id);
+  }
+
   async schedule(agencyId: string, id: string, scheduledAt: Date) {
     const post = await this.findById(agencyId, id);
     if (!post) return null;
 
-    if (!['approved', 'scheduled'].includes(post.status)) {
+    if (post.status === 'failed' || post.status === 'publishing') {
+      await this.resetFailedForRetry(agencyId, id);
+    } else if (!['approved', 'scheduled'].includes(post.status)) {
       throw new PostsValidationError('El post debe estar aprobado para programarlo');
     }
 

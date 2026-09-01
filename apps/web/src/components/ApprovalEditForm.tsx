@@ -23,12 +23,14 @@ function parseHashtags(raw: string): string[] {
 export function ApprovalEditForm({
   post,
   busy,
+  heading = 'Editar antes de aprobar',
   onSaved,
   onCancel,
   onError,
 }: {
   post: Post;
   busy?: boolean;
+  heading?: string;
   onSaved: () => Promise<void> | void;
   onCancel: () => void;
   onError: (message: string) => void;
@@ -93,7 +95,7 @@ export function ApprovalEditForm({
       onSubmit={handleSave}
       className="mt-3 space-y-3 rounded-md border border-brand/25 bg-[#E7F3FF] p-3"
     >
-      <p className="text-xs font-medium text-brand">Editar antes de aprobar</p>
+      <p className="text-xs font-medium text-brand">{heading}</p>
       <label className="block text-sm">
         <span className="mb-1 block text-xs text-muted">Caption</span>
         <textarea

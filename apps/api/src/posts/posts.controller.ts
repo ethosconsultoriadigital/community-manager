@@ -78,11 +78,17 @@ export class PostsController {
   }
 
   @Get()
-  async findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
+  async findAll(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId?: string,
+    @Query('withMetrics') withMetrics?: string,
+  ) {
     const scope = await this.clientAccess.resolveListScope(user, clientId);
     if (scope.mode === 'none') return [];
     const filter = scope.mode === 'single' ? scope.clientId : undefined;
-    return this.posts.findAll(user.agencyId, filter);
+    return this.posts.findAll(user.agencyId, filter, {
+      withMetrics: withMetrics === '1' || withMetrics === 'true',
+    });
   }
 
   @Get(':id')
@@ -206,7 +212,26 @@ export class PostsController {
       const post = await this.posts.schedule(user.agencyId, id, scheduledAt);
       if (!post) throw new NotFoundException('Post no encontrado');
 
+      await this.publishQueue.removePostJob(id);
       await this.publishQueue.enqueuePost(user.agencyId, id, scheduledAt);
+      return post;
+    } catch (error) {
+      if (error instanceof PostsValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post(':id/unschedule')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async unschedule(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getPostOrThrow(user, id);
+    try {
+      const post = await this.posts.unschedule(user.agencyId, id);
+      if (!post) throw new NotFoundException('Post no encontrado');
+      await this.publishQueue.removePostJob(id);
       return post;
     } catch (error) {
       if (error instanceof PostsValidationError) {
@@ -218,7 +243,10 @@ export class PostsController {
 
   @Delete(':id')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    await this.getPostOrThrow(user, id);
+    const post = await this.getPostOrThrow(user, id);
+    if (post.status === 'scheduled') {
+      await this.publishQueue.removePostJob(id);
+    }
     const deleted = await this.posts.delete(user.agencyId, id);
     if (!deleted) throw new NotFoundException('Post no encontrado');
     return { deleted: true };
