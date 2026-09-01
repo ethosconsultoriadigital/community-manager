@@ -7,9 +7,12 @@ export {
 export {
   buildPublishMessage,
   buildRadarCaption,
+  dedupeHashtagsKeepLast,
   displayCaption,
   hashtagsAlreadyInText,
-  stripTrailingDuplicateHashtags,
+  isHashtagOnlyLine,
+  normalizeCaptionHashtags,
+  stripHashtagOnlyLines,
   visibleHashtags,
 } from './caption/caption-hashtags';
 

@@ -9,63 +9,127 @@ export function hashtagsAlreadyInText(text: string, hashtags: string[]): boolean
   });
 }
 
-/** Quita una línea final de hashtags si ya aparecen antes en el caption. */
-export function stripTrailingDuplicateHashtags(caption: string, hashtags: string[]): string {
-  if (!caption?.trim() || !hashtags?.length) return caption?.trim() ?? '';
-
-  const lines = caption.trimEnd().split('\n');
-  let lastIdx = lines.length - 1;
-  while (lastIdx >= 0 && !lines[lastIdx]?.trim()) lastIdx -= 1;
-  if (lastIdx < 0) return caption.trim();
-
-  const lastLine = lines[lastIdx]!.trim();
-  if (!lastLine.includes('#') || !hashtagsAlreadyInText(lastLine, hashtags)) {
-    return caption.trim();
+/** Línea compuesta solo por hashtags del set (sin texto adicional). */
+export function isHashtagOnlyLine(line: string, hashtags: string[]): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes('#') || !hashtagsAlreadyInText(trimmed, hashtags)) {
+    return false;
   }
-
-  const body = lines.slice(0, lastIdx).join('\n');
-  if (!hashtagsAlreadyInText(body, hashtags)) {
-    return caption.trim();
+  let rest = trimmed;
+  for (const tag of hashtags) {
+    const bare = tag.trim().replace(/^#+/, '');
+    if (!bare) continue;
+    rest = rest.replace(new RegExp(`#${bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'gi'), '');
   }
-
-  return body.replace(/\n+$/, '').trim();
+  return rest.trim().length === 0;
 }
 
-/** Arma caption de Radar sin repetir hashtags ni URL ya presentes. */
+/** Quita líneas que son solo hashtags; se reinsertan al final si hace falta. */
+export function stripHashtagOnlyLines(text: string, hashtags: string[]): string {
+  if (!hashtags?.length) return text.trim();
+  const filtered = text.split('\n').filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return true;
+    return !isHashtagOnlyLine(trimmed, hashtags);
+  });
+  return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Si los mismos hashtags aparecen más de una vez, elimina los primeros bloques
+ * y conserva el último (formato correcto al final del post).
+ */
+export function dedupeHashtagsKeepLast(caption: string, hashtags: string[]): string {
+  if (!caption?.trim() || !hashtags?.length) return caption?.trim() ?? '';
+
+  const lines = caption.split('\n');
+  const hashtagLineIndices: number[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i]?.trim() ?? '';
+    if (trimmed && isHashtagOnlyLine(trimmed, hashtags)) {
+      hashtagLineIndices.push(i);
+    }
+  }
+
+  if (hashtagLineIndices.length <= 1) return caption.trim();
+
+  const remove = new Set(hashtagLineIndices.slice(0, -1));
+  return lines
+    .filter((_, i) => !remove.has(i))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Normaliza caption: quita hashtags intermedios duplicados y los deja al final. */
+export function normalizeCaptionHashtags(caption: string, hashtags: string[]): string {
+  if (!caption?.trim()) return '';
+  if (!hashtags?.length) return caption.trim();
+
+  const deduped = dedupeHashtagsKeepLast(caption, hashtags);
+  const dedupedLines = deduped.split('\n');
+
+  let lastTagLine: string | null = null;
+  for (let i = dedupedLines.length - 1; i >= 0; i--) {
+    const trimmed = dedupedLines[i]?.trim() ?? '';
+    if (trimmed && isHashtagOnlyLine(trimmed, hashtags)) {
+      lastTagLine = trimmed;
+      break;
+    }
+  }
+
+  const body = stripHashtagOnlyLines(deduped, hashtags);
+
+  if (lastTagLine) {
+    return [body, lastTagLine].filter(Boolean).join('\n\n').trim();
+  }
+
+  return [body, hashtags.join(' ')].filter(Boolean).join('\n\n').trim();
+}
+
+/** Arma caption de Radar: hashtags solo al final (no tras «Más de esta noticia»). */
 export function buildRadarCaption(parts: {
   copy: string;
   hashtags: string[];
   url?: string | null;
 }): string {
   let result = parts.copy.trim();
-  if (parts.hashtags.length && !hashtagsAlreadyInText(result, parts.hashtags)) {
-    result = [result, parts.hashtags.join(' ')].filter(Boolean).join('\n\n');
+
+  if (parts.hashtags.length) {
+    result = stripHashtagOnlyLines(result, parts.hashtags);
   }
+
   const url = parts.url?.trim();
   if (url && !result.includes(url)) {
     result = [result, url].filter(Boolean).join('\n\n');
   }
+
+  if (parts.hashtags.length) {
+    result = [result, parts.hashtags.join(' ')].filter(Boolean).join('\n\n');
+  }
+
   return result;
 }
 
-/** Mensaje final para Meta: no duplica hashtags si el caption ya los trae. */
+/** Mensaje final para Meta: conserva hashtags finales, sin bloque intermedio duplicado. */
 export function buildPublishMessage(caption: string | null, hashtags: string[]): string {
-  const base = stripTrailingDuplicateHashtags(caption?.trim() ?? '', hashtags);
+  const base = normalizeCaptionHashtags(caption?.trim() ?? '', hashtags);
   if (!hashtags?.length || hashtagsAlreadyInText(base, hashtags)) {
     return base;
   }
   return [base, hashtags.join(' ')].filter(Boolean).join('\n\n');
 }
 
-/** Hashtags visibles en UI: omitir si ya están en el caption. */
+/** Hashtags visibles en UI: omitir si ya están en el caption normalizado. */
 export function visibleHashtags(caption: string | null | undefined, hashtags: string[]): string[] {
   if (!hashtags?.length) return [];
-  const cleaned = stripTrailingDuplicateHashtags(caption ?? '', hashtags);
+  const cleaned = normalizeCaptionHashtags(caption ?? '', hashtags);
   if (hashtagsAlreadyInText(cleaned, hashtags)) return [];
   return hashtags;
 }
 
-/** Caption listo para mostrar en UI sin bloque final duplicado. */
+/** Caption listo para mostrar en UI. */
 export function displayCaption(caption: string | null | undefined, hashtags: string[]): string {
-  return stripTrailingDuplicateHashtags(caption?.trim() ?? '', hashtags);
+  return normalizeCaptionHashtags(caption?.trim() ?? '', hashtags);
 }
