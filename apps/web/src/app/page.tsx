@@ -39,7 +39,7 @@ export default function HomePage() {
                 Ethos · Community Manager
               </p>
               <h1 className="landing-fade-up mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">
-                Community Manager Automático
+                Community Manager
               </h1>
               <p
                 className="landing-fade-up mt-5 text-lg leading-relaxed text-muted"

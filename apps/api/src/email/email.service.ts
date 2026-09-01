@@ -10,7 +10,7 @@ export class EmailService {
   async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
     const apiKey = this.config.get<string>('RESEND_API_KEY')?.trim();
     const from = this.config.get<string>('EMAIL_FROM')?.trim() ?? 'Community Manager <onboarding@resend.dev>';
-    const subject = 'Restablecer contraseña — Community Manager Automático';
+    const subject = 'Restablecer contraseña — Community Manager';
     const html = `
       <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
       <p><a href="${resetUrl}">Haz clic aquí para elegir una nueva contraseña</a></p>

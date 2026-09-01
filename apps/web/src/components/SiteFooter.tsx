@@ -1,3 +1,4 @@
+import { EthosCredit } from './EthosCredit';
 import { EthosLogo } from './EthosLogo';
 
 export function SiteFooter() {
@@ -9,8 +10,8 @@ export function SiteFooter() {
         <div className="flex w-full flex-col items-center gap-4">
           <EthosLogo href={false} compact />
           <div className="flex w-full flex-col items-center gap-2 text-center text-xs text-muted sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <p className="font-medium text-ink">Community Manager Automático</p>
-            <p>Consultoría y Estrategia Digital</p>
+            <p className="font-medium text-ink">Community Manager</p>
+            <EthosCredit />
             <p>© {year} Ethos</p>
           </div>
         </div>

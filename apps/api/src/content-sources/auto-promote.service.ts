@@ -167,7 +167,7 @@ export class AutoPromoteService {
 
   private async downloadToStorage(agencyId: string, imageUrl: string): Promise<string> {
     const res = await fetch(imageUrl, {
-      headers: { 'User-Agent': 'CommunityManagerAutomatico/1.0' },
+      headers: { 'User-Agent': 'CommunityManager/1.0' },
       redirect: 'follow',
     });
     if (!res.ok) {

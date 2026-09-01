@@ -1,9 +1,17 @@
-# Estado del Proyecto — Community Manager Automático
+# Estado del Proyecto — Community Manager
 
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-01 (Mejoras UX: Inicio, Radar, Reportes, Composer IA, PDF)
+**Última actualización:** 2026-09-01 (Branding: Community Manager + crédito Ethos)
+
+---
+
+## 2026-09-01 — Branding v1 inicial ✅
+
+**Implementado:** nombre del producto **Community Manager** (sin «Automático»); logo Ethos en login y recuperación de contraseña; footers con «Desarrollado por Ethos Consultoría Digital» → [ethosconsultoriadigital.com](https://www.ethosconsultoriadigital.com/).
+
+**Criterio de aceptación:** ✅ UI, emails y metadata actualizados; build web OK.
 
 ---
 

@@ -1,10 +1,10 @@
-# Community Manager Automático — Spec de arranque para Cursor
+# Community Manager — Spec de arranque para Cursor
 
 > **Cómo usar este documento:** pégalo como primer mensaje al agente de Cursor (o guárdalo como `PROJECT.md` en la raíz del repo y dile al agente "lee PROJECT.md y empezamos por la Fase 0"). Coloca los archivos `schema_base.sql` y `schema_content_sources.sql` en `/migrations` antes de empezar. **Trabajen fase por fase**: no dejes que el agente intente construir todo en una sola pasada.
 
 ---
 
-Eres un ingeniero de software senior. Vamos a construir, desde cero y por fases, un SaaS multi-tenant llamado **Community Manager Automático**. Lee toda esta especificación antes de escribir código y sigue el plan de fases en orden, deteniéndote al final de cada fase para que yo la revise.
+Eres un ingeniero de software senior. Vamos a construir, desde cero y por fases, un SaaS multi-tenant llamado **Community Manager**. Lee toda esta especificación antes de escribir código y sigue el plan de fases en orden, deteniéndote al final de cada fase para que yo la revise.
 
 ## 1. Objetivo del producto
 

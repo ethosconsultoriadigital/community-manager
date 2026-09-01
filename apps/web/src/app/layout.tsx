@@ -16,7 +16,7 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: 'Community Manager Automático',
+  title: 'Community Manager',
   description: 'SaaS multi-tenant para gestión de redes sociales',
 };
 

@@ -1,6 +1,6 @@
 # Guía de despliegue a producción
 
-Checklist **paso a paso** para hostear Community Manager Automático y luego seguir implementando módulos.
+Checklist **paso a paso** para hostear Community Manager y luego seguir implementando módulos.
 
 **Antes de desplegar:** lee `Arquitectura_Hosting.md` (qué es Vercel, Render, Neon, Upstash y R2).  
 En la API, `GET /` da **404** a propósito; la prueba correcta es `GET /health`.

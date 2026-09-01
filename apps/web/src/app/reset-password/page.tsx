@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useState } from 'react';
+import { EthosCredit } from '@/components/EthosCredit';
+import { EthosLogo } from '@/components/EthosLogo';
 import { ApiError, apiFetch } from '@/lib/api';
 
 function ResetPasswordForm() {
@@ -85,21 +87,38 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold text-ink">Nueva contraseña</h1>
-          <p className="mt-1 text-sm text-muted">Elige una contraseña de al menos 8 caracteres.</p>
+    <div className="flex min-h-screen flex-col bg-canvas">
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-5xl px-4 py-3">
+          <EthosLogo href="/login" compact />
         </div>
-        <Suspense fallback={<p className="text-sm text-muted">Cargando…</p>}>
-          <ResetPasswordForm />
-        </Suspense>
-        <p className="text-center text-sm text-muted">
-          <Link href="/login" className="text-brand hover:underline">
-            Volver al inicio de sesión
-          </Link>
-        </p>
-      </div>
+      </header>
+
+      <main className="flex flex-1 flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-sm space-y-6 rounded-lg border border-line bg-surface p-6 shadow-sm">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <EthosLogo href={false} compact />
+            <div>
+              <h1 className="text-xl font-semibold text-ink">Nueva contraseña</h1>
+              <p className="mt-1 text-sm text-muted">
+                Elige una contraseña de al menos 8 caracteres.
+              </p>
+            </div>
+          </div>
+          <Suspense fallback={<p className="text-sm text-muted">Cargando…</p>}>
+            <ResetPasswordForm />
+          </Suspense>
+          <p className="text-center text-sm text-muted">
+            <Link href="/login" className="text-brand hover:underline">
+              Volver al inicio de sesión
+            </Link>
+          </p>
+        </div>
+      </main>
+
+      <footer className="border-t border-line bg-surface py-4 text-center">
+        <EthosCredit />
+      </footer>
     </div>
   );
 }
