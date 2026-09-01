@@ -1,14 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type {
   PlatformPublisher,
   PublishResult,
   PublishTargetInput,
 } from '../platform-publisher.interface';
 import { MetaGraphClient } from './meta-graph.client';
+import { StoryMediaComposerService } from './story-media-composer.service';
 
 @Injectable()
 export class MetaPublishService implements PlatformPublisher {
-  constructor(private readonly meta: MetaGraphClient) {}
+  private readonly logger = new Logger(MetaPublishService.name);
+
+  constructor(
+    private readonly meta: MetaGraphClient,
+    private readonly storyComposer: StoryMediaComposerService,
+  ) {}
 
   async publish(input: PublishTargetInput): Promise<PublishResult> {
     const alsoStory = Boolean(input.alsoPublishAsStory);
@@ -97,6 +103,7 @@ export class MetaPublishService implements PlatformPublisher {
 
   private async publishFacebookStory(input: PublishTargetInput): Promise<string> {
     const { externalAccountId, accessToken, imageUrl, videoUrl } = input;
+    const storyImageUrl = await this.resolveStoryImageUrl(input);
 
     if (videoUrl) {
       const started = await this.meta.startFacebookVideoStory(
@@ -116,14 +123,14 @@ export class MetaPublishService implements PlatformPublisher {
       return finished.post_id ?? started.video_id;
     }
 
-    if (!imageUrl) {
+    if (!storyImageUrl && !imageUrl) {
       throw new Error('Story de Facebook requiere imagen o video');
     }
 
     const uploaded = await this.meta.uploadFacebookUnpublishedPhoto(
       externalAccountId,
       accessToken,
-      imageUrl,
+      storyImageUrl ?? imageUrl!,
     );
     const story = await this.meta.publishFacebookPhotoStory(
       externalAccountId,
@@ -135,6 +142,7 @@ export class MetaPublishService implements PlatformPublisher {
 
   private async publishInstagramStory(input: PublishTargetInput): Promise<string> {
     const { externalAccountId, accessToken, imageUrl, videoUrl } = input;
+    const storyImageUrl = await this.resolveStoryImageUrl(input);
 
     let container: { id: string };
     if (videoUrl) {
@@ -144,11 +152,11 @@ export class MetaPublishService implements PlatformPublisher {
         videoUrl,
       );
       await this.meta.waitForInstagramContainer(container.id, accessToken);
-    } else if (imageUrl) {
+    } else if (storyImageUrl || imageUrl) {
       container = await this.meta.createInstagramStoryImageMedia(
         externalAccountId,
         accessToken,
-        imageUrl,
+        storyImageUrl ?? imageUrl!,
       );
       await this.meta.waitForInstagramContainer(container.id, accessToken);
     } else {
@@ -232,5 +240,26 @@ export class MetaPublishService implements PlatformPublisher {
       container.id,
     );
     return { platformPostId: published.id };
+  }
+
+  private async resolveStoryImageUrl(input: PublishTargetInput): Promise<string | undefined> {
+    if (!input.imageUrl || !input.message.trim() || !input.agencyId) {
+      return input.imageUrl;
+    }
+
+    try {
+      return await this.storyComposer.composeStoryImage(
+        input.imageUrl,
+        input.message,
+        input.agencyId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo componer story con caption; se usa imagen original: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+      return input.imageUrl;
+    }
   }
 }

@@ -9,6 +9,18 @@ describe('MetaPublishService', () => {
     videoUrl: 'https://cdn.example.com/video.mp4',
   };
 
+  function createStoryComposer(overrides?: { composeStoryImage?: ReturnType<typeof vi.fn> }) {
+    return {
+      composeStoryImage:
+        overrides?.composeStoryImage ??
+        vi.fn(async (url: string) => `https://cdn.example.com/story-${url.split('/').pop()}`),
+    };
+  }
+
+  function createService(meta: object, storyComposer = createStoryComposer()) {
+    return new MetaPublishService(meta as never, storyComposer as never);
+  }
+
   it('publica video en feed de Instagram via REELS con share_to_feed', async () => {
     const meta = {
       createInstagramVideoMedia: vi.fn(),
@@ -16,7 +28,7 @@ describe('MetaPublishService', () => {
       waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
       publishInstagramMedia: vi.fn().mockResolvedValue({ id: 'ig-post-1' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     await service.publish({
       platform: 'instagram',
@@ -42,7 +54,7 @@ describe('MetaPublishService', () => {
       waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
       publishInstagramMedia: vi.fn().mockResolvedValue({ id: 'ig-reel-1' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'instagram',
@@ -64,7 +76,7 @@ describe('MetaPublishService', () => {
     const meta = {
       publishFacebookVideo: vi.fn().mockResolvedValue({ id: 'fb-video-1' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'facebook',
@@ -86,7 +98,7 @@ describe('MetaPublishService', () => {
         .mockResolvedValueOnce({ id: 'ig-story-1' }),
       createInstagramStoryVideoMedia: vi.fn().mockResolvedValue({ id: 'container-story' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'instagram',
@@ -109,7 +121,7 @@ describe('MetaPublishService', () => {
       waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
       publishInstagramMedia: vi.fn().mockResolvedValue({ id: 'ig-photo-1' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'instagram',
@@ -125,6 +137,46 @@ describe('MetaPublishService', () => {
     expect(result.platformPostId).toBe('ig-photo-1');
   });
 
+  it('Instagram foto + story compone caption en imagen de story', async () => {
+    const meta = {
+      createInstagramMedia: vi.fn().mockResolvedValue({ id: 'container-feed' }),
+      createInstagramStoryImageMedia: vi.fn().mockResolvedValue({ id: 'container-story' }),
+      waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
+      publishInstagramMedia: vi
+        .fn()
+        .mockResolvedValueOnce({ id: 'ig-feed-1' })
+        .mockResolvedValueOnce({ id: 'ig-story-1' }),
+    };
+    const storyComposer = createStoryComposer({
+      composeStoryImage: vi
+        .fn()
+        .mockResolvedValue('https://cdn.example.com/story-with-caption.jpg'),
+    });
+    const service = createService(meta, storyComposer);
+
+    const result = await service.publish({
+      platform: 'instagram',
+      externalAccountId: 'ig-1',
+      accessToken: 'token',
+      agencyId: 'agency-1',
+      message: 'Foto promo con texto largo para story',
+      imageUrl: 'https://cdn.example.com/img.jpg',
+      alsoPublishAsStory: true,
+    });
+
+    expect(storyComposer.composeStoryImage).toHaveBeenCalledWith(
+      'https://cdn.example.com/img.jpg',
+      'Foto promo con texto largo para story',
+      'agency-1',
+    );
+    expect(meta.createInstagramStoryImageMedia).toHaveBeenCalledWith(
+      'ig-1',
+      'token',
+      'https://cdn.example.com/story-with-caption.jpg',
+    );
+    expect(result.storyPlatformPostId).toBe('ig-story-1');
+  });
+
   it('Instagram foto + story espera ambos contenedores', async () => {
     const meta = {
       createInstagramMedia: vi.fn().mockResolvedValue({ id: 'container-feed' }),
@@ -135,7 +187,7 @@ describe('MetaPublishService', () => {
         .mockResolvedValueOnce({ id: 'ig-feed-1' })
         .mockResolvedValueOnce({ id: 'ig-story-1' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'instagram',
@@ -168,7 +220,7 @@ describe('MetaPublishService', () => {
         return { id: 'fb-photo-1' };
       }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'facebook',
@@ -188,7 +240,7 @@ describe('MetaPublishService', () => {
     const meta = {
       publishFacebookFeed: vi.fn().mockResolvedValue({ id: 'fb-text-1' }),
     };
-    const service = new MetaPublishService(meta as never);
+    const service = createService(meta);
 
     const result = await service.publish({
       platform: 'facebook',

@@ -27,7 +27,7 @@ export function StoryPublishCheckbox({
         onChange={(e) => onChange(e.target.checked)}
         className="rounded border-line-strong"
       />
-      <span>También colgar como historia (24 h)</span>
+      <span>También colgar como historia (24 h, incluye caption en fotos)</span>
     </label>
   );
 }

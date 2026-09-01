@@ -3,7 +3,15 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-01 (Branding: Community Manager + crédito Ethos)
+**Última actualización:** 2026-09-01 (Stories con caption compuesto en imagen)
+
+---
+
+## 2026-09-01 — Stories con caption visible ✅
+
+**Implementado:** al marcar «También colgar como historia», la API compone una imagen 9:16 (foto + caption del post abajo) antes de publicar en IG/FB, porque la Graph API no admite caption en `STORIES`. Solo aplica a **fotos**; videos en story siguen sin texto superpuesto.
+
+**Criterio de aceptación:** ✅ Tests API; dependencia `sharp` en Render.
 
 ---
 

@@ -100,6 +100,7 @@ export class PublishPostService {
         platform: account.platform as 'facebook' | 'instagram',
         externalAccountId: account.external_account_id,
         accessToken,
+        agencyId,
         message,
         imageUrl,
         videoUrl,

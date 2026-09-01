@@ -7,6 +7,7 @@ export type PublishTargetInput = {
   externalAccountId: string;
   accessToken: string;
   message: string;
+  agencyId?: string;
   imageUrl?: string;
   videoUrl?: string;
   videoFormat?: VideoFormat;
