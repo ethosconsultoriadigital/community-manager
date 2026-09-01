@@ -169,6 +169,45 @@ export class SourceItemsRepository {
     return result.count > 0;
   }
 
+  /**
+   * Descarta un item ingerido (soft delete → rejected).
+   * Si tiene post pending_approval, lo elimina también.
+   */
+  async dismiss(agencyId: string, id: string) {
+    const item = await this.findById(agencyId, id);
+    if (!item) return null;
+
+    if (item.post_id) {
+      const post = await this.prisma.posts.findFirst({
+        where: scopedWhere(agencyId, { id: item.post_id }),
+        select: { id: true, status: true },
+      });
+      if (post?.status === 'published') {
+        throw new SourceItemsValidationError(
+          'No se puede descartar: el post ya fue publicado en redes',
+        );
+      }
+      if (post?.status === 'pending_approval') {
+        await this.prisma.$transaction(async (tx) => {
+          await tx.posts.deleteMany({
+            where: { agency_id: agencyId, id: post.id },
+          });
+          await tx.source_items.updateMany({
+            where: scopedWhere(agencyId, { id }),
+            data: { status: 'rejected', post_id: null },
+          });
+        });
+        return this.findById(agencyId, id);
+      }
+    }
+
+    await this.prisma.source_items.updateMany({
+      where: scopedWhere(agencyId, { id }),
+      data: { status: 'rejected', post_id: null },
+    });
+    return this.findById(agencyId, id);
+  }
+
   private toCreateData(agencyId: string, data: UpsertSourceItemData): Prisma.source_itemsCreateInput {
     return {
       external_id: data.externalId,

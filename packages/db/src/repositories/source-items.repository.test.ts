@@ -83,4 +83,40 @@ describe('SourceItemsRepository', () => {
     const forB = await itemsRepo.findById(agencyBId, item.id);
     expect(forB).toBeNull();
   });
+
+  it('dismiss marca rejected y borra post pending_approval', async () => {
+    const item = await itemsRepo.upsert(agencyAId, {
+      sourceId: sourceAId,
+      clientId: clientAId,
+      externalId: `ext-dismiss-${suffix}`,
+      sentimentScore: 0.9,
+      dedupHash: `hash-dismiss-${suffix}`,
+    });
+
+    const post = await prisma.posts.create({
+      data: {
+        agency_id: agencyAId,
+        client_id: clientAId,
+        caption: 'Pendiente radar',
+        status: 'pending_approval',
+        created_by: null,
+      },
+    });
+    await prisma.source_items.updateMany({
+      where: { id: item.id },
+      data: { post_id: post.id, status: 'new' },
+    });
+
+    const dismissed = await itemsRepo.dismiss(agencyAId, item.id);
+    expect(dismissed?.status).toBe('rejected');
+    expect(dismissed?.post_id).toBeNull();
+
+    const deletedPost = await prisma.posts.findFirst({
+      where: { id: post.id, agency_id: agencyAId },
+    });
+    expect(deletedPost).toBeNull();
+
+    const crossDismiss = await itemsRepo.dismiss(agencyBId, item.id);
+    expect(crossDismiss).toBeNull();
+  });
 });

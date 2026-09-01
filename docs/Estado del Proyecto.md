@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-01 (Calendario: gestión programados/errores + métricas)
+**Última actualización:** 2026-09-01 (Mejoras UX: Inicio, Radar, Reportes, Composer IA, PDF)
 
 ---
 
@@ -11,14 +11,34 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Calendario operativo (editar/eliminar/reprogramar) |
-| **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories |
-| **Próximo paso** | Desplegar API + web; probar acciones en Calendario y sync métricas en Reportes |
-| **Verificación automática** | `pnpm --filter @cm/api test` OK |
+| **Fase actual** | Mejoras UX por módulo (plan 6 fases) — entregadas |
+| **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories + UX módulos |
+| **Próximo paso** | Desplegar API + web; probar PDF reportes y Composer con referencia |
+| **Verificación automática** | `@cm/api` test OK · `@cm/web` build OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-09-01 — Mejoras UX por módulo (plan 6 fases) ✅
+
+**Fase 1 — Inicio:** `DashboardStatCard` con collage 2×2 de miniaturas por estado; carga vía `GET /posts?withMetrics=1`.
+
+**Fase 2 — Conectar fuente:** `POST /source-items/:id/dismiss` + botón Eliminar en Radar; soft delete (`rejected`); borra post si `pending_approval`.
+
+**Fase 3 — Composer IA:** presets visuales por plataforma; subida de referencia (imagen/PDF/Word) vía `POST /generations/parse-reference`; `from-brief` acepta `referenceText`; UI renombrada a «Generar contenido visual con IA».
+
+**Fase 4a — Analytics API:** `GET /analytics/summary` ampliado con `byPlatform`, `metricBreakdown`, `topPosts` con media y filtro `?platform=`.
+
+**Fase 4b — Reportes UI:** Recharts (pastel + barras), tarjetas visuales, filtro por red, top posts con thumbnail, botón descarga PDF.
+
+**Fase 4c — PDF + IA:** `POST /analytics/report/pdf` con pdfkit + narrativa GPT-4o-mini (fallback mock); registro en `generations` (`model: report-pdf`).
+
+**Criterio de aceptación:** ✅ Cambios aditivos; flujos aprobación/publicación/Radar intactos; tests API y build web OK.
+
+**Pendientes futuros:** gráficos temporales diarios; export Word; generación video IA; métricas TikTok.
 
 ---
 

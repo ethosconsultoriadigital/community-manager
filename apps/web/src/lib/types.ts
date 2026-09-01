@@ -71,6 +71,18 @@ export type MediaAsset = {
   position: number;
 };
 
+export type PlatformMetrics = {
+  impressions: number;
+  reach: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  engagement: number;
+  publishedTargets: number;
+  withMetrics: number;
+};
+
 export type AnalyticsSummary = {
   publishedTargets: number;
   withMetrics: number;
@@ -83,6 +95,15 @@ export type AnalyticsSummary = {
     saves: number;
     engagement: number;
   };
+  byPlatform: Record<string, PlatformMetrics>;
+  metricBreakdown: {
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+    impressions: number;
+    reach: number;
+  };
   topPosts: Array<{
     postId: string;
     caption: string | null;
@@ -90,6 +111,9 @@ export type AnalyticsSummary = {
     engagement: number;
     impressions: number;
     likes: number;
+    comments: number;
+    platform: string | null;
+    storageUrl: string | null;
   }>;
 };
 

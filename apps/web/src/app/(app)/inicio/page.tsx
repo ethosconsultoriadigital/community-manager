@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DashboardStatCard, postsForStatus } from '@/components/DashboardStatCard';
 import { apiFetch } from '@/lib/api';
 import type { Post } from '@/lib/types';
 
@@ -10,7 +11,7 @@ export default function InicioPage() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const data = await apiFetch<Post[]>('/posts');
+    const data = await apiFetch<Post[]>('/posts?withMetrics=1');
     setPosts(data);
   }, []);
 
@@ -18,13 +19,37 @@ export default function InicioPage() {
     load().finally(() => setLoading(false));
   }, [load]);
 
-  const counts = useMemo(
-    () => ({
-      pending: posts.filter((p) => p.status === 'pending_approval').length,
-      approved: posts.filter((p) => p.status === 'approved').length,
-      scheduled: posts.filter((p) => p.status === 'scheduled').length,
-      published: posts.filter((p) => p.status === 'published').length,
-    }),
+  const cards = useMemo(
+    () => [
+      {
+        key: 'pending',
+        label: 'Pendientes de aprobación',
+        tone: 'pending' as const,
+        href: '/approvals',
+        posts: postsForStatus(posts, 'pending_approval'),
+      },
+      {
+        key: 'approved',
+        label: 'Aprobados sin programar',
+        tone: 'approved' as const,
+        href: '/approvals',
+        posts: postsForStatus(posts, 'approved'),
+      },
+      {
+        key: 'scheduled',
+        label: 'Programados',
+        tone: 'scheduled' as const,
+        href: '/calendar',
+        posts: postsForStatus(posts, 'scheduled'),
+      },
+      {
+        key: 'published',
+        label: 'Publicados',
+        tone: 'published' as const,
+        href: '/calendar',
+        posts: postsForStatus(posts, 'published'),
+      },
+    ],
     [posts],
   );
 
@@ -37,25 +62,20 @@ export default function InicioPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Inicio</h1>
         <p className="text-sm text-muted">
-          Resumen de tu contenido y accesos rápidos.
+          Resumen visual de tu contenido y accesos rápidos.
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: 'Pendientes de aprobación', value: counts.pending, href: '/approvals' },
-          { label: 'Aprobados sin programar', value: counts.approved, href: '/approvals' },
-          { label: 'Programados', value: counts.scheduled, href: '/calendar' },
-          { label: 'Publicados', value: counts.published, href: '/calendar' },
-        ].map((card) => (
-          <Link
-            key={card.label}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((card) => (
+          <DashboardStatCard
+            key={card.key}
+            label={card.label}
+            value={card.posts.length}
             href={card.href}
-            className="rounded-lg border border-line bg-surface p-4 transition-colors hover:border-brand hover:bg-white"
-          >
-            <p className="text-2xl font-semibold text-ink">{card.value}</p>
-            <p className="mt-1 text-xs text-muted">{card.label}</p>
-          </Link>
+            tone={card.tone}
+            previewPosts={card.posts}
+          />
         ))}
       </div>
 

@@ -258,6 +258,23 @@ export class SourceItemsController {
     }
   }
 
+  @Post(':id/dismiss')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async dismiss(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getItemOrThrow(user, id);
+    try {
+      const item = await this.sourceItems.dismiss(user.agencyId, id);
+      if (!item) throw new NotFoundException('Item no encontrado');
+      return item;
+    } catch (error) {
+      if (error instanceof SourceItemsValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
   private async getItemOrThrow(user: AuthUser, id: string) {
     const item = await this.sourceItems.findById(user.agencyId, id);
     if (!item) throw new NotFoundException('Item no encontrado');

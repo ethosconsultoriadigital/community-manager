@@ -7,6 +7,10 @@ import {
   PostsValidationError,
   SocialAccountsRepository,
 } from '@cm/db';
+import {
+  imageSizeForPresets,
+  presetsForPlatforms,
+} from './platform-visual-presets';
 import { IMAGE_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
 
@@ -16,6 +20,8 @@ export type GenerateFromBriefInput = {
   caption: string;
   hashtags?: string[];
   socialAccountIds: string[];
+  referenceText?: string;
+  videoFormat?: 'feed' | 'reel' | null;
 };
 
 export type GenerateFromBriefResult = {
@@ -57,6 +63,13 @@ export class ContentGenerationService {
       input.socialAccountIds,
     );
 
+    const accounts = await this.socialAccounts.findByAgency(agencyId, input.clientId);
+    const selectedPlatforms = accounts
+      .filter((a) => input.socialAccountIds.includes(a.id))
+      .map((a) => a.platform);
+    const platformPresets = presetsForPlatforms(selectedPlatforms, input.videoFormat);
+    const imageSize = imageSizeForPresets(platformPresets);
+
     const imageGen = await this.generations.create(agencyId, {
       kind: 'image',
       prompt: input.brief,
@@ -70,6 +83,9 @@ export class ContentGenerationService {
         brief: input.brief,
         caption: input.caption,
         hashtags: input.hashtags,
+        referenceText: input.referenceText,
+        platformPresets,
+        imageSize,
         agencyId,
       });
       await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {

@@ -12,6 +12,8 @@ import type {
 import type {
   GenerateCopyInput,
   GenerateCopyResult,
+  GenerateReportNarrativeInput,
+  GenerateReportNarrativeResult,
   LlmProvider,
 } from '../interfaces/llm-provider.interface';
 
@@ -30,15 +32,32 @@ export class MockLlmProvider implements LlmProvider {
 
     return { caption, hashtags, byPlatform };
   }
+
+  async generateReportNarrative(
+    input: GenerateReportNarrativeInput,
+  ): Promise<GenerateReportNarrativeResult> {
+    const label = input.clientName ?? 'el cliente';
+    return {
+      executiveSummary: `[Mock] Resumen de ${input.days} días para ${label}. Datos agregados de publicaciones con métricas Meta.`,
+      platformHighlights:
+        '[Mock] Facebook e Instagram muestran engagement concentrado en los top posts del periodo.',
+      recommendations:
+        '[Mock] Mantener frecuencia de publicación, replicar formatos con mayor engagement y revisar horarios de publicación.',
+    };
+  }
 }
 
 export class MockImageProvider implements ImageProvider {
   async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
     const seed = createHash('sha256').update(input.brief).digest('hex').slice(0, 12);
+    const size = input.imageSize ?? '1024x1024';
+    const [w, h] = size.split('x').map(Number);
+    const width = Number.isFinite(w) ? w : 1080;
+    const height = Number.isFinite(h) ? h : 1080;
     return {
-      url: `https://picsum.photos/seed/${seed}/1080/1080`,
-      width: 1080,
-      height: 1080,
+      url: `https://picsum.photos/seed/${seed}/${width}/${height}`,
+      width,
+      height,
       model: 'mock-image',
       provider: 'mock',
     };

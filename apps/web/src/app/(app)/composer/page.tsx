@@ -1,8 +1,9 @@
 ﻿'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ApiError, apiFetch, apiUploadMedia } from '@/lib/api';
+import { ApiError, apiFetch, apiUploadMedia, apiUploadReference } from '@/lib/api';
+import { visualPresetChips } from '@/lib/platform-visual-hints';
 import { ClientScopeField } from '@/components/ClientScopeField';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
@@ -15,6 +16,9 @@ import { StoryPublishCheckbox } from '@/lib/story-publish';
 
 const ACCEPT_MEDIA =
   'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm';
+
+const ACCEPT_REFERENCE =
+  'image/jpeg,image/png,image/webp,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx';
 
 type MediaMode = 'ai' | 'upload' | 'reel';
 
@@ -33,6 +37,9 @@ export default function ComposerPage() {
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [aiBrief, setAiBrief] = useState('');
+  const [referenceText, setReferenceText] = useState('');
+  const [referenceFileName, setReferenceFileName] = useState<string | null>(null);
+  const [parsingReference, setParsingReference] = useState(false);
   const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -183,6 +190,38 @@ export default function ComposerPage() {
       .map((t) => (t.startsWith('#') ? t : `#${t}`));
   }
 
+  async function handleReferenceFile(file: File | null) {
+    if (!file) {
+      setReferenceText('');
+      setReferenceFileName(null);
+      return;
+    }
+    setParsingReference(true);
+    setError(null);
+    try {
+      const result = await apiUploadReference<{ referenceText: string }>(file);
+      setReferenceText(result.referenceText);
+      setReferenceFileName(file.name);
+      setMessage('Referencia procesada. Se usará al generar el visual.');
+    } catch (err) {
+      setReferenceText('');
+      setReferenceFileName(null);
+      setError(err instanceof ApiError ? err.message : 'No se pudo leer la referencia');
+    } finally {
+      setParsingReference(false);
+    }
+  }
+
+  const selectedPlatforms = useMemo(
+    () =>
+      accounts
+        .filter((a) => selectedAccounts.includes(a.id))
+        .map((a) => a.platform),
+    [accounts, selectedAccounts],
+  );
+
+  const presetChips = useMemo(() => visualPresetChips(selectedPlatforms), [selectedPlatforms]);
+
   async function handleGenerateWithAi() {
     if (!aiBrief.trim()) {
       setError('Escribe un brief para generar la imagen con IA');
@@ -210,6 +249,8 @@ export default function ComposerPage() {
           caption: caption.trim(),
           hashtags: parseHashtags(),
           socialAccountIds: selectedAccounts,
+          ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
+          videoFormat: mediaMode === 'reel' ? 'reel' : 'feed',
         }),
       });
 
@@ -314,7 +355,7 @@ export default function ComposerPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Generar Contenido</h1>
         <p className="text-sm text-muted">
-          Elige cómo quieres el media: generar imagen con IA, subir un archivo o publicar un Reel.
+          Elige cómo quieres el media: generar contenido visual con IA, subir un archivo o publicar un Reel.
         </p>
       </div>
 
@@ -324,7 +365,7 @@ export default function ComposerPage() {
           <div className="flex flex-wrap gap-2">
             {(
               [
-                { id: 'ai', label: 'Generar imagen (IA)' },
+                { id: 'ai', label: 'Generar contenido visual con IA' },
                 { id: 'upload', label: 'Subir archivo' },
                 { id: 'reel', label: 'Reel (video)' },
               ] as const
@@ -404,17 +445,29 @@ export default function ComposerPage() {
               ))
             )}
           </div>
+          {presetChips.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {presetChips.map((chip) => (
+                <span
+                  key={chip}
+                  className="rounded-full bg-canvas px-2 py-0.5 text-xs text-muted border border-line"
+                >
+                  {chip}
+                </span>
+              ))}
+            </div>
+          )}
         </fieldset>
 
         {mediaMode === 'ai' && (
           <div className="rounded-md border border-brand/30 bg-[#E7F3FF] p-4 space-y-3">
             <div>
-              <h2 className="text-sm font-medium text-brand">Generar imagen con IA</h2>
+              <h2 className="text-sm font-medium text-brand">Generar contenido visual con IA</h2>
               <p className="text-xs text-muted">
                 Describe la escena visual con detalle (producto, colores, estilo). El caption de
-                arriba también se usa para anclar el tema. Requiere{' '}
-                <code className="text-muted">IMAGE_API_KEY</code> de OpenAI; sin ella se usa un
-                mock (foto aleatoria) solo para desarrollo.
+                arriba también se usa para anclar el tema. Opcionalmente adjunta una referencia
+                (imagen, PDF o Word). Requiere <code className="text-muted">IMAGE_API_KEY</code> de
+                OpenAI; sin ella se usa un mock (foto aleatoria) solo para desarrollo.
               </p>
             </div>
 
@@ -426,13 +479,40 @@ export default function ComposerPage() {
               placeholder="Ej: foto de un latte en taza blanca sobre mesa de madera, luz natural, estilo café boutique…"
             />
 
+            <div>
+              <label htmlFor="reference" className="mb-1 block text-xs text-muted">
+                Referencia visual o documento (opcional)
+              </label>
+              <input
+                id="reference"
+                type="file"
+                accept={ACCEPT_REFERENCE}
+                disabled={parsingReference || generatingAi}
+                onChange={(e) => void handleReferenceFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-xs text-muted file:mr-2 file:rounded file:border-0 file:bg-brand file:px-2 file:py-1 file:text-white"
+              />
+              {referenceFileName && (
+                <p className="mt-1 text-xs text-muted">
+                  Referencia: {referenceFileName}
+                  {referenceText ? ' (lista para usar)' : ''}
+                </p>
+              )}
+              {parsingReference && (
+                <p className="mt-1 text-xs text-brand">Procesando referencia…</p>
+              )}
+            </div>
+
             <button
               type="button"
-              disabled={generatingAi || submitting || selectedAccounts.length === 0}
+              disabled={
+                generatingAi || submitting || parsingReference || selectedAccounts.length === 0
+              }
               onClick={handleGenerateWithAi}
               className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             >
-              {generatingAi ? 'Generando imagen…' : 'Generar imagen y enviar a aprobación'}
+              {generatingAi
+                ? 'Generando contenido visual…'
+                : 'Generar visual y enviar a aprobación'}
             </button>
 
             {aiPreviewUrl && (

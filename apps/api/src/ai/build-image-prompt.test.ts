@@ -12,7 +12,7 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('Visual brief: Café en taza blanca sobre mesa de madera');
     expect(prompt).toContain('Promo 2x1 en lattes esta semana');
     expect(prompt).toContain('#cafe');
-    expect(prompt).toMatch(/social media post image/i);
+    expect(prompt).toMatch(/social media visual/i);
   });
 
   it('funciona solo con brief', () => {

@@ -142,7 +142,11 @@ export default function RadarPage() {
       return;
     }
     apiFetch<SourceItem[]>(`/content-sources/${activeSource.id}/items`)
-      .then((list) => setItems(list.slice(0, 30)))
+      .then((list) =>
+        setItems(
+          list.filter((i) => i.status !== 'rejected').slice(0, 30),
+        ),
+      )
       .catch(() => setItems([]));
   }, [activeSource, isNewSource]);
 
@@ -226,6 +230,26 @@ export default function RadarPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al sincronizar');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDismissItem(item: SourceItem) {
+    const msg = item.post_id
+      ? '¿Descartar este item? Si tiene un post pendiente de aprobación, también se eliminará de la bandeja.'
+      : '¿Descartar este item de la lista de ingeridos?';
+    if (!window.confirm(msg)) return;
+
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/source-items/${item.id}/dismiss`, { method: 'POST' });
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setMessage('Item descartado.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo descartar el item');
     } finally {
       setBusy(false);
     }
@@ -506,14 +530,24 @@ export default function RadarPage() {
         ) : (
           <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
             {items.map((item) => (
-              <li key={item.id} className="px-3 py-2 text-sm">
-                <p className="font-medium text-ink">{item.title ?? item.external_id}</p>
-                <p className="text-xs text-muted">
-                  {item.sentiment ?? '—'} · score {String(item.sentiment_score ?? '—')} ·{' '}
-                  {item.status}
-                  {item.source_url ? ' · tiene url_radarmex' : ' · sin url_radarmex'}
-                  {item.post_id ? ' · promovido' : ''}
-                </p>
+              <li key={item.id} className="flex items-start justify-between gap-2 px-3 py-2 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-ink">{item.title ?? item.external_id}</p>
+                  <p className="text-xs text-muted">
+                    {item.sentiment ?? '—'} · score {String(item.sentiment_score ?? '—')} ·{' '}
+                    {item.status}
+                    {item.source_url ? ' · tiene url_radarmex' : ' · sin url_radarmex'}
+                    {item.post_id ? ' · promovido' : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleDismissItem(item)}
+                  className="shrink-0 rounded-md border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Eliminar
+                </button>
               </li>
             ))}
           </ul>

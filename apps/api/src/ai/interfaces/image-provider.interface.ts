@@ -1,8 +1,13 @@
+import type { PlatformVisualPreset } from '../platform-visual-presets';
+
 export type GenerateImageInput = {
   brief: string;
   /** Caption del post: ancla el tema visual al mensaje real. */
   caption?: string;
   hashtags?: string[];
+  referenceText?: string;
+  platformPresets?: PlatformVisualPreset[];
+  imageSize?: '1024x1024' | '1024x1792';
   /** Necesario para guardar la imagen en storage propio (OpenAI real). */
   agencyId?: string;
 };

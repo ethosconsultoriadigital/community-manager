@@ -48,7 +48,11 @@ export class OpenAiImageProvider implements ImageProvider {
       brief: input.brief,
       caption: input.caption,
       hashtags: input.hashtags,
+      referenceText: input.referenceText,
+      platformPresets: input.platformPresets,
     });
+    const size = input.imageSize ?? '1024x1024';
+    const [width, height] = size.split('x').map(Number);
     if (!input.brief.trim()) {
       throw new BadRequestException('El brief es obligatorio para generar la imagen');
     }
@@ -63,7 +67,7 @@ export class OpenAiImageProvider implements ImageProvider {
         model,
         prompt,
         n: 1,
-        size: '1024x1024',
+        size,
       }),
     });
 
@@ -92,8 +96,8 @@ export class OpenAiImageProvider implements ImageProvider {
 
     return {
       url: stored.storageUrl,
-      width: 1024,
-      height: 1024,
+      width: width || 1024,
+      height: height || 1024,
       model,
       provider: 'openai',
     };

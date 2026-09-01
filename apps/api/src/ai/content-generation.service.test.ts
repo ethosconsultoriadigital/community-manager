@@ -67,12 +67,18 @@ describe('ContentGenerationService', () => {
       socialAccountIds: ['sa1'],
     });
 
-    expect(image.generateImage).toHaveBeenCalledWith({
-      brief: 'Promo verano visual',
-      caption: 'Mi texto de promo',
-      hashtags: ['#verano'],
-      agencyId: 'agency-1',
-    });
+    expect(image.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brief: 'Promo verano visual',
+        caption: 'Mi texto de promo',
+        hashtags: ['#verano'],
+        agencyId: 'agency-1',
+        imageSize: '1024x1024',
+        platformPresets: expect.arrayContaining([
+          expect.objectContaining({ platform: 'facebook' }),
+        ]),
+      }),
+    );
     expect(mediaAssets.create).toHaveBeenCalledWith(
       'agency-1',
       expect.objectContaining({
