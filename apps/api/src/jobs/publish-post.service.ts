@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApprovalsRepository, PostsRepository, SocialAccountsRepository } from '@cm/db';
-import { decryptToken } from '@cm/shared';
+import { buildPublishMessage, decryptToken } from '@cm/shared';
 import { MetaPublishService } from '../platforms/meta/meta-publish.service';
 
 export type PublishPostJobData = {
@@ -128,8 +128,7 @@ export class PublishPostService {
   }
 
   buildMessage(caption: string | null, hashtags: string[]): string {
-    const parts = [caption?.trim(), hashtags.join(' ')].filter(Boolean);
-    return parts.join('\n\n') || '';
+    return buildPublishMessage(caption, hashtags);
   }
 
   private requireEncryptionKey(): string {

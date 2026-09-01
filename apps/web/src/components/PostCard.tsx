@@ -1,4 +1,5 @@
 import type { Post } from '@/lib/types';
+import { displayCaption, visibleHashtags } from '@/lib/caption-hashtags';
 import { PostFeedPreview } from '@/components/PostFeedPreview';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,6 +48,9 @@ export function PostCard({
   /** Vista previa visual (media + texto). Por defecto activa. */
   showPreview?: boolean;
 }) {
+  const displayHashtags = visibleHashtags(post.caption, post.hashtags);
+  const captionText = displayCaption(post.caption, post.hashtags);
+
   return (
     <article className="rounded-lg border border-line bg-surface p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -73,10 +77,10 @@ export function PostCard({
       ) : (
         <>
           <p className="mb-2 whitespace-pre-wrap text-sm text-ink">
-            {post.caption ?? '(sin caption)'}
+            {captionText || '(sin caption)'}
           </p>
-          {post.hashtags.length > 0 && (
-            <p className="mb-2 text-xs text-brand">{post.hashtags.join(' ')}</p>
+          {displayHashtags.length > 0 && (
+            <p className="mb-2 text-xs text-brand">{displayHashtags.join(' ')}</p>
           )}
         </>
       )}

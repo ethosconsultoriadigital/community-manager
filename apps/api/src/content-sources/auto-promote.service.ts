@@ -6,6 +6,7 @@ import {
   SocialAccountsRepository,
   SourceItemsRepository,
 } from '@cm/db';
+import { buildRadarCaption } from '@cm/shared';
 import { MediaStorageService } from '../media/media-storage.service';
 
 export type AutoPromoteResult = {
@@ -17,19 +18,13 @@ export type AutoPromoteResult = {
   postIds: string[];
 };
 
+
 function buildCaption(parts: {
   copy: string;
   hashtags: string[];
   url?: string | null;
 }): string {
-  const blocks = [parts.copy.trim()];
-  if (parts.hashtags.length > 0) {
-    blocks.push(parts.hashtags.join(' '));
-  }
-  if (parts.url?.trim()) {
-    blocks.push(parts.url.trim());
-  }
-  return blocks.filter(Boolean).join('\n\n');
+  return buildRadarCaption(parts);
 }
 
 function guessExtension(contentType: string, url: string): string {

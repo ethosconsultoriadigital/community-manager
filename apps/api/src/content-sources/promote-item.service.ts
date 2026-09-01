@@ -1,3 +1,4 @@
+import { buildRadarCaption } from '@cm/shared';
 import { Injectable } from '@nestjs/common';
 import {
   ApprovalsRepository,
@@ -41,10 +42,11 @@ export class PromoteItemService {
       item.copy_facebook?.trim() ||
       item.copy_instagram?.trim() ||
       [item.title, item.summary].filter(Boolean).join('\n\n');
-    const hashtagLine = (item.hashtags ?? []).join(' ').trim();
-    const caption = [baseCaption, hashtagLine || null, link || null]
-      .filter(Boolean)
-      .join('\n\n');
+    const caption = buildRadarCaption({
+      copy: baseCaption,
+      hashtags: item.hashtags ?? [],
+      url: link || null,
+    });
 
     const post = await this.posts.create(
       agencyId,

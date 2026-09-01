@@ -1,4 +1,5 @@
 import type { MediaAsset, Post } from '@/lib/types';
+import { displayCaption, visibleHashtags } from '@/lib/caption-hashtags';
 
 function sortedMedia(assets: MediaAsset[] | undefined): MediaAsset[] {
   if (!assets?.length) return [];
@@ -32,6 +33,8 @@ export function PostFeedPreview({
     ),
   ];
   const isReel = post.video_format === 'reel' || primary?.type === 'video';
+  const displayHashtags = visibleHashtags(post.caption, post.hashtags);
+  const captionText = displayCaption(post.caption, post.hashtags);
 
   return (
     <div className="overflow-hidden rounded-lg border border-line bg-white">
@@ -121,10 +124,10 @@ export function PostFeedPreview({
 
       <div className="space-y-1.5 px-3 py-3">
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-          {post.caption?.trim() ? post.caption : '(sin caption)'}
+          {captionText || '(sin caption)'}
         </p>
-        {post.hashtags.length > 0 && (
-          <p className="text-sm text-brand">{post.hashtags.join(' ')}</p>
+        {displayHashtags.length > 0 && (
+          <p className="text-sm text-brand">{displayHashtags.join(' ')}</p>
         )}
       </div>
     </div>

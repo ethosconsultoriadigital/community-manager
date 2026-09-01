@@ -4,6 +4,15 @@ export {
   TokenEncryptionError,
 } from './crypto/token-encryption';
 
+export {
+  buildPublishMessage,
+  buildRadarCaption,
+  displayCaption,
+  hashtagsAlreadyInText,
+  stripTrailingDuplicateHashtags,
+  visibleHashtags,
+} from './caption/caption-hashtags';
+
 export type AgencyId = string;
 
 export const USER_ROLES = ['owner', 'admin', 'manager', 'viewer'] as const;

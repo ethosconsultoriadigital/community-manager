@@ -7,6 +7,7 @@ import { formatDate, statusLabel } from '@/components/PostCard';
 import { apiFetch } from '@/lib/api';
 import { paginate } from '@/lib/pagination';
 import { sumPostMetrics } from '@/lib/post-metrics';
+import { displayCaption } from '@/lib/caption-hashtags';
 import {
   PLATFORM_FILTERS,
   isDateKeyInRange,
@@ -43,6 +44,7 @@ function CompactPostTile({
       ? formatDate(post.published_at)
       : formatDate(post.scheduled_at);
   const metrics = post.status === 'published' ? sumPostMetrics(post) : null;
+  const captionPreview = displayCaption(post.caption, post.hashtags);
 
   return (
     <article className="flex flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
@@ -80,7 +82,7 @@ function CompactPostTile({
           )}
         </div>
         <p className="line-clamp-2 text-xs text-ink">
-          {post.caption?.trim() || '(sin caption)'}
+          {captionPreview || '(sin caption)'}
         </p>
         <p className="text-[10px] text-muted">{when}</p>
         {metrics?.hasMetrics && (
