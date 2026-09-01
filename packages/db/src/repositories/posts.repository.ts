@@ -15,6 +15,7 @@ export type CreatePostData = {
   socialAccountIds: string[];
   contentSourceId?: string;
   videoFormat?: 'feed' | 'reel' | null;
+  alsoPublishAsStory?: boolean;
 };
 
 export type UpdatePostData = {
@@ -22,6 +23,7 @@ export type UpdatePostData = {
   hashtags?: string[];
   socialAccountIds?: string[];
   videoFormat?: 'feed' | 'reel' | null;
+  alsoPublishAsStory?: boolean;
 };
 
 const postInclude = {
@@ -101,6 +103,7 @@ export class PostsRepository {
           caption: data.caption,
           hashtags: data.hashtags ?? [],
           video_format: data.videoFormat ?? null,
+          also_publish_as_story: data.alsoPublishAsStory ?? false,
           status,
           agencies: { connect: { id: agencyId } },
           clients: { connect: { id: data.clientId } },
@@ -147,6 +150,9 @@ export class PostsRepository {
           ...(data.caption !== undefined ? { caption: data.caption } : {}),
           ...(data.hashtags !== undefined ? { hashtags: data.hashtags } : {}),
           ...(data.videoFormat !== undefined ? { video_format: data.videoFormat } : {}),
+          ...(data.alsoPublishAsStory !== undefined
+            ? { also_publish_as_story: data.alsoPublishAsStory }
+            : {}),
           updated_at: new Date(),
         },
       });
@@ -340,6 +346,9 @@ export class PostsRepository {
       platformPostId?: string | null;
       errorMessage?: string | null;
       incrementAttempts?: boolean;
+      storyPlatformPostId?: string | null;
+      storyStatus?: string | null;
+      storyErrorMessage?: string | null;
     },
   ) {
     const target = await this.prisma.post_targets.findFirst({
@@ -359,6 +368,13 @@ export class PostsRepository {
           ? { platform_post_id: data.platformPostId }
           : {}),
         ...(data.errorMessage !== undefined ? { error_message: data.errorMessage } : {}),
+        ...(data.storyPlatformPostId !== undefined
+          ? { story_platform_post_id: data.storyPlatformPostId }
+          : {}),
+        ...(data.storyStatus !== undefined ? { story_status: data.storyStatus } : {}),
+        ...(data.storyErrorMessage !== undefined
+          ? { story_error_message: data.storyErrorMessage }
+          : {}),
         ...(data.status === 'published' ? { published_at: new Date() } : {}),
         ...(data.incrementAttempts ? { attempts: { increment: 1 } } : {}),
       },

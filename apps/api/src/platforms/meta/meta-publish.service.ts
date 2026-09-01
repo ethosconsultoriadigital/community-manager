@@ -11,15 +11,160 @@ export class MetaPublishService implements PlatformPublisher {
   constructor(private readonly meta: MetaGraphClient) {}
 
   async publish(input: PublishTargetInput): Promise<PublishResult> {
+    const alsoStory = Boolean(input.alsoPublishAsStory);
+    const hasMedia = Boolean(input.imageUrl || input.videoUrl);
+
+    if (alsoStory && !hasMedia) {
+      const feed = await this.publishFeedOnly(input);
+      return {
+        ...feed,
+        storyStatus: 'skipped',
+        storyErrorMessage: 'Story requiere imagen o video',
+      };
+    }
+
+    if (input.platform === 'facebook' && alsoStory && hasMedia) {
+      return this.publishFacebookFeedAndStory(input);
+    }
+
+    const feed = await this.publishFeedOnly(input);
+    if (!alsoStory || !hasMedia) {
+      return feed;
+    }
+
+    return this.publishInstagramFeedAndStory(input, feed);
+  }
+
+  private async publishFeedOnly(input: PublishTargetInput): Promise<PublishResult> {
     switch (input.platform) {
       case 'facebook':
-        return this.publishFacebook(input);
+        return { platformPostId: (await this.publishFacebookFeedOnly(input)).platformPostId };
       case 'instagram':
-        return this.publishInstagram(input);
+        return { platformPostId: (await this.publishInstagramFeedOnly(input)).platformPostId };
     }
   }
 
-  private async publishFacebook(input: PublishTargetInput): Promise<PublishResult> {
+  private async publishFacebookFeedAndStory(
+    input: PublishTargetInput,
+  ): Promise<PublishResult> {
+    let storyPlatformPostId: string | undefined;
+    let storyStatus: PublishResult['storyStatus'];
+    let storyErrorMessage: string | undefined;
+
+    try {
+      storyPlatformPostId = await this.publishFacebookStory(input);
+      storyStatus = 'published';
+    } catch (error) {
+      storyStatus = 'failed';
+      storyErrorMessage =
+        error instanceof Error ? error.message : 'Error al publicar Story en Facebook';
+    }
+
+    const feed = await this.publishFacebookFeedOnly(input);
+
+    return {
+      platformPostId: feed.platformPostId,
+      storyPlatformPostId,
+      storyStatus,
+      storyErrorMessage,
+    };
+  }
+
+  private async publishInstagramFeedAndStory(
+    input: PublishTargetInput,
+    feed: PublishResult,
+  ): Promise<PublishResult> {
+    let storyPlatformPostId: string | undefined;
+    let storyStatus: PublishResult['storyStatus'];
+    let storyErrorMessage: string | undefined;
+
+    try {
+      storyPlatformPostId = await this.publishInstagramStory(input);
+      storyStatus = 'published';
+    } catch (error) {
+      storyStatus = 'failed';
+      storyErrorMessage =
+        error instanceof Error ? error.message : 'Error al publicar Story en Instagram';
+    }
+
+    return {
+      ...feed,
+      storyPlatformPostId,
+      storyStatus,
+      storyErrorMessage,
+    };
+  }
+
+  private async publishFacebookStory(input: PublishTargetInput): Promise<string> {
+    const { externalAccountId, accessToken, imageUrl, videoUrl } = input;
+
+    if (videoUrl) {
+      const started = await this.meta.startFacebookVideoStory(
+        externalAccountId,
+        accessToken,
+      );
+      await this.meta.uploadFacebookStoryVideoFromUrl(
+        started.video_id,
+        accessToken,
+        videoUrl,
+      );
+      const finished = await this.meta.finishFacebookVideoStory(
+        externalAccountId,
+        accessToken,
+        started.video_id,
+      );
+      return finished.post_id ?? started.video_id;
+    }
+
+    if (!imageUrl) {
+      throw new Error('Story de Facebook requiere imagen o video');
+    }
+
+    const uploaded = await this.meta.uploadFacebookUnpublishedPhoto(
+      externalAccountId,
+      accessToken,
+      imageUrl,
+    );
+    const story = await this.meta.publishFacebookPhotoStory(
+      externalAccountId,
+      accessToken,
+      uploaded.id,
+    );
+    return story.post_id ?? uploaded.id;
+  }
+
+  private async publishInstagramStory(input: PublishTargetInput): Promise<string> {
+    const { externalAccountId, accessToken, imageUrl, videoUrl } = input;
+
+    let container: { id: string };
+    if (videoUrl) {
+      container = await this.meta.createInstagramStoryVideoMedia(
+        externalAccountId,
+        accessToken,
+        videoUrl,
+      );
+      await this.meta.waitForInstagramContainer(container.id, accessToken);
+    } else if (imageUrl) {
+      container = await this.meta.createInstagramStoryImageMedia(
+        externalAccountId,
+        accessToken,
+        imageUrl,
+      );
+    } else {
+      throw new Error('Story de Instagram requiere imagen o video');
+    }
+
+    const published = await this.meta.publishInstagramMedia(
+      externalAccountId,
+      accessToken,
+      container.id,
+    );
+    return published.id;
+  }
+
+  private async publishFacebookFeedOnly(
+    input: PublishTargetInput,
+  ): Promise<PublishResult> {
     if (input.videoUrl) {
       const result = await this.meta.publishFacebookVideo(
         input.externalAccountId,
@@ -48,7 +193,9 @@ export class MetaPublishService implements PlatformPublisher {
     return { platformPostId: result.id };
   }
 
-  private async publishInstagram(input: PublishTargetInput): Promise<PublishResult> {
+  private async publishInstagramFeedOnly(
+    input: PublishTargetInput,
+  ): Promise<PublishResult> {
     if (input.videoUrl) {
       const asReelOnly = input.videoFormat === 'reel';
       const container = await this.meta.createInstagramReelsMedia(

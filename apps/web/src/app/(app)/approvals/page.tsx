@@ -13,6 +13,7 @@ import {
   type PlatformFilter,
 } from '@/lib/platform-filters';
 import type { Client, Post } from '@/lib/types';
+import { postHasMedia, StoryPublishCheckbox } from '@/lib/story-publish';
 
 function defaultScheduleValue() {
   const d = new Date(Date.now() + 5 * 60 * 1000);
@@ -31,6 +32,7 @@ export default function ApprovalsPage() {
   const [scheduleAt, setScheduleAt] = useState<Record<string, string>>({});
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [page, setPage] = useState(1);
+  const [alsoStory, setAlsoStory] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     const [postsData, clientsData] = await Promise.all([
@@ -38,6 +40,11 @@ export default function ApprovalsPage() {
       apiFetch<Client[]>('/clients'),
     ]);
     setPosts(postsData);
+    setAlsoStory(
+      Object.fromEntries(
+        postsData.map((p) => [p.id, Boolean(p.also_publish_as_story)]),
+      ),
+    );
     setClients(Object.fromEntries(clientsData.map((c) => [c.id, c.name])));
   }, []);
 
@@ -110,6 +117,23 @@ export default function ApprovalsPage() {
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al limpiar pendientes');
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function toggleAlsoStory(postId: string, value: boolean) {
+    setAlsoStory((prev) => ({ ...prev, [postId]: value }));
+    setActionId(postId);
+    setError(null);
+    try {
+      await apiFetch(`/posts/${postId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ alsoPublishAsStory: value }),
+      });
+    } catch (err) {
+      setAlsoStory((prev) => ({ ...prev, [postId]: !value }));
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar la opción de Story');
     } finally {
       setActionId(null);
     }
@@ -217,6 +241,13 @@ export default function ApprovalsPage() {
                 <PostCard post={post} clientName={clients[post.client_id]}>
                   {editingId !== post.id && post.status === 'pending_approval' && (
                     <>
+                      {postHasMedia(post) && (
+                        <StoryPublishCheckbox
+                          checked={alsoStory[post.id] ?? false}
+                          disabled={actionId === post.id}
+                          onChange={(v) => toggleAlsoStory(post.id, v)}
+                        />
+                      )}
                       <button
                         type="button"
                         disabled={actionId === post.id}
@@ -267,6 +298,13 @@ export default function ApprovalsPage() {
                   )}
                   {editingId !== post.id && post.status === 'approved' && (
                     <>
+                      {postHasMedia(post) && (
+                        <StoryPublishCheckbox
+                          checked={alsoStory[post.id] ?? false}
+                          disabled={actionId === post.id}
+                          onChange={(v) => toggleAlsoStory(post.id, v)}
+                        />
+                      )}
                       <button
                         type="button"
                         disabled={actionId === post.id}

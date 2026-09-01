@@ -494,14 +494,38 @@ Si se usó mock, el Composer lo avisa en el mensaje de éxito.
 - **Feed (por defecto):** video en feed de Instagram y Facebook
 - **Reel:** Instagram usa `media_type: REELS`; Facebook sigue con video en feed
 
+---
+
+## 17. Stories en Facebook e Instagram
+
+### Cuándo usar
+
+En **Generar Contenido** o **Aprobaciones**, marca **«También colgar como historia (24 h)»** si quieres publicar en feed **y** en Story con la misma imagen o video. Requiere media adjunta (no aplica a posts solo texto).
+
+### Comportamiento
+
+- **Instagram:** segundo contenedor con `media_type=STORIES` (sin caption en la story).
+- **Facebook Page:** story primero (`photo_stories` o `video_stories`), luego feed (Meta exige media no publicado antes para la story).
+- Si la story falla pero el feed OK, el post queda publicado y verás el error de story en el destino.
+
+### Migración
+
+Tras desplegar, aplicar `schema_story_publish.sql`:
+
+```powershell
+pnpm migrate
+```
+
 ### Requisito de URL pública
 
-Igual que con fotos: Meta debe descargar el video. Usa túnel o S3/R2:
+Igual que feed/Reels: Meta descarga el media desde URL pública (R2 o túnel).
 
 ```powershell
 .\scripts\start-media-tunnel.ps1
 # → MEDIA_PUBLIC_BASE_URL en .env → reiniciar pnpm dev:api
 ```
+
+---
 
 ### Script E2E
 

@@ -59,6 +59,11 @@ export function PostCard({
             Programado: {formatDate(post.scheduled_at)}
           </span>
         )}
+        {post.also_publish_as_story && (
+          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+            + Story
+          </span>
+        )}
       </div>
 
       {showPreview ? (
@@ -101,6 +106,19 @@ export function PostCard({
               )}
               {t.error_message && (
                 <p className="mt-0.5 text-red-600">{t.error_message}</p>
+              )}
+              {t.story_status && t.story_status !== 'published' && (
+                <p
+                  className={`mt-0.5 ${
+                    t.story_status === 'failed' ? 'text-amber-700' : 'text-muted'
+                  }`}
+                >
+                  Story: {t.story_status}
+                  {t.story_error_message ? ` — ${t.story_error_message}` : ''}
+                </p>
+              )}
+              {t.story_status === 'published' && (
+                <p className="mt-0.5 text-emerald-600">Story publicada</p>
               )}
             </li>
           ))}

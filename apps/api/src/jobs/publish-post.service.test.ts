@@ -83,7 +83,11 @@ describe('PublishPostService', () => {
       'a1',
       'post-1',
       't1',
-      expect.objectContaining({ status: 'published', platformPostId: 'fb-123' }),
+      expect.objectContaining({
+        status: 'published',
+        platformPostId: 'fb-123',
+        storyStatus: null,
+      }),
     );
     expect(posts.refreshAggregateStatus).toHaveBeenCalledWith('a1', 'post-1');
   });
@@ -180,6 +184,47 @@ describe('PublishPostService', () => {
         platform: 'instagram',
         videoUrl: 'https://cdn.example.com/v.mp4',
         videoFormat: 'reel',
+      }),
+    );
+  });
+
+  it('pasa alsoPublishAsStory al publicar', async () => {
+    const { service, posts, socialAccounts, metaPublish } = createService();
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Con story',
+      hashtags: [],
+      also_publish_as_story: true,
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [{ type: 'image', storage_url: 'https://cdn.example.com/i.jpg' }],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa1' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa1',
+      platform: 'instagram',
+      external_account_id: 'ig-1',
+      access_token_enc: encryptedToken(),
+      is_active: true,
+    });
+    metaPublish.publish.mockResolvedValue({
+      platformPostId: 'ig-1',
+      storyPlatformPostId: 'ig-story-1',
+      storyStatus: 'published',
+    });
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(metaPublish.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ alsoPublishAsStory: true }),
+    );
+    expect(posts.updateTargetStatus).toHaveBeenCalledWith(
+      'a1',
+      'post-1',
+      't1',
+      expect.objectContaining({
+        storyPlatformPostId: 'ig-story-1',
+        storyStatus: 'published',
       }),
     );
   });

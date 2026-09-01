@@ -10,10 +10,14 @@ export type PublishTargetInput = {
   imageUrl?: string;
   videoUrl?: string;
   videoFormat?: VideoFormat;
+  alsoPublishAsStory?: boolean;
 };
 
 export type PublishResult = {
   platformPostId: string;
+  storyPlatformPostId?: string;
+  storyStatus?: 'published' | 'failed' | 'skipped';
+  storyErrorMessage?: string;
 };
 
 export interface PlatformPublisher {

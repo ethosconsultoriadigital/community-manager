@@ -3,7 +3,7 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-08-28 (UX nav, aprobar in-place, calendario grid)
+**Última actualización:** 2026-09-01 (Publicar feed + Stories Meta)
 
 ---
 
@@ -11,14 +11,22 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | UX Aprobaciones + Calendario + renombres nav |
-| **Fases completadas** | 0–8 + A–E + preview/edit + Radar Sheets |
-| **Próximo paso** | Redeploy Vercel y validar bandeja / calendario |
+| **Fase actual** | Stories FB/IG vía Graph API |
+| **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories |
+| **Próximo paso** | `pnpm migrate` en prod + probar Story en Meta |
 | **Verificación automática** | `pnpm --filter @cm/api test` OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |
 | **Web en local** | `http://localhost:3000` |
 | **Repositorio** | `https://github.com/ethosconsultoriadigital/community-manager` (main actualizado) |
+
+---
+
+## 2026-09-01 — Publicar feed + Stories (Meta) ✅
+
+**Implementado:** checkbox «También colgar como historia»; IG `media_type=STORIES`; FB `photo_stories` / `video_stories` (story antes que feed); campos `also_publish_as_story` y estado story en `post_targets`.
+
+**Criterio de aceptación:** ✅ Tests API; UI en Aprobaciones/Composer; feed + story con mismo media cuando está marcado.
 
 ---
 

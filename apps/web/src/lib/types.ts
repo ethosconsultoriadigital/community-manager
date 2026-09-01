@@ -34,6 +34,9 @@ export type PostTarget = {
   status: string;
   error_message?: string | null;
   platform_post_id?: string | null;
+  story_platform_post_id?: string | null;
+  story_status?: string | null;
+  story_error_message?: string | null;
   social_accounts: SocialAccount;
 };
 
@@ -49,6 +52,7 @@ export type Post = {
   updated_at: string;
   content_source_id: string | null;
   video_format?: 'feed' | 'reel' | null;
+  also_publish_as_story?: boolean;
   post_targets: PostTarget[];
   media_assets?: MediaAsset[];
 };

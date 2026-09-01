@@ -122,6 +122,9 @@ model post_targets {
   status            target_status   @default(pending)
   platform_post_id  String?
   error_message     String?
+  story_platform_post_id String?
+  story_status      String?
+  story_error_message String?
   attempts          Int             @default(0)
   published_at      DateTime?       @db.Timestamptz(6)
   post_insights     post_insights?
@@ -147,6 +150,7 @@ model posts {
   updated_at        DateTime         @default(now()) @db.Timestamptz(6)
   content_source_id String?          @db.Uuid
   video_format      video_format?
+  also_publish_as_story Boolean        @default(false)
   approvals         approvals[]
   generations       generations[]
   media_assets      media_assets[]

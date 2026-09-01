@@ -34,6 +34,7 @@ class CreatePostDto {
   hashtags?: string[];
   socialAccountIds!: string[];
   videoFormat?: 'feed' | 'reel' | null;
+  alsoPublishAsStory?: boolean;
 }
 
 class UpdatePostDto {
@@ -41,6 +42,7 @@ class UpdatePostDto {
   hashtags?: string[];
   socialAccountIds?: string[];
   videoFormat?: 'feed' | 'reel' | null;
+  alsoPublishAsStory?: boolean;
 }
 
 class SchedulePostDto {

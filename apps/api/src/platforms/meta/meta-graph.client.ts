@@ -107,6 +107,109 @@ export class MetaGraphClient {
     return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/videos`, params);
   }
 
+  /** Foto sin publicar en feed (para Story de Page). */
+  async uploadFacebookUnpublishedPhoto(
+    pageId: string,
+    accessToken: string,
+    imageUrl: string,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      url: imageUrl,
+      published: 'false',
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/photos`, params);
+  }
+
+  async publishFacebookPhotoStory(
+    pageId: string,
+    accessToken: string,
+    photoId: string,
+  ): Promise<{ success: boolean; post_id?: string }> {
+    const params = new URLSearchParams({
+      photo_id: photoId,
+      access_token: accessToken,
+    });
+    return this.postJson<{ success: boolean; post_id?: string }>(
+      `${this.graphBase}/${pageId}/photo_stories`,
+      params,
+    );
+  }
+
+  async startFacebookVideoStory(
+    pageId: string,
+    accessToken: string,
+  ): Promise<{ video_id: string }> {
+    const params = new URLSearchParams({
+      upload_phase: 'start',
+      access_token: accessToken,
+    });
+    return this.postJson<{ video_id: string }>(
+      `${this.graphBase}/${pageId}/video_stories`,
+      params,
+    );
+  }
+
+  async uploadFacebookStoryVideoFromUrl(
+    videoId: string,
+    accessToken: string,
+    videoUrl: string,
+  ): Promise<{ success?: boolean }> {
+    const params = new URLSearchParams({
+      file_url: videoUrl,
+      access_token: accessToken,
+    });
+    return this.postJson<{ success?: boolean }>(`${this.graphBase}/${videoId}`, params);
+  }
+
+  async finishFacebookVideoStory(
+    pageId: string,
+    accessToken: string,
+    videoId: string,
+  ): Promise<{ success: boolean; post_id?: string }> {
+    const params = new URLSearchParams({
+      upload_phase: 'finish',
+      video_id: videoId,
+      access_token: accessToken,
+    });
+    return this.postJson<{ success: boolean; post_id?: string }>(
+      `${this.graphBase}/${pageId}/video_stories`,
+      params,
+    );
+  }
+
+  async createInstagramStoryImageMedia(
+    igUserId: string,
+    accessToken: string,
+    imageUrl: string,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      media_type: 'STORIES',
+      image_url: imageUrl,
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(
+      `${this.graphBase}/${igUserId}/media`,
+      params,
+    );
+  }
+
+  async createInstagramStoryVideoMedia(
+    igUserId: string,
+    accessToken: string,
+    videoUrl: string,
+  ): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      media_type: 'STORIES',
+      video_url: videoUrl,
+      access_token: accessToken,
+    });
+    return this.postJson<{ id: string }>(
+      `${this.graphBase}/${igUserId}/media`,
+      params,
+    );
+  }
+
   async createInstagramMedia(
     igUserId: string,
     accessToken: string,

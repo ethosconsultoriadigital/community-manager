@@ -104,12 +104,16 @@ export class PublishPostService {
         imageUrl,
         videoUrl,
         videoFormat: videoUrl ? videoFormat : undefined,
+        alsoPublishAsStory: Boolean(post.also_publish_as_story),
       });
 
       await this.posts.updateTargetStatus(agencyId, postId, targetId, {
         status: 'published',
         platformPostId: result.platformPostId,
         errorMessage: null,
+        storyPlatformPostId: result.storyPlatformPostId ?? null,
+        storyStatus: result.storyStatus ?? null,
+        storyErrorMessage: result.storyErrorMessage ?? null,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido';

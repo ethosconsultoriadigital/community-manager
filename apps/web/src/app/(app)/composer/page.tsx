@@ -11,6 +11,7 @@ import type {
   Post,
   SocialAccount,
 } from '@/lib/types';
+import { StoryPublishCheckbox } from '@/lib/story-publish';
 
 const ACCEPT_MEDIA =
   'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm';
@@ -42,6 +43,7 @@ export default function ComposerPage() {
   const [generatingAi, setGeneratingAi] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [publishAsReel, setPublishAsReel] = useState(false);
+  const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +63,7 @@ export default function ComposerPage() {
     setHashtags(post.hashtags?.join(' ') ?? '');
     setSelectedAccounts(post.post_targets.map((t) => t.social_accounts.id));
     setPublishAsReel(post.video_format === 'reel');
+    setAlsoPublishAsStory(Boolean(post.also_publish_as_story));
 
     const image = post.media_assets?.find((m) => m.type === 'image');
     const video = post.media_assets?.find((m) => m.type === 'video');
@@ -158,6 +161,7 @@ export default function ComposerPage() {
     setAiPreviewUrl(null);
     setEditingPostId(null);
     setPublishAsReel(mediaMode === 'reel');
+    setAlsoPublishAsStory(false);
     handleMediaChange(null);
   }
 
@@ -260,6 +264,7 @@ export default function ComposerPage() {
             hashtags: tagList,
             socialAccountIds: selectedAccounts,
             videoFormat: videoFormatPayload(),
+            alsoPublishAsStory: alsoPublishAsStory && Boolean(mediaFile || aiPreviewUrl || mediaPreview),
           }),
         });
         if (mediaFile) {
@@ -274,6 +279,7 @@ export default function ComposerPage() {
             hashtags: tagList,
             socialAccountIds: selectedAccounts,
             videoFormat: videoFormatPayload(),
+            alsoPublishAsStory: alsoPublishAsStory && Boolean(mediaFile || aiPreviewUrl || mediaPreview),
           }),
         });
         postId = post.id;
@@ -503,6 +509,14 @@ export default function ComposerPage() {
               </p>
             )}
           </div>
+        )}
+
+        {(mediaFile || aiPreviewUrl || mediaPreview) && (
+          <StoryPublishCheckbox
+            checked={alsoPublishAsStory}
+            onChange={setAlsoPublishAsStory}
+            className="text-sm"
+          />
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}

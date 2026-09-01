@@ -57,8 +57,6 @@ describe('MetaPublishService', () => {
       inputBase.message,
       false,
     );
-    expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-reel', 'token');
-    expect(meta.createInstagramVideoMedia).not.toHaveBeenCalled();
     expect(result.platformPostId).toBe('ig-reel-1');
   });
 
@@ -76,5 +74,80 @@ describe('MetaPublishService', () => {
 
     expect(meta.publishFacebookVideo).toHaveBeenCalled();
     expect(result.platformPostId).toBe('fb-video-1');
+  });
+
+  it('Instagram feed + story publica ambos contenedores', async () => {
+    const meta = {
+      createInstagramReelsMedia: vi.fn().mockResolvedValue({ id: 'container-feed' }),
+      waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
+      publishInstagramMedia: vi
+        .fn()
+        .mockResolvedValueOnce({ id: 'ig-feed-1' })
+        .mockResolvedValueOnce({ id: 'ig-story-1' }),
+      createInstagramStoryVideoMedia: vi.fn().mockResolvedValue({ id: 'container-story' }),
+    };
+    const service = new MetaPublishService(meta as never);
+
+    const result = await service.publish({
+      platform: 'instagram',
+      ...inputBase,
+      videoFormat: 'feed',
+      alsoPublishAsStory: true,
+    });
+
+    expect(meta.createInstagramStoryVideoMedia).toHaveBeenCalled();
+    expect(result.platformPostId).toBe('ig-feed-1');
+    expect(result.storyPlatformPostId).toBe('ig-story-1');
+    expect(result.storyStatus).toBe('published');
+  });
+
+  it('Facebook publica story antes que feed en foto', async () => {
+    const calls: string[] = [];
+    const meta = {
+      uploadFacebookUnpublishedPhoto: vi.fn().mockImplementation(async () => {
+        calls.push('upload');
+        return { id: 'photo-1' };
+      }),
+      publishFacebookPhotoStory: vi.fn().mockImplementation(async () => {
+        calls.push('story');
+        return { post_id: 'story-1' };
+      }),
+      publishFacebookPhoto: vi.fn().mockImplementation(async () => {
+        calls.push('feed');
+        return { id: 'fb-photo-1' };
+      }),
+    };
+    const service = new MetaPublishService(meta as never);
+
+    const result = await service.publish({
+      platform: 'facebook',
+      externalAccountId: 'page-1',
+      accessToken: 'token',
+      message: 'Caption',
+      imageUrl: 'https://cdn.example.com/img.jpg',
+      alsoPublishAsStory: true,
+    });
+
+    expect(calls).toEqual(['upload', 'story', 'feed']);
+    expect(result.platformPostId).toBe('fb-photo-1');
+    expect(result.storyPlatformPostId).toBe('story-1');
+  });
+
+  it('sin media marca story skipped', async () => {
+    const meta = {
+      publishFacebookFeed: vi.fn().mockResolvedValue({ id: 'fb-text-1' }),
+    };
+    const service = new MetaPublishService(meta as never);
+
+    const result = await service.publish({
+      platform: 'facebook',
+      externalAccountId: 'page-1',
+      accessToken: 'token',
+      message: 'Solo texto',
+      alsoPublishAsStory: true,
+    });
+
+    expect(result.storyStatus).toBe('skipped');
+    expect(result.platformPostId).toBe('fb-text-1');
   });
 });

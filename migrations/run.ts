@@ -12,6 +12,7 @@ const MIGRATIONS = [
   'schema_post_insights.sql',
   'schema_user_client_assignments.sql',
   'schema_password_reset_tokens.sql',
+  'schema_story_publish.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

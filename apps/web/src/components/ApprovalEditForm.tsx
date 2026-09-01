@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { ApiError, apiFetch, apiUploadMedia } from '@/lib/api';
 import type { MediaAsset, Post } from '@/lib/types';
+import { postHasMedia, StoryPublishCheckbox } from '@/lib/story-publish';
 
 const ACCEPT_MEDIA =
   'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm';
@@ -34,6 +35,9 @@ export function ApprovalEditForm({
 }) {
   const [caption, setCaption] = useState(post.caption ?? '');
   const [hashtags, setHashtags] = useState(hashtagsToInput(post.hashtags));
+  const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(
+    Boolean(post.also_publish_as_story),
+  );
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -41,6 +45,7 @@ export function ApprovalEditForm({
   useEffect(() => {
     setCaption(post.caption ?? '');
     setHashtags(hashtagsToInput(post.hashtags));
+    setAlsoPublishAsStory(Boolean(post.also_publish_as_story));
     setMediaFile(null);
     setMediaPreview(null);
   }, [post.id, post.caption, post.hashtags]);
@@ -67,6 +72,7 @@ export function ApprovalEditForm({
         body: JSON.stringify({
           caption: caption.trim(),
           hashtags: parseHashtags(hashtags),
+          alsoPublishAsStory: alsoPublishAsStory && (postHasMedia(post) || Boolean(mediaFile)),
         }),
       });
       if (mediaFile) {
@@ -138,6 +144,13 @@ export function ApprovalEditForm({
           )}
           <p className="mt-1 text-xs text-muted">Se reemplazará la media actual al guardar.</p>
         </div>
+      )}
+      {(postHasMedia(post) || mediaFile) && (
+        <StoryPublishCheckbox
+          checked={alsoPublishAsStory}
+          disabled={disabled}
+          onChange={setAlsoPublishAsStory}
+        />
       )}
       <div className="flex flex-wrap gap-2">
         <button
