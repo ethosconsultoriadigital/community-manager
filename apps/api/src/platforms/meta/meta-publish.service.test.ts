@@ -96,9 +96,60 @@ describe('MetaPublishService', () => {
     });
 
     expect(meta.createInstagramStoryVideoMedia).toHaveBeenCalled();
+    expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-feed', 'token');
+    expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-story', 'token');
     expect(result.platformPostId).toBe('ig-feed-1');
     expect(result.storyPlatformPostId).toBe('ig-story-1');
     expect(result.storyStatus).toBe('published');
+  });
+
+  it('Instagram foto en feed espera contenedor antes de media_publish', async () => {
+    const meta = {
+      createInstagramMedia: vi.fn().mockResolvedValue({ id: 'container-image' }),
+      waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
+      publishInstagramMedia: vi.fn().mockResolvedValue({ id: 'ig-photo-1' }),
+    };
+    const service = new MetaPublishService(meta as never);
+
+    const result = await service.publish({
+      platform: 'instagram',
+      externalAccountId: 'ig-1',
+      accessToken: 'token',
+      message: 'Foto promo',
+      imageUrl: 'https://cdn.example.com/img.jpg',
+    });
+
+    expect(meta.createInstagramMedia).toHaveBeenCalled();
+    expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-image', 'token');
+    expect(meta.publishInstagramMedia).toHaveBeenCalledWith('ig-1', 'token', 'container-image');
+    expect(result.platformPostId).toBe('ig-photo-1');
+  });
+
+  it('Instagram foto + story espera ambos contenedores', async () => {
+    const meta = {
+      createInstagramMedia: vi.fn().mockResolvedValue({ id: 'container-feed' }),
+      createInstagramStoryImageMedia: vi.fn().mockResolvedValue({ id: 'container-story' }),
+      waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
+      publishInstagramMedia: vi
+        .fn()
+        .mockResolvedValueOnce({ id: 'ig-feed-1' })
+        .mockResolvedValueOnce({ id: 'ig-story-1' }),
+    };
+    const service = new MetaPublishService(meta as never);
+
+    const result = await service.publish({
+      platform: 'instagram',
+      externalAccountId: 'ig-1',
+      accessToken: 'token',
+      message: 'Foto promo',
+      imageUrl: 'https://cdn.example.com/img.jpg',
+      alsoPublishAsStory: true,
+    });
+
+    expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-feed', 'token');
+    expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-story', 'token');
+    expect(result.platformPostId).toBe('ig-feed-1');
+    expect(result.storyPlatformPostId).toBe('ig-story-1');
   });
 
   it('Facebook publica story antes que feed en foto', async () => {

@@ -150,6 +150,7 @@ export class MetaPublishService implements PlatformPublisher {
         accessToken,
         imageUrl,
       );
+      await this.meta.waitForInstagramContainer(container.id, accessToken);
     } else {
       throw new Error('Story de Instagram requiere imagen o video');
     }
@@ -224,6 +225,7 @@ export class MetaPublishService implements PlatformPublisher {
       input.imageUrl,
       input.message,
     );
+    await this.meta.waitForInstagramContainer(container.id, input.accessToken);
     const published = await this.meta.publishInstagramMedia(
       input.externalAccountId,
       input.accessToken,
