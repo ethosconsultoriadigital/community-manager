@@ -54,6 +54,11 @@ export class ClientsController {
       const client = await this.clients.findById(user.agencyId, scope.clientId);
       return client ? [client] : [];
     }
+    if (scope.mode === 'multi') {
+      const all = await this.clients.findAll(user.agencyId);
+      const allowed = new Set(scope.clientIds);
+      return all.filter((c) => allowed.has(c.id));
+    }
     return this.clients.findAll(user.agencyId);
   }
 

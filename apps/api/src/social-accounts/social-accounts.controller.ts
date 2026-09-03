@@ -12,6 +12,7 @@ import {
 import { SocialAccountsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { ClientAccessService } from '../access/client-access.service';
+import { filterRowsByClientIds, scopeToClientFilter } from '../access/scope-filters';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -31,8 +32,10 @@ export class SocialAccountsController {
   async findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
     const scope = await this.clientAccess.resolveListScope(user, clientId);
     if (scope.mode === 'none') return [];
-    const filter = scope.mode === 'single' ? scope.clientId : undefined;
-    return this.socialAccounts.findByAgency(user.agencyId, filter);
+    const { clientId: filter, clientIds } = scopeToClientFilter(scope);
+    const accounts = await this.socialAccounts.findByAgency(user.agencyId, filter);
+    if (clientIds) return filterRowsByClientIds(accounts, clientIds);
+    return accounts;
   }
 
   @Get(':id')

@@ -13,6 +13,8 @@ export type AssignUserClientData = {
   clientId: string;
 };
 
+const clientSelect = { id: true, name: true, is_active: true } as const;
+
 export class UserClientAssignmentsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -31,25 +33,30 @@ export class UserClientAssignmentsRepository {
             created_at: true,
           },
         },
-        clients: {
-          select: {
-            id: true,
-            name: true,
-            is_active: true,
-          },
-        },
+        clients: { select: clientSelect },
       },
     });
   }
 
+  /** Todas las asignaciones de un usuario (0..N clientes). */
+  findAllByUserId(agencyId: string, userId: string) {
+    return this.prisma.user_client_assignments.findMany({
+      where: scopedWhere(agencyId, { user_id: userId }),
+      orderBy: { created_at: 'asc' },
+      include: {
+        clients: { select: clientSelect },
+      },
+    });
+  }
+
+  /** Primera asignación (compatibilidad). Preferir findAllByUserId. */
   findByUserId(agencyId: string, userId: string) {
     return this.prisma.user_client_assignments.findFirst({
       where: scopedWhere(agencyId, { user_id: userId }),
       include: {
-        clients: {
-          select: { id: true, name: true, is_active: true },
-        },
+        clients: { select: clientSelect },
       },
+      orderBy: { created_at: 'asc' },
     });
   }
 
@@ -74,12 +81,15 @@ export class UserClientAssignmentsRepository {
       throw new UserClientAssignmentsValidationError('Cliente no encontrado en la agencia');
     }
 
-    const existing = await this.prisma.user_client_assignments.findUnique({
-      where: { user_id: data.userId },
+    const existing = await this.prisma.user_client_assignments.findFirst({
+      where: scopedWhere(agencyId, {
+        user_id: data.userId,
+        client_id: data.clientId,
+      }),
     });
     if (existing) {
       throw new UserClientAssignmentsValidationError(
-        'El usuario ya tiene un cliente asignado',
+        'El usuario ya tiene asignado ese cliente',
       );
     }
 
@@ -100,37 +110,57 @@ export class UserClientAssignmentsRepository {
             created_at: true,
           },
         },
-        clients: {
-          select: { id: true, name: true, is_active: true },
-        },
+        clients: { select: clientSelect },
       },
     });
   }
 
+  /**
+   * Reemplaza el conjunto de clientes del usuario.
+   * clientIds vacío elimina todas las asignaciones.
+   */
+  async setClients(agencyId: string, userId: string, clientIds: string[]) {
+    const user = await this.prisma.users.findFirst({
+      where: scopedWhere(agencyId, { id: userId }),
+    });
+    if (!user) {
+      throw new UserClientAssignmentsValidationError('Usuario no encontrado en la agencia');
+    }
+
+    const uniqueIds = [...new Set(clientIds.map((id) => id.trim()).filter(Boolean))];
+
+    if (uniqueIds.length > 0) {
+      const clients = await this.prisma.clients.findMany({
+        where: scopedWhere(agencyId, { id: { in: uniqueIds } }),
+        select: { id: true },
+      });
+      if (clients.length !== uniqueIds.length) {
+        throw new UserClientAssignmentsValidationError(
+          'Uno o más clientes no pertenecen a la agencia',
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user_client_assignments.deleteMany({
+        where: { agency_id: agencyId, user_id: userId },
+      });
+      if (uniqueIds.length === 0) return;
+      await tx.user_client_assignments.createMany({
+        data: uniqueIds.map((clientId) => ({
+          agency_id: agencyId,
+          user_id: userId,
+          client_id: clientId,
+        })),
+      });
+    });
+
+    return this.findAllByUserId(agencyId, userId);
+  }
+
+  /** Compat: deja un solo cliente (reemplaza el conjunto). */
   async reassign(agencyId: string, userId: string, clientId: string) {
-    const client = await this.prisma.clients.findFirst({
-      where: scopedWhere(agencyId, { id: clientId }),
-    });
-    if (!client) {
-      throw new UserClientAssignmentsValidationError('Cliente no encontrado en la agencia');
-    }
-
-    const existing = await this.prisma.user_client_assignments.findFirst({
-      where: scopedWhere(agencyId, { user_id: userId }),
-    });
-    if (!existing) {
-      return this.assign(agencyId, { userId, clientId });
-    }
-
-    return this.prisma.user_client_assignments.update({
-      where: { id: existing.id },
-      data: { client_id: clientId },
-      include: {
-        clients: {
-          select: { id: true, name: true, is_active: true },
-        },
-      },
-    });
+    return this.setClients(agencyId, userId, [clientId]);
   }
 
   async removeByUserId(agencyId: string, userId: string) {

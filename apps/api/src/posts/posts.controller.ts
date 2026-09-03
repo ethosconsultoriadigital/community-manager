@@ -19,6 +19,7 @@ import { memoryStorage } from 'multer';
 import { ApprovalsRepository, PostsRepository, PostsValidationError } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { ClientAccessService } from '../access/client-access.service';
+import { filterRowsByClientIds, scopeToClientFilter } from '../access/scope-filters';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -85,10 +86,12 @@ export class PostsController {
   ) {
     const scope = await this.clientAccess.resolveListScope(user, clientId);
     if (scope.mode === 'none') return [];
-    const filter = scope.mode === 'single' ? scope.clientId : undefined;
-    return this.posts.findAll(user.agencyId, filter, {
+    const { clientId: filter, clientIds } = scopeToClientFilter(scope);
+    const posts = await this.posts.findAll(user.agencyId, filter, {
       withMetrics: withMetrics === '1' || withMetrics === 'true',
     });
+    if (clientIds) return filterRowsByClientIds(posts, clientIds);
+    return posts;
   }
 
   @Get(':id')

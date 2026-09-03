@@ -160,7 +160,9 @@ export type AdminUserListItem = {
   role: UserRole;
   isActive: boolean;
   createdAt: string;
+  /** Primer cliente (compat). Preferir clients. */
   client: AdminUserClient | null;
+  clients: AdminUserClient[];
 };
 
 export type ContentSource = {

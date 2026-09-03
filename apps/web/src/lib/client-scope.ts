@@ -8,7 +8,12 @@ export function isClientScopedRole(role: UserRole) {
   return role === 'manager' || role === 'viewer';
 }
 
-/** Selector solo si el usuario administra la agencia y hay más de un cliente. */
+/**
+ * Mostrar selector cuando hay más de un cliente visible:
+ * - admin/owner de la agencia
+ * - manager/viewer con varios negocios asignados
+ */
 export function shouldShowClientSelector(role: UserRole, clientCount: number) {
-  return isAgencyAdmin(role) && clientCount > 1;
+  if (clientCount <= 1) return false;
+  return isAgencyAdmin(role) || isClientScopedRole(role);
 }

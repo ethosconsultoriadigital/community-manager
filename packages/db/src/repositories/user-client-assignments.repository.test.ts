@@ -77,10 +77,24 @@ describe('UserClientAssignmentsRepository', () => {
     expect(row.clients.name).toContain(`Client A ${suffix}`);
   });
 
-  it('impide asignar el mismo usuario dos veces', async () => {
+  it('impide asignar el mismo par usuario-cliente dos veces', async () => {
     await expect(
       assignmentsRepo.assign(agencyAId, { userId: userAId, clientId: clientAId }),
     ).rejects.toBeInstanceOf(UserClientAssignmentsValidationError);
+  });
+
+  it('permite asignar un segundo cliente distinto al mismo usuario', async () => {
+    const secondClient = await clientsRepo.create(agencyAId, {
+      name: `Client A2 ${suffix}`,
+    });
+    const row = await assignmentsRepo.assign(agencyAId, {
+      userId: userAId,
+      clientId: secondClient.id,
+    });
+    expect(row.client_id).toBe(secondClient.id);
+
+    const all = await assignmentsRepo.findAllByUserId(agencyAId, userAId);
+    expect(all.length).toBeGreaterThanOrEqual(2);
   });
 
   it('impide asignar a un cliente de otra agencia', async () => {

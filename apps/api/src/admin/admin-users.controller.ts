@@ -19,8 +19,10 @@ class CreateAdminUserDto {
   email!: string;
   password!: string;
   fullName?: string;
-  role?: 'manager' | 'viewer';
-  clientId!: string;
+  role?: 'owner' | 'manager' | 'viewer';
+  /** Compat: un solo cliente. Preferir clientIds. */
+  clientId?: string;
+  clientIds?: string[];
 }
 
 class ResetPasswordDto {
@@ -29,8 +31,9 @@ class ResetPasswordDto {
 
 class UpdateAdminUserDto {
   fullName?: string;
-  role?: 'manager' | 'viewer';
+  role?: 'owner' | 'manager' | 'viewer';
   clientId?: string;
+  clientIds?: string[];
 }
 
 @Controller('admin/users')

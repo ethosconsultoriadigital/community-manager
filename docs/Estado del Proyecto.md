@@ -3,11 +3,37 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-01 (Stories con caption compuesto en imagen)
+**Última actualización:** 2026-09-03 (Header usuario + multi-cliente)
 
 ---
 
-## 2026-09-01 — Stories con caption visible ✅
+## 2026-09-03 — Nombre de usuario en header + multi-cliente ✅
+
+**Implementado:**
+- Header muestra `fullName` o email (ya no el nombre de la agencia de prueba).
+- Migración `schema_multi_client_assignments.sql`: un usuario manager/viewer puede tener **varios clientes**.
+- Admin: checkboxes para asignar múltiples negocios; al publicar se elige el cliente como hasta ahora.
+- `ClientAccessService` soporta alcance `multi`.
+
+**Pendiente operativo:** aplicar migraciones en la BD (`pnpm` / `migrations/run`) y regenerar Prisma client.
+
+**Criterio de aceptación:** ✅ Código y tests listos; migración pendiente de aplicar en el entorno.
+
+---
+
+## Resumen rápido
+
+**Implementado:**
+- Desplegable de roles en Admin incluye **owner**, **manager** y **viewer** (crear y editar).
+- Owner no requiere cliente asignado; al promover a owner se limpia la asignación de cliente.
+- Protecciones intactas: no se edita/desactiva/elimina/resetea password de un usuario que **ya es** owner.
+- Nuevo documento entregable: `docs/Manual de usuario.md` (admin, manager, viewer + Meta paso a paso; sin documentar el rol owner).
+
+**Criterio de aceptación:** ✅ Un admin puede promover a otro usuario a owner desde la UI; manual listo para cliente.
+
+---
+
+## Resumen rápido
 
 **Implementado:** al marcar «También colgar como historia», la API compone una imagen 9:16 (foto + caption del post abajo) antes de publicar en IG/FB, porque la Graph API no admite caption en `STORIES`. Solo aplica a **fotos**; videos en story siguen sin texto superpuesto.
 

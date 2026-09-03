@@ -14,8 +14,22 @@ import type { AuthUser, UserRole } from '@cm/shared';
 import * as bcrypt from 'bcryptjs';
 
 const BCRYPT_ROUNDS = 12;
-const ASSIGNABLE_ROLES = ['manager', 'viewer'] as const;
+const ASSIGNABLE_ROLES = ['owner', 'manager', 'viewer'] as const;
 type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
+function isAssignableRole(role: string): role is AssignableRole {
+  return (ASSIGNABLE_ROLES as readonly string[]).includes(role);
+}
+
+function isClientScopedRole(role: UserRole | AssignableRole): boolean {
+  return role === 'manager' || role === 'viewer';
+}
+
+export type AdminUserClient = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
 
 export type AdminUserListItem = {
   id: string;
@@ -24,11 +38,9 @@ export type AdminUserListItem = {
   role: UserRole;
   isActive: boolean;
   createdAt: Date;
-  client: {
-    id: string;
-    name: string;
-    isActive: boolean;
-  } | null;
+  /** @deprecated usar clients — primer cliente o null */
+  client: AdminUserClient | null;
+  clients: AdminUserClient[];
 };
 
 @Injectable()
@@ -44,12 +56,19 @@ export class AdminUsersService {
       this.assignments.findByAgency(agencyId),
     ]);
 
-    const clientByUserId = new Map(
-      assignmentRows.map((row) => [row.user_id, row.clients]),
-    );
+    const clientsByUserId = new Map<string, AdminUserClient[]>();
+    for (const row of assignmentRows) {
+      const list = clientsByUserId.get(row.user_id) ?? [];
+      list.push({
+        id: row.clients.id,
+        name: row.clients.name,
+        isActive: row.clients.is_active,
+      });
+      clientsByUserId.set(row.user_id, list);
+    }
 
     return users.map((user) => {
-      const client = clientByUserId.get(user.id);
+      const clients = clientsByUserId.get(user.id) ?? [];
       return {
         id: user.id,
         email: user.email,
@@ -57,9 +76,8 @@ export class AdminUsersService {
         role: user.role,
         isActive: user.is_active,
         createdAt: user.created_at,
-        client: client
-          ? { id: client.id, name: client.name, isActive: client.is_active }
-          : null,
+        client: clients[0] ?? null,
+        clients,
       };
     });
   }
@@ -72,7 +90,8 @@ export class AdminUsersService {
       password: string;
       fullName?: string;
       role?: AssignableRole;
-      clientId: string;
+      clientId?: string;
+      clientIds?: string[];
     },
   ) {
     const email = input.email.trim().toLowerCase();
@@ -84,8 +103,15 @@ export class AdminUsersService {
     }
 
     const role = input.role ?? 'manager';
-    if (!ASSIGNABLE_ROLES.includes(role)) {
-      throw new BadRequestException('Rol no permitido para usuarios de cliente');
+    if (!isAssignableRole(role)) {
+      throw new BadRequestException('Rol no permitido');
+    }
+
+    const clientIds = this.resolveClientIds(input);
+    if (isClientScopedRole(role) && clientIds.length === 0) {
+      throw new BadRequestException(
+        'Los roles manager y viewer requieren al menos un cliente asignado',
+      );
     }
 
     const existing = await this.users.findByEmail(email);
@@ -102,18 +128,34 @@ export class AdminUsersService {
       role,
     });
 
-    try {
-      const assignment = await this.assignments.assign(agencyId, {
-        userId: user.id,
-        clientId: input.clientId,
-      });
+    if (role === 'owner') {
       return {
         id: user.id,
         email: user.email,
         fullName: user.full_name,
         role: user.role,
         isActive: user.is_active,
-        client: assignment.clients,
+        client: null,
+        clients: [],
+        createdBy: actor.id,
+      };
+    }
+
+    try {
+      const rows = await this.assignments.setClients(agencyId, user.id, clientIds);
+      const clients = rows.map((row) => ({
+        id: row.clients.id,
+        name: row.clients.name,
+        isActive: row.clients.is_active,
+      }));
+      return {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        role: user.role,
+        isActive: user.is_active,
+        client: clients[0] ?? null,
+        clients,
         createdBy: actor.id,
       };
     } catch (error) {
@@ -161,6 +203,7 @@ export class AdminUsersService {
       fullName?: string;
       role?: AssignableRole;
       clientId?: string;
+      clientIds?: string[];
     },
   ): Promise<AdminUserListItem> {
     const user = await this.users.findByIdInAgency(agencyId, userId);
@@ -169,19 +212,30 @@ export class AdminUsersService {
       throw new ForbiddenException('No se puede editar al propietario de la agencia');
     }
 
-    const isClientUser = user.role === 'manager' || user.role === 'viewer';
-
-    if (input.role !== undefined) {
-      if (!isClientUser) {
-        throw new BadRequestException('Solo se puede cambiar el rol de usuarios manager o viewer');
-      }
-      if (!ASSIGNABLE_ROLES.includes(input.role)) {
-        throw new BadRequestException('Rol no permitido');
-      }
+    if (input.role !== undefined && !isAssignableRole(input.role)) {
+      throw new BadRequestException('Rol no permitido');
     }
 
-    if (input.clientId !== undefined && !isClientUser) {
-      throw new BadRequestException('Solo usuarios manager o viewer tienen cliente asignado');
+    const nextRole = input.role ?? user.role;
+    const hasClientPayload =
+      input.clientIds !== undefined || input.clientId !== undefined;
+    const clientIds = hasClientPayload ? this.resolveClientIds(input) : null;
+
+    if (isClientScopedRole(nextRole)) {
+      if (clientIds !== null && clientIds.length === 0) {
+        throw new BadRequestException(
+          'Los roles manager y viewer requieren al menos un cliente asignado',
+        );
+      }
+      if (clientIds === null) {
+        const current = await this.listUsers(agencyId);
+        const item = current.find((row) => row.id === userId);
+        if (!item?.clients.length) {
+          throw new BadRequestException(
+            'Los roles manager y viewer requieren al menos un cliente asignado',
+          );
+        }
+      }
     }
 
     const profileUpdate: { fullName?: string; role?: AssignableRole } = {};
@@ -197,9 +251,11 @@ export class AdminUsersService {
       if (!updated) throw new NotFoundException('Usuario no encontrado');
     }
 
-    if (input.clientId !== undefined) {
+    if (nextRole === 'owner') {
+      await this.assignments.removeByUserId(agencyId, userId);
+    } else if (isClientScopedRole(nextRole) && clientIds !== null) {
       try {
-        await this.assignments.reassign(agencyId, userId, input.clientId);
+        await this.assignments.setClients(agencyId, userId, clientIds);
       } catch (error) {
         if (error instanceof UserClientAssignmentsValidationError) {
           throw new BadRequestException(error.message);
@@ -229,5 +285,18 @@ export class AdminUsersService {
     const deleted = await this.users.deleteInAgency(agencyId, userId);
     if (!deleted) throw new NotFoundException('Usuario no encontrado');
     return { id: userId, deleted: true };
+  }
+
+  private resolveClientIds(input: {
+    clientId?: string;
+    clientIds?: string[];
+  }): string[] {
+    if (input.clientIds !== undefined) {
+      return [...new Set(input.clientIds.map((id) => id.trim()).filter(Boolean))];
+    }
+    if (input.clientId?.trim()) {
+      return [input.clientId.trim()];
+    }
+    return [];
   }
 }

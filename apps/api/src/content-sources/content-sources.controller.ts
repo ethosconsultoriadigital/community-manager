@@ -20,6 +20,7 @@ import {
 } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { ClientAccessService } from '../access/client-access.service';
+import { filterRowsByClientIds, scopeToClientFilter } from '../access/scope-filters';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -98,6 +99,19 @@ export class ContentSourcesController {
       if (scope.mode === 'single') {
         return this.purgePending.purge(user.agencyId, scope.clientId, mode);
       }
+      if (scope.mode === 'multi') {
+        // Purge por cada cliente asignado
+        let scanned = 0;
+        let deleted = 0;
+        let kept = 0;
+        for (const cid of scope.clientIds) {
+          const part = await this.purgePending.purge(user.agencyId, cid, mode);
+          scanned += part.scanned;
+          deleted += part.deleted;
+          kept += part.kept;
+        }
+        return { scanned, deleted, kept, mode };
+      }
     }
     return this.purgePending.purge(user.agencyId, clientId, mode);
   }
@@ -132,8 +146,10 @@ export class ContentSourcesController {
   async findAll(@CurrentUser() user: AuthUser, @Query('clientId') clientId?: string) {
     const scope = await this.clientAccess.resolveListScope(user, clientId);
     if (scope.mode === 'none') return [];
-    const filter = scope.mode === 'single' ? scope.clientId : undefined;
-    return this.contentSources.findAll(user.agencyId, filter);
+    const { clientId: filter, clientIds } = scopeToClientFilter(scope);
+    const sources = await this.contentSources.findAll(user.agencyId, filter);
+    if (clientIds) return filterRowsByClientIds(sources, clientIds);
+    return sources;
   }
 
   @Patch(':id')

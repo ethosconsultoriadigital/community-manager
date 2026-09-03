@@ -26,7 +26,7 @@ function isAgencyAdmin(role: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, agencyName, loading, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   if (loading) {
     return (
@@ -49,7 +49,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <div className="flex shrink-0 items-center gap-3">
             <EthosLogo href="/inicio" compact />
-            <p className="hidden text-xs text-muted xl:block">{agencyName}</p>
+            <p className="hidden text-xs text-muted xl:block">
+              {user.fullName?.trim() || user.email}
+            </p>
           </div>
           <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             {nav.map((item) => (

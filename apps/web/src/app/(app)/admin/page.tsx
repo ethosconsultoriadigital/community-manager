@@ -25,8 +25,8 @@ export default function AdminPage() {
   const [userEmail, setUserEmail] = useState('');
   const [userPassword, setUserPassword] = useState('');
   const [userFullName, setUserFullName] = useState('');
-  const [userRole, setUserRole] = useState<'manager' | 'viewer'>('manager');
-  const [userClientId, setUserClientId] = useState('');
+  const [userRole, setUserRole] = useState<'owner' | 'manager' | 'viewer'>('manager');
+  const [userClientIds, setUserClientIds] = useState<string[]>([]);
   const [creatingUser, setCreatingUser] = useState(false);
 
   const [connectingClientId, setConnectingClientId] = useState<string | null>(null);
@@ -38,17 +38,21 @@ export default function AdminPage() {
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editUserFullName, setEditUserFullName] = useState('');
-  const [editUserRole, setEditUserRole] = useState<'manager' | 'viewer'>('manager');
-  const [editUserClientId, setEditUserClientId] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'owner' | 'manager' | 'viewer'>('manager');
+  const [editUserClientIds, setEditUserClientIds] = useState<string[]>([]);
 
   const loadData = useCallback(async () => {
     const [clientsData, usersData] = await Promise.all([
       apiFetch<Client[]>('/clients'),
       apiFetch<AdminUserListItem[]>('/admin/users'),
     ]);
-    setClients(clientsData.filter((c) => c.is_active));
+    const active = clientsData.filter((c) => c.is_active);
+    setClients(active);
     setUsers(usersData);
-    setUserClientId((prev) => prev || clientsData.find((c) => c.is_active)?.id || '');
+    setUserClientIds((prev) => {
+      if (prev.length > 0) return prev.filter((id) => active.some((c) => c.id === id));
+      return active[0] ? [active[0].id] : [];
+    });
   }, []);
 
   useEffect(() => {
@@ -69,13 +73,27 @@ export default function AdminPage() {
   const usersByClientId = useMemo(() => {
     const map = new Map<string, AdminUserListItem[]>();
     for (const u of users) {
-      if (!u.client) continue;
-      const list = map.get(u.client.id) ?? [];
-      list.push(u);
-      map.set(u.client.id, list);
+      const assigned = u.clients?.length ? u.clients : u.client ? [u.client] : [];
+      for (const c of assigned) {
+        const list = map.get(c.id) ?? [];
+        list.push(u);
+        map.set(c.id, list);
+      }
     }
     return map;
   }, [users]);
+
+  function toggleCreateClientId(clientId: string) {
+    setUserClientIds((prev) =>
+      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId],
+    );
+  }
+
+  function toggleEditClientId(clientId: string) {
+    setEditUserClientIds((prev) =>
+      prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId],
+    );
+  }
 
   async function handleCreateClient(e: FormEvent) {
     e.preventDefault();
@@ -91,7 +109,7 @@ export default function AdminPage() {
       setNewClientName('');
       setMessage(`Cliente «${client.name}» creado`);
       await loadData();
-      setUserClientId(client.id);
+      setUserClientIds((prev) => (prev.includes(client.id) ? prev : [...prev, client.id]));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al crear cliente');
     } finally {
@@ -103,6 +121,10 @@ export default function AdminPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if ((userRole === 'manager' || userRole === 'viewer') && userClientIds.length === 0) {
+      setError('Manager y viewer requieren al menos un cliente asignado');
+      return;
+    }
     setCreatingUser(true);
     try {
       await apiFetch('/admin/users', {
@@ -112,13 +134,18 @@ export default function AdminPage() {
           password: userPassword,
           fullName: userFullName.trim() || undefined,
           role: userRole,
-          clientId: userClientId,
+          ...(userRole === 'owner' ? {} : { clientIds: userClientIds }),
         }),
       });
       setUserEmail('');
       setUserPassword('');
       setUserFullName('');
-      setMessage('Usuario creado y vinculado al cliente');
+      setUserRole('manager');
+      setMessage(
+        userRole === 'owner'
+          ? 'Usuario owner creado'
+          : 'Usuario creado y vinculado a los clientes seleccionados',
+      );
       await loadData();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al crear usuario');
@@ -249,8 +276,19 @@ export default function AdminPage() {
   function startEditUser(target: AdminUserListItem) {
     setEditingUserId(target.id);
     setEditUserFullName(target.fullName ?? '');
-    setEditUserRole(target.role === 'viewer' ? 'viewer' : 'manager');
-    setEditUserClientId(target.client?.id ?? clients[0]?.id ?? '');
+    setEditUserRole(
+      target.role === 'viewer'
+        ? 'viewer'
+        : target.role === 'manager'
+          ? 'manager'
+          : 'owner',
+    );
+    const assigned = target.clients?.length
+      ? target.clients.map((c) => c.id)
+      : target.client
+        ? [target.client.id]
+        : [];
+    setEditUserClientIds(assigned);
     setError(null);
     setMessage(null);
   }
@@ -259,7 +297,11 @@ export default function AdminPage() {
     setEditingUserId(null);
   }
 
-  function isEditableClientUser(role: UserRole) {
+  function isEditableUser(role: UserRole) {
+    return role !== 'owner';
+  }
+
+  function needsClient(role: 'owner' | 'manager' | 'viewer') {
     return role === 'manager' || role === 'viewer';
   }
 
@@ -268,13 +310,20 @@ export default function AdminPage() {
     setError(null);
     setMessage(null);
     try {
-      const target = users.find((u) => u.id === userId);
-      const body: { fullName?: string; role?: 'manager' | 'viewer'; clientId?: string } = {
+      if (needsClient(editUserRole) && editUserClientIds.length === 0) {
+        setError('Manager y viewer requieren al menos un cliente asignado');
+        return;
+      }
+      const body: {
+        fullName?: string;
+        role?: 'owner' | 'manager' | 'viewer';
+        clientIds?: string[];
+      } = {
         fullName: editUserFullName.trim(),
+        role: editUserRole,
       };
-      if (target && isEditableClientUser(target.role)) {
-        body.role = editUserRole;
-        body.clientId = editUserClientId;
+      if (needsClient(editUserRole)) {
+        body.clientIds = editUserClientIds;
       }
       await apiFetch(`/admin/users/${userId}`, {
         method: 'PATCH',
@@ -476,36 +525,46 @@ export default function AdminPage() {
             <span className="text-muted">Rol</span>
             <select
               value={userRole}
-              onChange={(e) => setUserRole(e.target.value as 'manager' | 'viewer')}
+              onChange={(e) => setUserRole(e.target.value as 'owner' | 'manager' | 'viewer')}
               className="mt-1 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
             >
+              <option value="owner">Owner (administración completa)</option>
               <option value="manager">Manager (publicar)</option>
               <option value="viewer">Viewer (solo lectura)</option>
             </select>
           </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="text-muted">Cliente asignado</span>
-            <select
-              required
-              value={userClientId}
-              onChange={(e) => setUserClientId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
-            >
+          {needsClient(userRole) ? (
+            <fieldset className="sm:col-span-2">
+              <legend className="mb-2 text-sm text-muted">Clientes asignados (uno o varios)</legend>
               {clients.length === 0 ? (
-                <option value="">Crea un cliente primero</option>
+                <p className="text-xs text-muted">Crea un cliente primero</p>
               ) : (
-                clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))
+                <div className="flex flex-wrap gap-2">
+                  {clients.map((c) => (
+                    <label
+                      key={c.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-xs text-muted"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={userClientIds.includes(c.id)}
+                        onChange={() => toggleCreateClientId(c.id)}
+                      />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
               )}
-            </select>
-          </label>
+            </fieldset>
+          ) : (
+            <p className="text-xs text-muted sm:col-span-2">
+              El rol owner no requiere cliente asignado: gestiona toda la agencia.
+            </p>
+          )}
           <div className="sm:col-span-2">
             <button
               type="submit"
-              disabled={creatingUser || clients.length === 0}
+              disabled={creatingUser || (needsClient(userRole) && clients.length === 0)}
               className="rounded-md bg-brand px-4 py-2 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
             >
               {creatingUser ? 'Creando…' : 'Crear usuario'}
@@ -543,12 +602,15 @@ export default function AdminPage() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-muted">
-                    {editingUserId === u.id && isEditableClientUser(u.role) ? (
+                    {editingUserId === u.id && isEditableUser(u.role) ? (
                       <select
                         value={editUserRole}
-                        onChange={(e) => setEditUserRole(e.target.value as 'manager' | 'viewer')}
+                        onChange={(e) =>
+                          setEditUserRole(e.target.value as 'owner' | 'manager' | 'viewer')
+                        }
                         className="rounded border border-line-strong bg-white px-2 py-1 text-xs text-ink"
                       >
+                        <option value="owner">owner</option>
                         <option value="manager">manager</option>
                         <option value="viewer">viewer</option>
                       </select>
@@ -557,20 +619,28 @@ export default function AdminPage() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-muted">
-                    {editingUserId === u.id && isEditableClientUser(u.role) ? (
-                      <select
-                        value={editUserClientId}
-                        onChange={(e) => setEditUserClientId(e.target.value)}
-                        className="rounded border border-line-strong bg-white px-2 py-1 text-xs text-ink"
-                      >
+                    {editingUserId === u.id &&
+                    isEditableUser(u.role) &&
+                    needsClient(editUserRole) ? (
+                      <div className="flex max-w-xs flex-wrap gap-1">
                         {clients.map((c) => (
-                          <option key={c.id} value={c.id}>
+                          <label
+                            key={c.id}
+                            className="flex items-center gap-1 rounded border border-line-strong px-1.5 py-0.5 text-[11px]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editUserClientIds.includes(c.id)}
+                              onChange={() => toggleEditClientId(c.id)}
+                            />
                             {c.name}
-                          </option>
+                          </label>
                         ))}
-                      </select>
+                      </div>
                     ) : (
-                      u.client?.name ?? '—'
+                      (u.clients?.length
+                        ? u.clients.map((c) => c.name).join(', ')
+                        : u.client?.name) ?? '—'
                     )}
                   </td>
                   <td className="px-3 py-2">
