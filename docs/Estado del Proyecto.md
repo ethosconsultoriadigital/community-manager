@@ -3,7 +3,31 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-03 (Header usuario + multi-cliente)
+**Última actualización:** 2026-09-04 (Manual PDF con capturas reales)
+
+---
+
+## 2026-09-04 — Manual PDF con capturas reales ✅
+
+**Implementado:**
+- Referencias del Manual actualizadas de `.svg` → `.png` (15 capturas de producción).
+- Generado `docs/Manual de usuario.pdf` (md-to-pdf + `manual-pdf.css`).
+- Placeholders SVG eliminados; assets reales en `docs/manual-assets/`.
+
+**Criterio de aceptación:** ✅ PDF listo para entregar al cliente.
+
+---
+
+## 2026-09-04 — Manual de usuario con capturas (estructura) ✅
+
+**Implementado:**
+- `docs/Manual de usuario.md` enlaza **15 capturas** por sección (login, inicio, menú, admin, cuentas, composer, radar, aprobaciones, calendario, reportes, selector, historia).
+- Carpeta `docs/manual-assets/` con placeholders SVG + `README.md` (checklist de nombres PNG y buenas prácticas).
+- Script `docs/manual-assets/_generate-placeholders.js` para regenerar placeholders si hace falta.
+
+**Pendiente operativo:** sustituir cada `.svg` por screenshot **PNG real** de producción (misma nomenclatura) y actualizar la extensión en el Manual; luego exportar a PDF si se entrega al cliente.
+
+**Criterio de aceptación:** ✅ Estructura lista para soltar fotos; ⏳ PNG reales pendientes del equipo.
 
 ---
 
@@ -15,9 +39,9 @@
 - Admin: checkboxes para asignar múltiples negocios; al publicar se elige el cliente como hasta ahora.
 - `ClientAccessService` soporta alcance `multi`.
 
-**Pendiente operativo:** aplicar migraciones en la BD (`pnpm` / `migrations/run`) y regenerar Prisma client.
+**Pendiente operativo:** ✅ Migración aplicada en Neon (entorno de producción/staging).
 
-**Criterio de aceptación:** ✅ Código y tests listos; migración pendiente de aplicar en el entorno.
+**Criterio de aceptación:** ✅ Código, tests y migración en BD.
 
 ---
 
@@ -55,7 +79,7 @@
 |------|--------|
 | **Fase actual** | Mejoras UX por módulo (plan 6 fases) — entregadas |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories + UX módulos |
-| **Próximo paso** | Desplegar API + web; probar PDF reportes y Composer con referencia |
+| **Próximo paso** | Entregar `docs/Manual de usuario.pdf`; desplegar si falta; probar PDF reportes/Composer |
 | **Verificación automática** | `@cm/api` test OK · `@cm/web` build OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |

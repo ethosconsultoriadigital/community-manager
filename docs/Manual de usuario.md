@@ -3,10 +3,12 @@
 > Guía operativa para el cliente final.  
 > **Producto:** Community Manager (Ethos Consultoría Digital)  
 > **Sitio:** [https://www.ethosconsultoriadigital.com/](https://www.ethosconsultoriadigital.com/)  
-> **Última actualización:** 2026-09-03  
+> **Última actualización:** 2026-09-04  
 
 Este documento explica cómo usar el sistema día a día. Está pensado para entregarse al equipo operativo.  
 Al incorporar nuevas funciones al producto, **este manual debe actualizarse** para mantenerse alineado con la versión en producción.
+
+**Imágenes:** capturas reales en [`docs/manual-assets/`](./manual-assets/). PDF entregable: [`Manual de usuario.pdf`](./Manual%20de%20usuario.pdf).
 
 ---
 
@@ -25,6 +27,8 @@ Flujo típico:
 ---
 
 ## 2. Acceso al sistema
+
+![Pantalla de login](./manual-assets/01-login.png)
 
 1. Abre la URL de la aplicación que te entregó Ethos.  
 2. Entra con tu **email** y **contraseña**.  
@@ -64,6 +68,9 @@ Puede, entre otras cosas:
 Puede:
 
 - Trabajar sobre el/los **cliente(s) asignado(s)**. Si tiene varios negocios, elige en el selector **en cuál publicar o consultar**.  
+
+![Selector de cliente (varios negocios)](./manual-assets/14-selector-cliente.png)
+
 - Generar contenido (IA, subida de archivo, Reel).  
 - Conectar fuente / Radar.  
 - Aprobar y programar posts.  
@@ -82,6 +89,8 @@ Puede:
 
 ## 4. Menú principal (módulos)
 
+![Menú / navegación principal](./manual-assets/03-menu.png)
+
 | Módulo | Para qué sirve |
 |--------|----------------|
 | **Inicio** | Resumen visual: pendientes, aprobados, programados y publicados |
@@ -94,6 +103,12 @@ Puede:
 | **Perfil** | Datos de tu usuario |
 | **Admin** | Solo admin: clientes, usuarios y atajos a Meta |
 
+### 4.1 Inicio
+
+![Dashboard Inicio](./manual-assets/02-inicio.png)
+
+En **Inicio** verás un resumen visual (tarjetas con miniaturas) de pendientes, aprobados, programados y publicados. Es el punto de partida tras el login.
+
 ---
 
 ## 5. Primeros pasos recomendados
@@ -104,6 +119,16 @@ Puede:
 4. Crear un post de prueba en **Generar Contenido**.  
 5. **Aprobar** y programar unos minutos adelante.  
 6. Verificar en redes y en **Calendario** / **Reportes**.
+
+### 5.1 Panel Admin (clientes)
+
+![Admin — lista de clientes](./manual-assets/04-admin-clientes.png)
+
+### 5.2 Panel Admin (usuarios y asignación multi-cliente)
+
+![Admin — usuarios, roles y clientes](./manual-assets/05-admin-usuarios.png)
+
+Al crear o editar un **manager** o **viewer**, marca **uno o varios** clientes con los checkboxes. El usuario solo verá y operará sobre esos negocios.
 
 ---
 
@@ -125,6 +150,8 @@ Antes de pulsar «Conectar Meta», asegúrate de:
 
 **Opción A — Cuentas (recomendada para el día a día)**
 
+![Cuentas — antes de conectar](./manual-assets/06-cuentas.png)
+
 1. Inicia sesión.  
 2. Ve a **Cuentas**.  
 3. Si ves selector de cliente, elige el negocio correcto.  
@@ -134,6 +161,8 @@ Antes de pulsar «Conectar Meta», asegúrate de:
 7. Confirma los permisos.  
 8. Volverás a Community Manager con un mensaje tipo *«Cuenta Meta conectada correctamente»*.  
 9. Debes ver en la lista las cuentas **Facebook** e **Instagram** activas.
+
+![Cuentas — Facebook e Instagram conectados](./manual-assets/07-cuentas-conectadas.png)
 
 **Opción B — Panel Admin**
 
@@ -169,6 +198,8 @@ Antes de pulsar «Conectar Meta», asegúrate de:
 
 ## 7. Generar Contenido (Composer)
 
+![Generar Contenido — vista general](./manual-assets/08-composer.png)
+
 1. Elige el **cliente** (si aplica).  
 2. Escribe el **caption** y **hashtags**.  
 3. Marca los **destinos** (Facebook / Instagram conectados).  
@@ -176,7 +207,13 @@ Antes de pulsar «Conectar Meta», asegúrate de:
    - **Generar contenido visual con IA** — brief + opcional referencia (imagen/PDF/Word).  
    - **Subir archivo** — imagen o video.  
    - **Reel (video)** — video vertical; en Instagram puede publicarse como Reel.  
+
+![Composer — modo IA y referencia](./manual-assets/09-composer-ia.png)
+
 5. Opcional: **También colgar como historia (24 h)**. En fotos, la historia incluye el texto del post en la imagen.  
+
+![Opción «También colgar como historia»](./manual-assets/15-historia.png)
+
 6. Envía a **aprobación** (o guarda según el flujo de la pantalla).
 
 **Importante:** nada se publica a Meta sin pasar por aprobación (salvo que el proceso de negocio lo cambie en el futuro; hoy la regla es aprobación humana).
@@ -184,6 +221,8 @@ Antes de pulsar «Conectar Meta», asegúrate de:
 ---
 
 ## 8. Conectar fuente (Radar)
+
+![Conectar fuente / Radar](./manual-assets/10-radar.png)
 
 1. Configura la fuente (p. ej. Google Sheet) según lo acordado con Ethos.  
 2. Sincroniza para ingerir items.  
@@ -193,6 +232,8 @@ Antes de pulsar «Conectar Meta», asegúrate de:
 ---
 
 ## 9. Aprobaciones
+
+![Bandeja de aprobaciones](./manual-assets/11-aprobaciones.png)
 
 1. Abre **Aprobaciones**.  
 2. Filtra por red si lo necesitas.  
@@ -207,6 +248,8 @@ También puedes limpiar pendientes antiguos del Radar con las acciones masivas d
 
 ## 10. Calendario
 
+![Calendario de publicaciones](./manual-assets/12-calendario.png)
+
 - Vista de posts **programados**, **publicados** y con **errores**.  
 - Acciones frecuentes:  
   - Ver detalle  
@@ -218,6 +261,8 @@ También puedes limpiar pendientes antiguos del Radar con las acciones masivas d
 ---
 
 ## 11. Reportes
+
+![Reportes — KPIs y gráficos](./manual-assets/13-reportes.png)
 
 1. Elige cliente y rango de días.  
 2. Filtra por red (Todas / Facebook / Instagram).  
@@ -272,6 +317,7 @@ Contacta a Ethos Consultoría Digital: [https://www.ethosconsultoriadigital.com/
 | Nuevo módulo en el menú | Documentar propósito y pasos |
 | Cambio en OAuth Meta | Actualizar sección 6 |
 | Cambio de roles o permisos | Actualizar sección 3 |
+| Rediseño de pantallas | Actualizar capturas en `docs/manual-assets/` |
 
 **Responsable sugerido:** equipo Ethos / quien despliega cada versión.
 
