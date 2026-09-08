@@ -148,6 +148,83 @@ export class PostsRepository {
     });
   }
 
+  /**
+   * Copia caption, hashtags, lugar, formato, destinos activos y media (mismas URLs)
+   * a un nuevo post en borrador. No copia aprobación, programación ni publicación.
+   */
+  async duplicate(agencyId: string, id: string, createdBy: string | null) {
+    const source = await this.findById(agencyId, id);
+    if (!source) return null;
+
+    const candidateIds = [
+      ...new Set(source.post_targets.map((t) => t.social_account_id)),
+    ];
+    if (!candidateIds.length) {
+      throw new PostsValidationError(
+        'El post original no tiene destinos para duplicar',
+      );
+    }
+
+    const activeAccounts = await this.prisma.social_accounts.findMany({
+      where: scopedWhere(agencyId, {
+        id: { in: candidateIds },
+        client_id: source.client_id,
+        is_active: true,
+      }),
+      select: { id: true },
+    });
+    const socialAccountIds = activeAccounts.map((a) => a.id);
+    if (!socialAccountIds.length) {
+      throw new PostsValidationError(
+        'Ningún destino del post original está activo; reconecta una cuenta e inténtalo de nuevo',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const post = await tx.posts.create({
+        data: {
+          caption: source.caption,
+          hashtags: source.hashtags ?? [],
+          video_format: source.video_format,
+          also_publish_as_story: source.also_publish_as_story,
+          place_id: source.place_id,
+          place_name: source.place_name,
+          status: 'draft',
+          agencies: { connect: { id: agencyId } },
+          clients: { connect: { id: source.client_id } },
+          ...(createdBy ? { users: { connect: { id: createdBy } } } : {}),
+        },
+      });
+
+      await tx.post_targets.createMany({
+        data: socialAccountIds.map((socialAccountId) => ({
+          post_id: post.id,
+          social_account_id: socialAccountId,
+        })),
+      });
+
+      if (source.media_assets.length) {
+        await tx.media_assets.createMany({
+          data: source.media_assets.map((asset) => ({
+            agency_id: agencyId,
+            post_id: post.id,
+            type: asset.type,
+            source: asset.source,
+            storage_url: asset.storage_url,
+            width: asset.width,
+            height: asset.height,
+            position: asset.position,
+          })),
+        });
+      }
+
+      return tx.posts.findFirstOrThrow({
+        where: { id: post.id },
+        include: postInclude,
+      });
+    });
+  }
+
   async update(agencyId: string, id: string, data: UpdatePostData) {
     const existing = await this.findById(agencyId, id);
     if (!existing) return null;

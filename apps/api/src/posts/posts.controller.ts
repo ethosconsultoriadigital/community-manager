@@ -122,6 +122,21 @@ export class PostsController {
     }
   }
 
+  @Post(':id/duplicate')
+  async duplicate(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.getPostOrThrow(user, id);
+    try {
+      const post = await this.posts.duplicate(user.agencyId, id, user.id);
+      if (!post) throw new NotFoundException('Post no encontrado');
+      return post;
+    } catch (error) {
+      if (error instanceof PostsValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
   @Post(':id/media')
   @UseInterceptors(
     FileInterceptor('file', {

@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ApprovalEditForm } from '@/components/ApprovalEditForm';
 import { ApiError, apiFetch } from '@/lib/api';
 import { Pagination } from '@/components/Pagination';
@@ -22,6 +23,7 @@ function defaultScheduleValue() {
 }
 
 export default function ApprovalsPage() {
+  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [clients, setClients] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -139,6 +141,20 @@ export default function ApprovalsPage() {
     }
   }
 
+  async function handleDuplicate(postId: string) {
+    setActionId(postId);
+    setError(null);
+    setMessage(null);
+    try {
+      const copy = await apiFetch<Post>(`/posts/${postId}/duplicate`, { method: 'POST' });
+      router.push(`/composer?edit=${copy.id}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo duplicar el post');
+    } finally {
+      setActionId(null);
+    }
+  }
+
   if (loading) {
     return <p className="text-muted">Cargando bandeja…</p>;
   }
@@ -239,6 +255,16 @@ export default function ApprovalsPage() {
             {paginated.slice.map((post) => (
               <div key={post.id} id={`approval-${post.id}`}>
                 <PostCard post={post} clientName={clients[post.client_id]}>
+                  {editingId !== post.id && (
+                    <button
+                      type="button"
+                      disabled={actionId === post.id}
+                      onClick={() => handleDuplicate(post.id)}
+                      className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+                    >
+                      Duplicar
+                    </button>
+                  )}
                   {editingId !== post.id && post.status === 'pending_approval' && (
                     <>
                       {postHasMedia(post) && (

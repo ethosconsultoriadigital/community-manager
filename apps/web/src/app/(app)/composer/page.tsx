@@ -105,12 +105,15 @@ export default function ComposerPage() {
   }, []);
 
   useEffect(() => {
-    const canvaReturn = searchParams.get('canva_return');
-    if (canvaReturn) {
-      loadPostIntoForm(canvaReturn)
+    const editId = searchParams.get('edit') ?? searchParams.get('canva_return');
+    if (editId) {
+      loadPostIntoForm(editId)
         .then(() => {
+          const fromDuplicate = searchParams.get('edit');
           setMessage(
-            `Post cargado (${canvaReturn.slice(0, 8)}…). Puedes enviarlo a aprobación.`,
+            fromDuplicate
+              ? `Borrador duplicado cargado (${editId.slice(0, 8)}…). Revisa y envía a aprobación.`
+              : `Post cargado (${editId.slice(0, 8)}…). Puedes enviarlo a aprobación.`,
           );
         })
         .catch(() => setError('No se pudo cargar el post'));

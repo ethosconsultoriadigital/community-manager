@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ApprovalEditForm } from '@/components/ApprovalEditForm';
 import { PostCard, formatDate } from '@/components/PostCard';
 import { ApiError, apiFetch } from '@/lib/api';
@@ -47,6 +48,7 @@ export function CalendarPostDetail({
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +98,22 @@ export function CalendarPostDetail({
       'Post eliminado.',
     );
     onClose();
+  }
+
+  async function handleDuplicate() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const copy = await apiFetch<Post>(`/posts/${post.id}/duplicate`, { method: 'POST' });
+      setMessage('Borrador creado. Abriendo Composer…');
+      onClose();
+      router.push(`/composer?edit=${copy.id}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo duplicar el post');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleUnschedule() {
@@ -178,6 +196,14 @@ export function CalendarPostDetail({
           />
         ) : (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleDuplicate}
+              className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              Duplicar
+            </button>
             {canManage && (
               <>
                 <button

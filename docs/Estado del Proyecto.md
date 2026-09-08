@@ -3,7 +3,21 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-08 (Fix búsqueda/publicación de ubicación)
+**Última actualización:** 2026-09-08 (Duplicar post)
+
+---
+
+## 2026-09-08 — Duplicar post (opción A) ✅
+
+**Implementado:**
+- `PostsRepository.duplicate` + `POST /posts/:id/duplicate`: copia caption, hashtags, lugar, story/reel, destinos activos y `media_assets` (mismas URLs, filas nuevas) a un **borrador** independiente.
+- No copia aprobación, programación ni estado publicado (vuelve a pasar por aprobación humana).
+- UI: botón **Duplicar** en Calendario (detalle) y Aprobaciones → abre Composer con `?edit=<id>`.
+- Composer carga borradores vía `?edit=` (además de `canva_return`).
+
+**Criterio de aceptación:** ✅ Duplicar no altera el original; multi-tenant por `agency_id`; tests de repo OK. ⏳ Redeploy API+web.
+
+**Pendiente (opción B):** biblioteca de textos/media reutilizables sin depender de un post.
 
 ---
 
