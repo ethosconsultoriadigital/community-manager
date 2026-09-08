@@ -272,7 +272,7 @@ export default function ComposerPage() {
   async function handleGenerateCopy() {
     const brief = (aiBrief.trim() || caption.trim());
     if (!brief) {
-      setError('Escribe un brief o unas ideas en el caption para generar el texto');
+      setError('Escribe un brief o unas ideas en el texto de publicación para generar el contenido');
       return;
     }
     setError(null);
@@ -298,7 +298,7 @@ export default function ComposerPage() {
       setMessage(
         result.usedMock
           ? 'Texto de ejemplo generado (modo desarrollo).'
-          : 'Caption y hashtags generados con IA. Puedes editarlos antes de publicar.',
+          : 'Texto de publicación y hashtags generados con IA. Puedes editarlos antes de publicar.',
       );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo generar el texto');
@@ -313,7 +313,7 @@ export default function ComposerPage() {
       return;
     }
     if (!caption.trim()) {
-      setError('Escribe el caption del post antes de generar');
+      setError('Escribe el texto de publicación del post antes de generar');
       return;
     }
     if (selectedAccounts.length === 0) {
@@ -485,7 +485,7 @@ export default function ComposerPage() {
         <div>
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <label htmlFor="caption" className="block text-sm text-muted">
-              Caption
+              Texto de publicación
             </label>
             <button
               type="button"
@@ -630,9 +630,9 @@ export default function ComposerPage() {
             <div>
               <h2 className="text-sm font-medium text-brand">Generar contenido visual con IA</h2>
               <p className="text-xs text-muted">
-                Describe la escena visual con detalle (producto, colores, estilo). El caption de
-                arriba también se usa para anclar el tema. Opcionalmente adjunta una referencia
-                (imagen, PDF o Word).
+                Describe la escena visual con detalle (producto, colores, estilo). El texto de
+                publicación de arriba también se usa para anclar el tema. Opcionalmente adjunta una
+                referencia (imagen, PDF o Word).
               </p>
             </div>
 

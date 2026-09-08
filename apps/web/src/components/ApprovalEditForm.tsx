@@ -97,7 +97,7 @@ export function ApprovalEditForm({
     >
       <p className="text-xs font-medium text-brand">{heading}</p>
       <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">Caption</span>
+        <span className="mb-1 block text-xs text-muted">Texto de publicación</span>
         <textarea
           rows={4}
           value={caption}
