@@ -3,7 +3,18 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-08 (Biblioteca de contenido)
+**Última actualización:** 2026-09-08 (Parrilla PDF de aprobaciones)
+
+---
+
+## 2026-09-08 — Parrilla PDF de aprobaciones (MVP) ✅
+
+**Implementado:**
+- `POST /posts/approvals-parrilla/pdf` (`ApprovalsParrillaService` + pdfkit): portada Ethos, una página por pieza (texto, hashtags, redes, formato, imagen si aplica, casillas Aprobar/Rechazar).
+- UI Aprobaciones: filtro cliente, checkboxes, «Seleccionar todas», **Descargar parrilla PDF**.
+- Logo embebido desde `apps/api/src/assets/ethos-logo-light.png`.
+
+**Criterio:** ✅ MVP listo; ⏳ redeploy API+web. Próximo: pulir diseño más cercano a `docs/Parrilla.pdf` (semana, tipografía, 1 día = 1 página).
 
 ---
 

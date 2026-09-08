@@ -9,6 +9,7 @@ import {
   Post,
   BadRequestException,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -16,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 import { ApprovalsRepository, PostsRepository, PostsValidationError } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { ClientAccessService } from '../access/client-access.service';
@@ -28,6 +30,7 @@ import { PublishQueueService } from '../jobs/publish-queue.service';
 import { MAX_VIDEO_BYTES } from '../media/media.constants';
 import { MediaValidationError } from '../media/media-validation';
 import { MediaUploadService } from '../media/media-upload.service';
+import { ApprovalsParrillaService } from './approvals-parrilla.service';
 
 class CreatePostDto {
   clientId!: string;
@@ -58,6 +61,11 @@ class RejectPostDto {
   comment?: string;
 }
 
+class ApprovalsParrillaDto {
+  clientId!: string;
+  postIds!: string[];
+}
+
 @Controller('posts')
 @UseGuards(JwtAuthGuard)
 export class PostsController {
@@ -67,6 +75,7 @@ export class PostsController {
     private readonly publishQueue: PublishQueueService,
     private readonly mediaUpload: MediaUploadService,
     private readonly clientAccess: ClientAccessService,
+    private readonly approvalsParrilla: ApprovalsParrillaService,
   ) {}
 
   @Post()
@@ -78,6 +87,39 @@ export class PostsController {
       if (error instanceof PostsValidationError) {
         throw new BadRequestException(error.message);
       }
+      throw error;
+    }
+  }
+
+  @Post('approvals-parrilla/pdf')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async approvalsParrillaPdf(
+    @CurrentUser() user: AuthUser,
+    @Body() body: ApprovalsParrillaDto,
+    @Res() res: Response,
+  ) {
+    if (!body.clientId?.trim()) {
+      throw new BadRequestException('clientId es obligatorio');
+    }
+    await this.clientAccess.assertClientAccess(user, body.clientId.trim());
+    const postIds = Array.isArray(body.postIds) ? body.postIds : [];
+
+    try {
+      const pdf = await this.approvalsParrilla.generatePdf({
+        agencyId: user.agencyId,
+        clientId: body.clientId.trim(),
+        postIds,
+      });
+      const stamp = new Date().toISOString().slice(0, 10);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="parrilla-aprobacion-${stamp}.pdf"`,
+      );
+      res.send(pdf);
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw error;
     }
   }

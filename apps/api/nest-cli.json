@@ -5,6 +5,9 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "tsConfigPath": "tsconfig.build.json",
-    "assets": [{ "include": "content-sources/fixtures/**/*", "watchAssets": true }]
+    "assets": [
+      { "include": "content-sources/fixtures/**/*", "watchAssets": true },
+      { "include": "assets/**/*", "watchAssets": true }
+    ]
   }
 }
