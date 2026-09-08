@@ -222,10 +222,16 @@ export class ApprovalsParrillaService {
       .fillColor('#0f172a')
       .text(`Publicación ${input.index}`, margin, margin + 22, { width: contentWidth });
 
-    const networks = post.post_targets
-      .map((t) => PLATFORM_LABEL[t.social_accounts.platform] ?? t.social_accounts.platform)
-      .filter(Boolean);
-    const uniqueNetworks = [...new Set(networks)];
+    const destinations = post.post_targets.map((t) => {
+      const platform =
+        PLATFORM_LABEL[t.social_accounts.platform] ?? t.social_accounts.platform;
+      const page =
+        t.social_accounts.username?.trim() ||
+        t.social_accounts.external_account_id ||
+        null;
+      return page ? `${platform} · ${page.startsWith('@') ? page : `@${page}`}` : platform;
+    });
+    const uniqueDestinations = [...new Set(destinations)];
     const formatParts: string[] = [];
     if (post.video_format === 'reel') formatParts.push('Reel');
     else if (post.media_assets?.some((m) => m.type === 'video')) formatParts.push('Video (feed)');
@@ -235,7 +241,11 @@ export class ApprovalsParrillaService {
 
     doc.moveDown(0.8);
     doc.fontSize(10).fillColor('#374151');
-    doc.text(`Redes: ${uniqueNetworks.length ? uniqueNetworks.join(', ') : 'Sin destinos'}`);
+    doc.text(
+      `Destinos: ${
+        uniqueDestinations.length ? uniqueDestinations.join(' · ') : 'Sin destinos'
+      }`,
+    );
     doc.text(`Formato: ${formatParts.join(' · ')}`);
     doc.text(`Estado: ${post.status === 'pending_approval' ? 'Pendiente de aprobación' : 'Aprobado (sin programar)'}`);
     if (post.place_name) doc.text(`Ubicación: ${post.place_name}`);
