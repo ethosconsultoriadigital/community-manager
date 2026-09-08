@@ -90,11 +90,16 @@ export class AutoPromoteService {
     const active = accounts.filter((a) => a.is_active);
 
     const platforms: Array<{
-      platform: 'facebook' | 'instagram';
+      platform: 'facebook' | 'instagram' | 'threads';
       copy: string | null | undefined;
     }> = [
       { platform: 'facebook', copy: item.copy_facebook },
       { platform: 'instagram', copy: item.copy_instagram },
+      // Threads: reutiliza copy de Facebook o Instagram si hay cuenta Threads
+      {
+        platform: 'threads',
+        copy: item.copy_facebook?.trim() || item.copy_instagram,
+      },
     ];
 
     let skippedNoAccount = 0;

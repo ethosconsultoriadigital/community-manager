@@ -151,6 +151,8 @@ model posts {
   content_source_id String?          @db.Uuid
   video_format      video_format?
   also_publish_as_story Boolean        @default(false)
+  place_id          String?
+  place_name        String?
   approvals         approvals[]
   generations       generations[]
   media_assets      media_assets[]
@@ -353,6 +355,7 @@ enum social_platform {
   linkedin
   x
   youtube
+  threads
 }
 
 enum source_type {

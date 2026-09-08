@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApprovalsRepository, PostsRepository, SocialAccountsRepository } from '@cm/db';
 import { buildPublishMessage, decryptToken } from '@cm/shared';
-import { MetaPublishService } from '../platforms/meta/meta-publish.service';
+import { PlatformPublisherRegistry } from '../platforms/platform-publisher.registry';
+import type { PublishPlatform } from '../platforms/platform-publisher.interface';
 
 export type PublishPostJobData = {
   agencyId: string;
@@ -19,7 +20,7 @@ export class PublishPostService {
     private readonly posts: PostsRepository,
     private readonly approvals: ApprovalsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
-    private readonly metaPublish: MetaPublishService,
+    private readonly publishers: PlatformPublisherRegistry,
   ) {}
 
   async publishPost(data: PublishPostJobData): Promise<void> {
@@ -75,10 +76,8 @@ export class PublishPostService {
       if (!account?.is_active) {
         throw new Error('Cuenta social inactiva o no encontrada');
       }
-      if (account.platform !== 'facebook' && account.platform !== 'instagram') {
-        throw new Error(`Plataforma no soportada para publicación: ${account.platform}`);
-      }
 
+      const publisher = this.publishers.getPublisher(account.platform);
       const accessToken = decryptToken(
         account.access_token_enc,
         this.requireEncryptionKey(),
@@ -92,12 +91,12 @@ export class PublishPostService {
       const videoFormat =
         post.video_format === 'reel' ? ('reel' as const) : ('feed' as const);
 
-      if (videoFormat === 'reel' && !videoUrl) {
+      if (videoFormat === 'reel' && !videoUrl && account.platform === 'instagram') {
         throw new Error('Publicar como Reel requiere un video adjunto');
       }
 
-      const result = await this.metaPublish.publish({
-        platform: account.platform as 'facebook' | 'instagram',
+      const result = await publisher.publish({
+        platform: account.platform as PublishPlatform,
         externalAccountId: account.external_account_id,
         accessToken,
         agencyId,
@@ -106,6 +105,7 @@ export class PublishPostService {
         videoUrl,
         videoFormat: videoUrl ? videoFormat : undefined,
         alsoPublishAsStory: Boolean(post.also_publish_as_story),
+        placeId: post.place_id ?? undefined,
       });
 
       await this.posts.updateTargetStatus(agencyId, postId, targetId, {

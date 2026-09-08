@@ -15,6 +15,9 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
   const approvals = { hasApproved: vi.fn() };
   const socialAccounts = { findByIdWithToken: vi.fn() };
   const metaPublish = { publish: vi.fn() };
+  const publishers = {
+    getPublisher: vi.fn().mockReturnValue(metaPublish),
+  };
   const config = { get: vi.fn().mockReturnValue(ENCRYPTION_KEY) };
 
   const service = new PublishPostService(
@@ -22,10 +25,10 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
     { ...posts, ...(overrides.posts as Record<string, unknown> | undefined) } as never,
     approvals as never,
     socialAccounts as never,
-    metaPublish as never,
+    publishers as never,
   );
 
-  return { service, posts, socialAccounts, metaPublish };
+  return { service, posts, socialAccounts, metaPublish, publishers };
 }
 
 function encryptedToken(plain = 'page-token') {
@@ -50,7 +53,7 @@ describe('PublishPostService', () => {
   });
 
   it('publica destino facebook y marca published', async () => {
-    const { service, posts, socialAccounts, metaPublish } = createService();
+    const { service, posts, socialAccounts, metaPublish, publishers } = createService();
     posts.findForPublish.mockResolvedValue({
       id: 'post-1',
       status: 'scheduled',
@@ -78,6 +81,7 @@ describe('PublishPostService', () => {
     await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
 
     expect(posts.markPublishing).toHaveBeenCalledWith('a1', 'post-1');
+    expect(publishers.getPublisher).toHaveBeenCalledWith('facebook');
     expect(metaPublish.publish).toHaveBeenCalled();
     expect(posts.updateTargetStatus).toHaveBeenCalledWith(
       'a1',
@@ -225,6 +229,38 @@ describe('PublishPostService', () => {
       expect.objectContaining({
         storyPlatformPostId: 'ig-story-1',
         storyStatus: 'published',
+      }),
+    );
+  });
+
+  it('despacha a publisher de Threads vía registry', async () => {
+    const threadsPublish = { publish: vi.fn().mockResolvedValue({ platformPostId: 'th-1' }) };
+    const { service, posts, socialAccounts, publishers } = createService();
+    publishers.getPublisher.mockReturnValue(threadsPublish);
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Noticia',
+      hashtags: [],
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa-th' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa-th',
+      platform: 'threads',
+      external_account_id: 'threads-user-1',
+      access_token_enc: encryptedToken('th-token'),
+      is_active: true,
+    });
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(publishers.getPublisher).toHaveBeenCalledWith('threads');
+    expect(threadsPublish.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'threads',
+        externalAccountId: 'threads-user-1',
       }),
     );
   });

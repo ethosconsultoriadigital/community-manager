@@ -2,7 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ContentSourcesModule } from '../content-sources/content-sources.module';
-import { MetaModule } from '../platforms/meta/meta.module';
+import { PlatformsModule } from '../platforms/platforms.module';
 import { PUBLISH_QUEUE } from './publish.constants';
 import { PublishPostService } from './publish-post.service';
 import { PublishQueueService } from './publish-queue.service';
@@ -13,7 +13,7 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
 
 @Module({
   imports: [
-    MetaModule,
+    PlatformsModule,
     ContentSourcesModule,
     BullModule.forRootAsync({
       inject: [ConfigService],

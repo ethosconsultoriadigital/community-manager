@@ -14,11 +14,13 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { CanvaEditorService } from '../platforms/canva/canva-editor.service';
 import { CanvaOAuthService } from '../platforms/canva/canva-oauth.service';
 import { MetaOAuthService } from '../platforms/meta/meta-oauth.service';
+import { ThreadsOAuthService } from '../platforms/threads/threads-oauth.service';
 
 @Controller('oauth')
 export class OauthController {
   constructor(
     private readonly metaOAuth: MetaOAuthService,
+    private readonly threadsOAuth: ThreadsOAuthService,
     private readonly canvaOAuth: CanvaOAuthService,
     private readonly canvaEditor: CanvaEditorService,
   ) {}
@@ -61,6 +63,38 @@ export class OauthController {
     }
     await this.metaOAuth.handleCallback(code, state);
     return res.redirect(this.metaOAuth.getSuccessRedirectUrl());
+  }
+
+  @Get('threads/connect-url')
+  @UseGuards(JwtAuthGuard)
+  async threadsConnectUrl(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId: string,
+  ) {
+    if (!clientId) {
+      throw new BadRequestException('clientId es obligatorio');
+    }
+    const url = await this.threadsOAuth.startConnect(user, clientId);
+    return { url };
+  }
+
+  @Get('threads/callback')
+  async callbackThreads(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    if (!code || !state) {
+      throw new UnauthorizedException('Parámetros OAuth de Threads incompletos');
+    }
+    await this.threadsOAuth.handleCallback(code, state);
+    return res.redirect(this.threadsOAuth.getSuccessRedirectUrl());
+  }
+
+  @Get('threads/status')
+  @UseGuards(JwtAuthGuard)
+  threadsStatus() {
+    return { enabled: this.threadsOAuth.isEnabled() };
   }
 
   @Get('canva/connect-url')

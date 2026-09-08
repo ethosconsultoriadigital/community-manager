@@ -2,36 +2,38 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SocialAccountsRepository } from '@cm/db';
 import { decryptToken, encryptToken } from '@cm/shared';
-import { MetaGraphClient } from './meta-graph.client';
+import { isThreadsPublishEnabled } from '../platform-features';
+import { ThreadsApiClient } from './threads-api.client';
 
 const REFRESH_WINDOW_DAYS = 7;
 
 @Injectable()
-export class MetaTokenRefreshService {
-  private readonly logger = new Logger(MetaTokenRefreshService.name);
+export class ThreadsTokenRefreshService {
+  private readonly logger = new Logger(ThreadsTokenRefreshService.name);
 
   constructor(
     private readonly config: ConfigService,
-    private readonly meta: MetaGraphClient,
+    private readonly threads: ThreadsApiClient,
     private readonly socialAccounts: SocialAccountsRepository,
   ) {}
 
   async refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
+    if (!isThreadsPublishEnabled(this.config)) {
+      return { refreshed: 0, failed: 0 };
+    }
+
     const until = new Date(Date.now() + REFRESH_WINDOW_DAYS * 24 * 60 * 60 * 1000);
     const accounts = await this.socialAccounts.findExpiringBefore(until);
-    // Solo Meta Graph: no intentar refrescar Threads/X/TikTok con este cliente
-    const metaAccounts = accounts.filter(
-      (a) => a.platform === 'facebook' || a.platform === 'instagram',
-    );
+    const threadsAccounts = accounts.filter((a) => a.platform === 'threads');
     const encryptionKey = this.requireEncryptionKey();
 
     let refreshed = 0;
     let failed = 0;
 
-    for (const account of metaAccounts) {
+    for (const account of threadsAccounts) {
       try {
         const currentToken = decryptToken(account.access_token_enc, encryptionKey);
-        const renewed = await this.meta.refreshLongLivedToken(currentToken);
+        const renewed = await this.threads.refreshLongLivedToken(currentToken);
         const encrypted = encryptToken(renewed.access_token, encryptionKey);
         const tokenExpiresAt = renewed.expires_in
           ? new Date(Date.now() + renewed.expires_in * 1000)
@@ -44,9 +46,7 @@ export class MetaTokenRefreshService {
         refreshed += 1;
       } catch (error) {
         failed += 1;
-        this.logger.warn(
-          `No se pudo refrescar cuenta ${account.id} (${account.platform})`,
-        );
+        this.logger.warn(`No se pudo refrescar cuenta Threads ${account.id}`);
         if (error instanceof Error) {
           this.logger.debug(error.message);
         }
