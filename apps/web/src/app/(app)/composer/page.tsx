@@ -5,9 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch, apiUploadMedia, apiUploadReference } from '@/lib/api';
 import { visualPresetChips } from '@/lib/platform-visual-hints';
 import { ClientScopeField } from '@/components/ClientScopeField';
+import { LibraryPicker } from '@/components/LibraryPicker';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
   GenerateFromBriefResult,
+  LibraryItem,
   MediaAsset,
   Post,
   SocialAccount,
@@ -66,6 +68,9 @@ export default function ComposerPage() {
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [libraryPicker, setLibraryPicker] = useState<'text' | 'media' | null>(null);
+  const [libraryMediaItemId, setLibraryMediaItemId] = useState<string | null>(null);
+  const [savingLibrary, setSavingLibrary] = useState(false);
 
   useEffect(() => {
     if (!clientsLoading) setLoading(false);
@@ -91,6 +96,7 @@ export default function ComposerPage() {
 
     const image = post.media_assets?.find((m) => m.type === 'image');
     const video = post.media_assets?.find((m) => m.type === 'video');
+    setLibraryMediaItemId(null);
     if (image?.storage_url) {
       setAiPreviewUrl(image.storage_url);
       setMediaFile(null);
@@ -143,6 +149,7 @@ export default function ComposerPage() {
     if (mediaPreview?.startsWith('blob:')) URL.revokeObjectURL(mediaPreview);
     setMediaFile(file);
     setAiPreviewUrl(null);
+    setLibraryMediaItemId(null);
     if (!file) {
       setMediaPreview(null);
       if (mediaMode === 'reel') setPublishAsReel(true);
@@ -164,6 +171,7 @@ export default function ComposerPage() {
     setMediaMode(mode);
     setError(null);
     setMessage(null);
+    setLibraryMediaItemId(null);
     if (mode === 'ai') {
       handleMediaChange(null);
       setPublishAsReel(false);
@@ -193,7 +201,101 @@ export default function ComposerPage() {
     setPlaceName(null);
     setPlaceQuery('');
     setPlaceResults([]);
+    setLibraryMediaItemId(null);
     handleMediaChange(null);
+  }
+
+  function applyLibraryText(item: LibraryItem) {
+    setCaption(item.caption ?? '');
+    setHashtags(item.hashtags?.join(' ') ?? '');
+    setMessage('Texto cargado desde la biblioteca.');
+  }
+
+  function applyLibraryMedia(item: LibraryItem) {
+    if (!item.storage_url) return;
+    if (mediaPreview?.startsWith('blob:')) URL.revokeObjectURL(mediaPreview);
+    setMediaFile(null);
+    setLibraryMediaItemId(item.id);
+    if (item.kind === 'image') {
+      setAiPreviewUrl(item.storage_url);
+      setMediaPreview(null);
+      setMediaMode(item.media_source === 'ai_generated' ? 'ai' : 'upload');
+      setPublishAsReel(false);
+    } else {
+      setAiPreviewUrl(null);
+      setMediaPreview(item.storage_url);
+      setMediaMode('reel');
+      setPublishAsReel(true);
+    }
+    setMessage('Media cargado desde la biblioteca.');
+  }
+
+  async function saveCaptionToLibrary() {
+    if (!clientId) {
+      setError('Selecciona un cliente');
+      return;
+    }
+    if (!caption.trim()) {
+      setError('Escribe un texto antes de guardarlo en la biblioteca');
+      return;
+    }
+    setSavingLibrary(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch('/library', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          kind: 'text',
+          caption: caption.trim(),
+          hashtags: parseHashtags(),
+        }),
+      });
+      setMessage('Texto guardado en la biblioteca.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar en la biblioteca');
+    } finally {
+      setSavingLibrary(false);
+    }
+  }
+
+  async function saveCurrentMediaToLibrary() {
+    if (!clientId) {
+      setError('Selecciona un cliente');
+      return;
+    }
+    const url =
+      aiPreviewUrl ||
+      (mediaPreview && !mediaPreview.startsWith('blob:') ? mediaPreview : null);
+    if (!url) {
+      setError('Guarda o publica el post primero, o elige media ya alojado (no un archivo local sin subir)');
+      return;
+    }
+    const kind: 'image' | 'video' =
+      mediaMode === 'reel' || Boolean(mediaPreview && !aiPreviewUrl) ? 'video' : 'image';
+    // Prefer explicit image preview
+    const resolvedKind: 'image' | 'video' = aiPreviewUrl ? 'image' : kind;
+    setSavingLibrary(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch('/library', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          kind: resolvedKind,
+          storageUrl: url,
+          mediaSource: mediaMode === 'ai' ? 'ai_generated' : 'upload',
+          caption: caption.trim() || null,
+        }),
+      });
+      setMessage('Media guardado en la biblioteca.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el media');
+    } finally {
+      setSavingLibrary(false);
+    }
   }
 
   function placePayload() {
@@ -415,6 +517,11 @@ export default function ComposerPage() {
         });
         if (mediaFile) {
           await apiUploadMedia<MediaAsset>(postId, mediaFile);
+        } else if (libraryMediaItemId) {
+          await apiFetch(`/library/${libraryMediaItemId}/attach-to-post`, {
+            method: 'POST',
+            body: JSON.stringify({ postId, replace: true }),
+          });
         }
       } else {
         const post = await apiFetch<Post>('/posts', {
@@ -432,6 +539,11 @@ export default function ComposerPage() {
         postId = post.id;
         if (mediaFile) {
           await apiUploadMedia<MediaAsset>(postId, mediaFile);
+        } else if (libraryMediaItemId) {
+          await apiFetch(`/library/${libraryMediaItemId}/attach-to-post`, {
+            method: 'POST',
+            body: JSON.stringify({ postId, replace: true }),
+          });
         }
       }
 
@@ -467,7 +579,32 @@ export default function ComposerPage() {
 
       <form className="space-y-4 rounded-lg border border-line bg-surface p-4">
         <div>
-          <p className="mb-2 text-sm text-muted">Media de la publicación</p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted">Media de la publicación</p>
+            <button
+              type="button"
+              onClick={() => setLibraryPicker('media')}
+              disabled={!clientId || submitting}
+              className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              De biblioteca
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveCurrentMediaToLibrary()}
+              disabled={
+                savingLibrary ||
+                submitting ||
+                !(
+                  aiPreviewUrl ||
+                  (mediaPreview && !mediaPreview.startsWith('blob:'))
+                )
+              }
+              className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              Guardar media
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {(
               [
@@ -490,6 +627,11 @@ export default function ComposerPage() {
               </button>
             ))}
           </div>
+          {libraryMediaItemId && (
+            <p className="mt-2 text-xs text-emerald-700">
+              Media seleccionado desde la biblioteca (se adjuntará al guardar).
+            </p>
+          )}
         </div>
 
         <ClientScopeField
@@ -506,14 +648,32 @@ export default function ComposerPage() {
             <label htmlFor="caption" className="block text-sm text-muted">
               Texto de publicación
             </label>
-            <button
-              type="button"
-              onClick={() => void handleGenerateCopy()}
-              disabled={generatingCopy || generatingAi || submitting}
-              className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
-            >
-              {generatingCopy ? 'Generando texto…' : 'Generar texto con IA'}
-            </button>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setLibraryPicker('text')}
+                disabled={!clientId || submitting}
+                className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+              >
+                De biblioteca
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveCaptionToLibrary()}
+                disabled={savingLibrary || submitting || !caption.trim()}
+                className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+              >
+                {savingLibrary ? 'Guardando…' : 'Guardar texto'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGenerateCopy()}
+                disabled={generatingCopy || generatingAi || submitting}
+                className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+              >
+                {generatingCopy ? 'Generando texto…' : 'Generar texto con IA'}
+              </button>
+            </div>
           </div>
           <textarea
             id="caption"
@@ -823,6 +983,19 @@ export default function ComposerPage() {
           </div>
         )}
       </form>
+
+      {clientId && (
+        <LibraryPicker
+          clientId={clientId}
+          kind={libraryPicker === 'media' ? 'media' : 'text'}
+          open={libraryPicker !== null}
+          onClose={() => setLibraryPicker(null)}
+          onSelect={(item) => {
+            if (item.kind === 'text') applyLibraryText(item);
+            else applyLibraryMedia(item);
+          }}
+        />
+      )}
     </div>
   );
 }

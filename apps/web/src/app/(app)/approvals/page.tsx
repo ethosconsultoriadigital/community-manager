@@ -155,6 +155,14 @@ export default function ApprovalsPage() {
     }
   }
 
+  async function handleSaveToLibrary(postId: string) {
+    await runAction(
+      postId,
+      () => apiFetch(`/library/from-post/${postId}`, { method: 'POST' }),
+      'Contenido guardado en la biblioteca.',
+    );
+  }
+
   if (loading) {
     return <p className="text-muted">Cargando bandeja…</p>;
   }
@@ -256,14 +264,24 @@ export default function ApprovalsPage() {
               <div key={post.id} id={`approval-${post.id}`}>
                 <PostCard post={post} clientName={clients[post.client_id]}>
                   {editingId !== post.id && (
-                    <button
-                      type="button"
-                      disabled={actionId === post.id}
-                      onClick={() => handleDuplicate(post.id)}
-                      className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
-                    >
-                      Duplicar
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() => handleDuplicate(post.id)}
+                        className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+                      >
+                        Duplicar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionId === post.id}
+                        onClick={() => void handleSaveToLibrary(post.id)}
+                        className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+                      >
+                        Guardar en biblioteca
+                      </button>
+                    </>
                   )}
                   {editingId !== post.id && post.status === 'pending_approval' && (
                     <>

@@ -94,11 +94,8 @@ pnpm install
 pnpm migrate
 ```
 
-El runner aplica en orden:
-
-1. `schema_base.sql`
-2. `schema_content_sources.sql`
-3. `schema_auth_password.sql`
+El runner aplica en orden todas las migraciones listadas en `migrations/run.ts`
+(incluida `schema_library_items.sql` para la biblioteca de contenido).
 
 Verificar tablas (opcional):
 

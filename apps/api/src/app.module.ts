@@ -15,6 +15,7 @@ import { ContentSourcesModule } from './content-sources/content-sources.module';
 import { JobsModule } from './jobs/jobs.module';
 import { OauthModule } from './oauth/oauth.module';
 import { MediaModule } from './media/media.module';
+import { LibraryModule } from './library/library.module';
 import { PlatformsModule } from './platforms/platforms.module';
 import { PostsModule } from './posts/posts.module';
 import { SocialAccountsModule } from './social-accounts/social-accounts.module';
@@ -39,6 +40,7 @@ import { SocialAccountsModule } from './social-accounts/social-accounts.module';
     ContentSourcesModule,
     JobsModule,
     MediaModule,
+    LibraryModule,
     AnalyticsModule,
   ],
   controllers: [AppController],

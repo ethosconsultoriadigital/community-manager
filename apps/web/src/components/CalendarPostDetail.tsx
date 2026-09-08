@@ -116,6 +116,13 @@ export function CalendarPostDetail({
     }
   }
 
+  async function handleSaveToLibrary() {
+    await runAction(
+      () => apiFetch(`/library/from-post/${post.id}`, { method: 'POST' }),
+      'Contenido guardado en la biblioteca.',
+    );
+  }
+
   async function handleUnschedule() {
     if (!window.confirm('¿Quitar del calendario? Volverá a aprobados sin fecha.')) return;
     await runAction(
@@ -203,6 +210,14 @@ export function CalendarPostDetail({
               className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
             >
               Duplicar
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleSaveToLibrary()}
+              className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              Guardar en biblioteca
             </button>
             {canManage && (
               <>

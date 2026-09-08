@@ -16,6 +16,7 @@ const MIGRATIONS = [
   'schema_multi_client_assignments.sql',
   'schema_threads_platform.sql',
   'schema_post_place.sql',
+  'schema_library_items.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

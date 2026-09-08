@@ -73,6 +73,19 @@ export type MediaAsset = {
   position: number;
 };
 
+export type LibraryItem = {
+  id: string;
+  client_id: string;
+  kind: 'text' | 'image' | 'video';
+  title: string | null;
+  caption: string | null;
+  hashtags: string[];
+  storage_url: string | null;
+  media_source: string | null;
+  source_post_id: string | null;
+  created_at: string;
+};
+
 export type PlatformMetrics = {
   impressions: number;
   reach: number;

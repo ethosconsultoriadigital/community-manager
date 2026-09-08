@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 const BASE_NAV = [
   { href: '/inicio', label: 'Inicio' },
   { href: '/composer', label: 'Generar Contenido' },
+  { href: '/biblioteca', label: 'Biblioteca' },
   { href: '/radar', label: 'Conectar fuente' },
   { href: '/approvals', label: 'Aprobaciones' },
   { href: '/calendar', label: 'Calendario' },

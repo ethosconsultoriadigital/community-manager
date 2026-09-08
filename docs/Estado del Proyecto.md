@@ -3,7 +3,21 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-08 (Duplicar post)
+**Última actualización:** 2026-09-08 (Biblioteca de contenido)
+
+---
+
+## 2026-09-08 — Biblioteca de contenido (opción B) ✅
+
+**Implementado:**
+- Migración `schema_library_items.sql` (`library_items`: text / image / video por `agency_id` + `client_id`).
+- API: `GET/POST /library`, `POST /library/from-post/:postId`, `POST /library/:id/attach-to-post`, `DELETE /library/:id`.
+- UI: página **Biblioteca**, picker en Composer (texto/media), «Guardar en biblioteca» en Calendario y Aprobaciones.
+- Composer: guardar texto/media alojado; adjuntar media de biblioteca al crear/actualizar post.
+
+**Operativo:** aplicar `pnpm migrate` (Neon/local) + redeploy API+web + `pnpm db:generate` si el build no lo hace.
+
+**Criterio de aceptación:** ✅ Código listo; ⏳ migración en el entorno de producción.
 
 ---
 
@@ -17,7 +31,7 @@
 
 **Criterio de aceptación:** ✅ Duplicar no altera el original; multi-tenant por `agency_id`; tests de repo OK. ⏳ Redeploy API+web.
 
-**Pendiente (opción B):** biblioteca de textos/media reutilizables sin depender de un post.
+**Pendiente (opción B):** ~~biblioteca de textos/media reutilizables~~ → hecha (ver entrada superior).
 
 ---
 

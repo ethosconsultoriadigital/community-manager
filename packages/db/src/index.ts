@@ -17,6 +17,11 @@ export {
   type CreateGenerationData,
 } from './repositories/generations.repository';
 export {
+  LibraryItemsRepository,
+  LibraryItemsValidationError,
+  type CreateLibraryItemData,
+} from './repositories/library-items.repository';
+export {
   MediaAssetsRepository,
   type CreateMediaAssetData,
 } from './repositories/media-assets.repository';
