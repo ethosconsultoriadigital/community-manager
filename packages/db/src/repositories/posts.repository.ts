@@ -16,6 +16,8 @@ export type CreatePostData = {
   contentSourceId?: string;
   videoFormat?: 'feed' | 'reel' | null;
   alsoPublishAsStory?: boolean;
+  placeId?: string | null;
+  placeName?: string | null;
 };
 
 export type UpdatePostData = {
@@ -24,6 +26,8 @@ export type UpdatePostData = {
   socialAccountIds?: string[];
   videoFormat?: 'feed' | 'reel' | null;
   alsoPublishAsStory?: boolean;
+  placeId?: string | null;
+  placeName?: string | null;
 };
 
 const postTargetInclude = {
@@ -118,6 +122,8 @@ export class PostsRepository {
           hashtags: data.hashtags ?? [],
           video_format: data.videoFormat ?? null,
           also_publish_as_story: data.alsoPublishAsStory ?? false,
+          place_id: data.placeId ?? null,
+          place_name: data.placeName ?? null,
           status,
           agencies: { connect: { id: agencyId } },
           clients: { connect: { id: data.clientId } },
@@ -167,6 +173,8 @@ export class PostsRepository {
           ...(data.alsoPublishAsStory !== undefined
             ? { also_publish_as_story: data.alsoPublishAsStory }
             : {}),
+          ...(data.placeId !== undefined ? { place_id: data.placeId } : {}),
+          ...(data.placeName !== undefined ? { place_name: data.placeName } : {}),
           updated_at: new Date(),
         },
       });

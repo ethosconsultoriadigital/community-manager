@@ -7,6 +7,7 @@ export type GenerateCopyResult = {
   caption: string;
   hashtags: string[];
   byPlatform?: Record<string, { caption: string; hashtags: string[] }>;
+  usedMock?: boolean;
 };
 
 export type GenerateReportNarrativeInput = {

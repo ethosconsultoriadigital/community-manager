@@ -3,7 +3,49 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-04 (Manual PDF con capturas reales)
+**Última actualización:** 2026-09-07 (Composer: copy IA, ubicación, reconectar)
+
+---
+
+## 2026-09-07 — Composer UX: texto IA, ubicación Meta, reconectar cuentas ✅
+
+**Implementado:**
+1. Composer IA: se quitó la nota técnica de `IMAGE_API_KEY` / mock.
+2. Cuentas inactivas: botón **Volver a conectar** (Meta o Threads) — reconecta vía OAuth (el token se revoca al desconectar).
+3. **Generar texto con IA** en caption (`POST /generations/copy` vía `LlmProvider`).
+4. **Ubicación** opcional FB/IG: campos `place_id` / `place_name`, búsqueda `GET /platforms/meta/places`, publish con `place` / `location_id`.
+
+**Migración pendiente de aplicar:** `schema_post_place.sql`  
+(`pnpm migrate` en el entorno con `DATABASE_URL`).
+
+**Criterio de aceptación:** ✅ Código listo; ⏳ migración + redeploy API/web.
+
+---
+
+## 2026-09-04 — Fase 0 (registry) + Fase 1 (Threads) ✅ código
+
+**Fase 0:**
+- Plan: `docs/Plan_Redes_Adicionales.md`.
+- `PlatformPublisherRegistry` + `platform-features` (flags).
+- `PublishPostService` despacha por plataforma; Meta FB/IG sin cambio de comportamiento.
+- Refresco de tokens Meta filtrado a `facebook`/`instagram` (no toca otras redes).
+
+**Fase 1 — Threads:**
+- Migración `schema_threads_platform.sql` (`social_platform` + `threads`).
+- Módulo `platforms/threads/` (OAuth `threads.net`, API `graph.threads.net`, publish texto/imagen/video).
+- Endpoints: `GET /oauth/threads/connect-url|callback|status`, `GET /platforms/features`.
+- UI Cuentas: botón «Conectar Threads» si `THREADS_PUBLISH_ENABLED=true` + credenciales.
+- Auto-promote Radar crea destino Threads si hay cuenta (copy FB/IG).
+- Feature flag por defecto **apagado** (no afecta Meta en prod hasta activarlo).
+
+**Operativo pendiente:**
+1. Aplicar migración (`pnpm migrate`) en Neon/local.
+2. `pnpm db:generate` (Prisma enum `threads`).
+3. En Meta App: Threads API + redirect `…/oauth/threads/callback`.
+4. En `.env`: `THREADS_PUBLISH_ENABLED=true`, `THREADS_APP_ID`, `THREADS_APP_SECRET`, `THREADS_REDIRECT_URI`.
+5. Probar conectar + publicar post de prueba en Threads.
+
+**Criterio de aceptación:** ✅ Código y tests listos; ⏳ conexión real pendiente de credenciales/migración en el entorno.
 
 ---
 
@@ -79,7 +121,7 @@
 |------|--------|
 | **Fase actual** | Mejoras UX por módulo (plan 6 fases) — entregadas |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories + UX módulos |
-| **Próximo paso** | Entregar `docs/Manual de usuario.pdf`; desplegar si falta; probar PDF reportes/Composer |
+| **Próximo paso** | Aplicar `schema_post_place.sql` (`pnpm migrate`); redeploy API/web; probar copy IA + ubicación |
 | **Verificación automática** | `@cm/api` test OK · `@cm/web` build OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |

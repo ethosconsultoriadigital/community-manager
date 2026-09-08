@@ -36,6 +36,8 @@ class CreatePostDto {
   socialAccountIds!: string[];
   videoFormat?: 'feed' | 'reel' | null;
   alsoPublishAsStory?: boolean;
+  placeId?: string | null;
+  placeName?: string | null;
 }
 
 class UpdatePostDto {
@@ -44,6 +46,8 @@ class UpdatePostDto {
   socialAccountIds?: string[];
   videoFormat?: 'feed' | 'reel' | null;
   alsoPublishAsStory?: boolean;
+  placeId?: string | null;
+  placeName?: string | null;
 }
 
 class SchedulePostDto {

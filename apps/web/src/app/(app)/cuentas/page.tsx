@@ -11,11 +11,22 @@ import type { SocialAccount } from '@/lib/types';
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
   instagram: 'Instagram',
+  threads: 'Threads',
+  x: 'X',
+  tiktok: 'TikTok',
 };
 
 function platformLabel(platform: string) {
   return PLATFORM_LABELS[platform] ?? platform;
 }
+
+type PlatformFeatures = {
+  facebook: boolean;
+  instagram: boolean;
+  threads: boolean;
+  x: boolean;
+  tiktok: boolean;
+};
 
 export default function CuentasPage() {
   const searchParams = useSearchParams();
@@ -30,8 +41,9 @@ export default function CuentasPage() {
     error: clientsError,
   } = useAssignedClients();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+  const [features, setFeatures] = useState<PlatformFeatures | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
+  const [connecting, setConnecting] = useState<'meta' | 'threads' | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +73,17 @@ export default function CuentasPage() {
   }, [clientsError]);
 
   useEffect(() => {
-    if (searchParams.get('connected') === 'meta') {
+    apiFetch<PlatformFeatures>('/platforms/features')
+      .then(setFeatures)
+      .catch(() => setFeatures({ facebook: true, instagram: true, threads: false, x: false, tiktok: false }));
+  }, []);
+
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    if (connected === 'meta') {
       setMessage('Cuenta Meta conectada correctamente.');
+    } else if (connected === 'threads') {
+      setMessage('Cuenta Threads conectada correctamente.');
     }
   }, [searchParams]);
 
@@ -72,7 +93,7 @@ export default function CuentasPage() {
 
   async function connectMeta() {
     if (!clientId) return;
-    setConnecting(true);
+    setConnecting('meta');
     setError(null);
     try {
       const { url } = await apiFetch<{ url: string }>(
@@ -81,7 +102,24 @@ export default function CuentasPage() {
       window.location.href = url;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo iniciar la conexión con Meta');
-      setConnecting(false);
+      setConnecting(null);
+    }
+  }
+
+  async function connectThreads() {
+    if (!clientId) return;
+    setConnecting('threads');
+    setError(null);
+    try {
+      const { url } = await apiFetch<{ url: string }>(
+        `/oauth/threads/connect-url?clientId=${encodeURIComponent(clientId)}`,
+      );
+      window.location.href = url;
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'No se pudo iniciar la conexión con Threads',
+      );
+      setConnecting(null);
     }
   }
 
@@ -125,7 +163,7 @@ export default function CuentasPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Cuentas sociales</h1>
         <p className="text-sm text-muted">
-          Conecta o desconecta cuentas de Facebook e Instagram por cliente.
+          Conecta o desconecta cuentas por cliente (Meta y, si está habilitado, Threads).
         </p>
       </div>
 
@@ -142,14 +180,26 @@ export default function CuentasPage() {
           selectClassName="rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
         />
         {canManage && (
-          <button
-            type="button"
-            onClick={connectMeta}
-            disabled={!clientId || connecting}
-            className="rounded-md bg-brand px-4 py-2 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
-          >
-            {connecting ? 'Redirigiendo…' : 'Conectar Meta'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={connectMeta}
+              disabled={!clientId || connecting !== null}
+              className="rounded-md bg-brand px-4 py-2 text-sm text-white hover:bg-brand-hover disabled:opacity-50"
+            >
+              {connecting === 'meta' ? 'Redirigiendo…' : 'Conectar Meta'}
+            </button>
+            {features?.threads && (
+              <button
+                type="button"
+                onClick={connectThreads}
+                disabled={!clientId || connecting !== null}
+                className="rounded-md border border-line-strong bg-white px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+              >
+                {connecting === 'threads' ? 'Redirigiendo…' : 'Conectar Threads'}
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -160,7 +210,7 @@ export default function CuentasPage() {
         {activeAccounts.length === 0 ? (
           <p className="text-sm text-muted">
             No hay cuentas activas para este cliente.
-            {canManage && ' Usa «Conectar Meta» para añadir páginas e Instagram.'}
+            {canManage && ' Usa «Conectar Meta» (o Threads) para añadir destinos.'}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -201,15 +251,36 @@ export default function CuentasPage() {
             {inactiveAccounts.map((account) => (
               <li
                 key={account.id}
-                className="rounded-lg border border-line bg-canvas px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-canvas px-4 py-3"
               >
                 <p className="text-sm text-muted">
                   {platformLabel(account.platform)}
                   {account.username ? ` @${account.username}` : ''}
-                  <span className="ml-2 rounded-full bg-canvas px-2 py-0.5 text-xs">
+                  <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-xs">
                     Inactiva
                   </span>
                 </p>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (account.platform === 'threads') {
+                        void connectThreads();
+                      } else {
+                        void connectMeta();
+                      }
+                    }}
+                    disabled={!clientId || connecting !== null}
+                    className="rounded-md border border-line-strong bg-white px-3 py-1.5 text-xs text-ink hover:bg-surface disabled:opacity-50"
+                    title="Hay que volver a autorizar: al desconectar se revoca el token"
+                  >
+                    {connecting
+                      ? 'Redirigiendo…'
+                      : account.platform === 'threads'
+                        ? 'Volver a conectar Threads'
+                        : 'Volver a conectar Meta'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

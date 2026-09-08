@@ -48,9 +48,17 @@ export default function ComposerPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [generatingCopy, setGeneratingCopy] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [publishAsReel, setPublishAsReel] = useState(false);
   const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(false);
+  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [placeName, setPlaceName] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState('');
+  const [placeResults, setPlaceResults] = useState<
+    Array<{ id: string; name: string; locationLabel?: string }>
+  >([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +79,10 @@ export default function ComposerPage() {
     setSelectedAccounts(post.post_targets.map((t) => t.social_accounts.id));
     setPublishAsReel(post.video_format === 'reel');
     setAlsoPublishAsStory(Boolean(post.also_publish_as_story));
+    setPlaceId(post.place_id ?? null);
+    setPlaceName(post.place_name ?? null);
+    setPlaceQuery(post.place_name ?? '');
+    setPlaceResults([]);
 
     const image = post.media_assets?.find((m) => m.type === 'image');
     const video = post.media_assets?.find((m) => m.type === 'video');
@@ -169,7 +181,42 @@ export default function ComposerPage() {
     setEditingPostId(null);
     setPublishAsReel(mediaMode === 'reel');
     setAlsoPublishAsStory(false);
+    setPlaceId(null);
+    setPlaceName(null);
+    setPlaceQuery('');
+    setPlaceResults([]);
     handleMediaChange(null);
+  }
+
+  function placePayload() {
+    return {
+      placeId: placeId,
+      placeName: placeName,
+    };
+  }
+
+  async function searchPlaces() {
+    if (!clientId || !placeQuery.trim()) {
+      setPlaceResults([]);
+      return;
+    }
+    setSearchingPlaces(true);
+    setError(null);
+    try {
+      const data = await apiFetch<{
+        places: Array<{ id: string; name: string; locationLabel?: string }>;
+      }>(
+        `/platforms/meta/places?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(placeQuery.trim())}`,
+      );
+      setPlaceResults(data.places ?? []);
+      if (!(data.places?.length)) {
+        setMessage('No se encontraron ubicaciones. Prueba otro nombre.');
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo buscar ubicaciones');
+    } finally {
+      setSearchingPlaces(false);
+    }
   }
 
   function hasVideoAttachment(): boolean {
@@ -222,6 +269,44 @@ export default function ComposerPage() {
 
   const presetChips = useMemo(() => visualPresetChips(selectedPlatforms), [selectedPlatforms]);
 
+  async function handleGenerateCopy() {
+    const brief = (aiBrief.trim() || caption.trim());
+    if (!brief) {
+      setError('Escribe un brief o unas ideas en el caption para generar el texto');
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    setGeneratingCopy(true);
+    try {
+      const result = await apiFetch<{
+        caption: string;
+        hashtags: string[];
+        usedMock?: boolean;
+      }>('/generations/copy', {
+        method: 'POST',
+        body: JSON.stringify({
+          brief,
+          platforms: selectedPlatforms.length ? selectedPlatforms : ['facebook', 'instagram'],
+          clientId: clientId || undefined,
+        }),
+      });
+      setCaption(result.caption ?? '');
+      if (result.hashtags?.length) {
+        setHashtags(result.hashtags.join(' '));
+      }
+      setMessage(
+        result.usedMock
+          ? 'Texto de ejemplo generado (modo desarrollo).'
+          : 'Caption y hashtags generados con IA. Puedes editarlos antes de publicar.',
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo generar el texto');
+    } finally {
+      setGeneratingCopy(false);
+    }
+  }
+
   async function handleGenerateWithAi() {
     if (!aiBrief.trim()) {
       setError('Escribe un brief para generar la imagen con IA');
@@ -251,6 +336,7 @@ export default function ComposerPage() {
           socialAccountIds: selectedAccounts,
           ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
           videoFormat: mediaMode === 'reel' ? 'reel' : 'feed',
+          ...placePayload(),
         }),
       });
 
@@ -262,8 +348,7 @@ export default function ComposerPage() {
 
       if (result.usedMock || result.imageProvider === 'mock') {
         setMessage(
-          `Imagen mock (picsum) enviada a aprobación (${result.post.id.slice(0, 8)}…). ` +
-            'No usa IA real: configura IMAGE_API_KEY de OpenAI en la API (no Anthropic) y regenera.',
+          `Visual de prueba enviado a aprobación (${result.post.id.slice(0, 8)}…).`,
         );
       } else {
         setMessage(
@@ -306,6 +391,7 @@ export default function ComposerPage() {
             socialAccountIds: selectedAccounts,
             videoFormat: videoFormatPayload(),
             alsoPublishAsStory: alsoPublishAsStory && Boolean(mediaFile || aiPreviewUrl || mediaPreview),
+            ...placePayload(),
           }),
         });
         if (mediaFile) {
@@ -321,6 +407,7 @@ export default function ComposerPage() {
             socialAccountIds: selectedAccounts,
             videoFormat: videoFormatPayload(),
             alsoPublishAsStory: alsoPublishAsStory && Boolean(mediaFile || aiPreviewUrl || mediaPreview),
+            ...placePayload(),
           }),
         });
         postId = post.id;
@@ -396,9 +483,19 @@ export default function ComposerPage() {
         />
 
         <div>
-          <label htmlFor="caption" className="mb-1 block text-sm text-muted">
-            Caption
-          </label>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="caption" className="block text-sm text-muted">
+              Caption
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleGenerateCopy()}
+              disabled={generatingCopy || generatingAi || submitting}
+              className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              {generatingCopy ? 'Generando texto…' : 'Generar texto con IA'}
+            </button>
+          </div>
           <textarea
             id="caption"
             required
@@ -406,7 +503,7 @@ export default function ComposerPage() {
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-            placeholder="Texto del post…"
+            placeholder="Texto del post… o escribe una idea y usa «Generar texto con IA»"
           />
         </div>
 
@@ -421,6 +518,75 @@ export default function ComposerPage() {
             className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
             placeholder="#marca #promo"
           />
+        </div>
+
+        <div>
+          <label htmlFor="place" className="mb-1 block text-sm text-muted">
+            Ubicación (Facebook / Instagram, opcional)
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <input
+              id="place"
+              value={placeQuery}
+              onChange={(e) => {
+                setPlaceQuery(e.target.value);
+                if (placeId) {
+                  setPlaceId(null);
+                  setPlaceName(null);
+                }
+              }}
+              className="min-w-[12rem] flex-1 rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+              placeholder="Ej: Ciudad de México, café…"
+            />
+            <button
+              type="button"
+              onClick={() => void searchPlaces()}
+              disabled={searchingPlaces || !clientId || !placeQuery.trim()}
+              className="rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+            >
+              {searchingPlaces ? 'Buscando…' : 'Buscar'}
+            </button>
+            {placeId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaceId(null);
+                  setPlaceName(null);
+                  setPlaceQuery('');
+                  setPlaceResults([]);
+                }}
+                className="rounded-md border border-line px-3 py-2 text-xs text-muted hover:bg-canvas"
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+          {placeId && placeName && (
+            <p className="mt-1 text-xs text-emerald-700">Seleccionada: {placeName}</p>
+          )}
+          {placeResults.length > 0 && (
+            <ul className="mt-2 max-h-40 overflow-auto rounded-md border border-line bg-white text-sm">
+              {placeResults.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left hover:bg-canvas"
+                    onClick={() => {
+                      setPlaceId(p.id);
+                      setPlaceName(p.name);
+                      setPlaceQuery(p.name);
+                      setPlaceResults([]);
+                    }}
+                  >
+                    <span className="text-ink">{p.name}</span>
+                    {p.locationLabel ? (
+                      <span className="ml-2 text-xs text-muted">{p.locationLabel}</span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <fieldset>
@@ -466,8 +632,7 @@ export default function ComposerPage() {
               <p className="text-xs text-muted">
                 Describe la escena visual con detalle (producto, colores, estilo). El caption de
                 arriba también se usa para anclar el tema. Opcionalmente adjunta una referencia
-                (imagen, PDF o Word). Requiere <code className="text-muted">IMAGE_API_KEY</code> de
-                OpenAI; sin ella se usa un mock (foto aleatoria) solo para desarrollo.
+                (imagen, PDF o Word).
               </p>
             </div>
 

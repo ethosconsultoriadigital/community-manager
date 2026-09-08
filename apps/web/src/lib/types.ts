@@ -58,6 +58,8 @@ export type Post = {
   content_source_id: string | null;
   video_format?: 'feed' | 'reel' | null;
   also_publish_as_story?: boolean;
+  place_id?: string | null;
+  place_name?: string | null;
   post_targets: PostTarget[];
   media_assets?: MediaAsset[];
 };

@@ -71,11 +71,13 @@ export class MetaGraphClient {
     pageId: string,
     accessToken: string,
     message: string,
+    placeId?: string,
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       message,
       access_token: accessToken,
     });
+    if (placeId) params.set('place', placeId);
     return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/feed`, params);
   }
 
@@ -84,12 +86,14 @@ export class MetaGraphClient {
     accessToken: string,
     imageUrl: string,
     caption: string,
+    placeId?: string,
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       url: imageUrl,
       caption,
       access_token: accessToken,
     });
+    if (placeId) params.set('place', placeId);
     return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/photos`, params);
   }
 
@@ -98,12 +102,14 @@ export class MetaGraphClient {
     accessToken: string,
     videoUrl: string,
     description: string,
+    placeId?: string,
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       file_url: videoUrl,
       description,
       access_token: accessToken,
     });
+    if (placeId) params.set('place', placeId);
     return this.postJson<{ id: string }>(`${this.graphBase}/${pageId}/videos`, params);
   }
 
@@ -215,12 +221,14 @@ export class MetaGraphClient {
     accessToken: string,
     imageUrl: string,
     caption: string,
+    locationId?: string,
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       image_url: imageUrl,
       caption,
       access_token: accessToken,
     });
+    if (locationId) params.set('location_id', locationId);
     return this.postJson<{ id: string }>(
       `${this.graphBase}/${igUserId}/media`,
       params,
@@ -232,6 +240,7 @@ export class MetaGraphClient {
     accessToken: string,
     videoUrl: string,
     caption: string,
+    locationId?: string,
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       media_type: 'VIDEO',
@@ -239,6 +248,7 @@ export class MetaGraphClient {
       caption,
       access_token: accessToken,
     });
+    if (locationId) params.set('location_id', locationId);
     return this.postJson<{ id: string }>(
       `${this.graphBase}/${igUserId}/media`,
       params,
@@ -251,6 +261,7 @@ export class MetaGraphClient {
     videoUrl: string,
     caption: string,
     shareToFeed = true,
+    locationId?: string,
   ): Promise<{ id: string }> {
     const params = new URLSearchParams({
       media_type: 'REELS',
@@ -259,6 +270,7 @@ export class MetaGraphClient {
       share_to_feed: shareToFeed ? 'true' : 'false',
       access_token: accessToken,
     });
+    if (locationId) params.set('location_id', locationId);
     return this.postJson<{ id: string }>(
       `${this.graphBase}/${igUserId}/media`,
       params,
@@ -415,6 +427,39 @@ export class MetaGraphClient {
       saves,
       engagement: likes + comments + (shares ?? 0),
     };
+  }
+
+  /** Busca lugares (Pages) para etiquetar en FB/IG. */
+  async searchPlaces(
+    accessToken: string,
+    query: string,
+  ): Promise<Array<{ id: string; name: string; locationLabel?: string }>> {
+    const q = query.trim();
+    if (!q) return [];
+    const params = new URLSearchParams({
+      type: 'place',
+      q,
+      fields: 'id,name,location{city,country,street}',
+      limit: '8',
+      access_token: accessToken,
+    });
+    const response = await this.getJson<{
+      data?: Array<{
+        id: string;
+        name: string;
+        location?: { city?: string; country?: string; street?: string };
+      }>;
+    }>(`${this.graphBase}/pages/search?${params}`);
+
+    return (response.data ?? []).map((row) => {
+      const loc = row.location;
+      const parts = [loc?.street, loc?.city, loc?.country].filter(Boolean);
+      return {
+        id: row.id,
+        name: row.name,
+        locationLabel: parts.length ? parts.join(', ') : undefined,
+      };
+    });
   }
 
   private requireConfig(key: string): string {

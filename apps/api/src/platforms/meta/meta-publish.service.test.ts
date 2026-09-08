@@ -42,6 +42,7 @@ describe('MetaPublishService', () => {
       inputBase.videoUrl,
       inputBase.message,
       true,
+      undefined,
     );
     expect(meta.waitForInstagramContainer).toHaveBeenCalledWith('container-feed', 'token');
     expect(meta.createInstagramVideoMedia).not.toHaveBeenCalled();
@@ -68,6 +69,7 @@ describe('MetaPublishService', () => {
       inputBase.videoUrl,
       inputBase.message,
       false,
+      undefined,
     );
     expect(result.platformPostId).toBe('ig-reel-1');
   });

@@ -47,6 +47,8 @@ export class MetaPublishService implements PlatformPublisher {
         return { platformPostId: (await this.publishFacebookFeedOnly(input)).platformPostId };
       case 'instagram':
         return { platformPostId: (await this.publishInstagramFeedOnly(input)).platformPostId };
+      default:
+        throw new Error(`MetaPublishService no soporta plataforma ${input.platform}`);
     }
   }
 
@@ -174,12 +176,14 @@ export class MetaPublishService implements PlatformPublisher {
   private async publishFacebookFeedOnly(
     input: PublishTargetInput,
   ): Promise<PublishResult> {
+    const placeId = input.placeId;
     if (input.videoUrl) {
       const result = await this.meta.publishFacebookVideo(
         input.externalAccountId,
         input.accessToken,
         input.videoUrl,
         input.message,
+        placeId,
       );
       return { platformPostId: result.id };
     }
@@ -190,6 +194,7 @@ export class MetaPublishService implements PlatformPublisher {
         input.accessToken,
         input.imageUrl,
         input.message,
+        placeId,
       );
       return { platformPostId: result.id };
     }
@@ -198,6 +203,7 @@ export class MetaPublishService implements PlatformPublisher {
       input.externalAccountId,
       input.accessToken,
       input.message,
+      placeId,
     );
     return { platformPostId: result.id };
   }
@@ -205,6 +211,7 @@ export class MetaPublishService implements PlatformPublisher {
   private async publishInstagramFeedOnly(
     input: PublishTargetInput,
   ): Promise<PublishResult> {
+    const locationId = input.placeId;
     if (input.videoUrl) {
       const asReelOnly = input.videoFormat === 'reel';
       const container = await this.meta.createInstagramReelsMedia(
@@ -213,6 +220,7 @@ export class MetaPublishService implements PlatformPublisher {
         input.videoUrl,
         input.message,
         !asReelOnly,
+        locationId,
       );
       await this.meta.waitForInstagramContainer(container.id, input.accessToken);
       const published = await this.meta.publishInstagramMedia(
@@ -232,6 +240,7 @@ export class MetaPublishService implements PlatformPublisher {
       input.accessToken,
       input.imageUrl,
       input.message,
+      locationId,
     );
     await this.meta.waitForInstagramContainer(container.id, input.accessToken);
     const published = await this.meta.publishInstagramMedia(

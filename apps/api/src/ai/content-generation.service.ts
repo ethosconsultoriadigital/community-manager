@@ -22,6 +22,8 @@ export type GenerateFromBriefInput = {
   socialAccountIds: string[];
   referenceText?: string;
   videoFormat?: 'feed' | 'reel' | null;
+  placeId?: string | null;
+  placeName?: string | null;
 };
 
 export type GenerateFromBriefResult = {
@@ -112,6 +114,9 @@ export class ContentGenerationService {
         caption: input.caption.trim(),
         hashtags: input.hashtags ?? [],
         socialAccountIds: input.socialAccountIds,
+        videoFormat: input.videoFormat ?? null,
+        placeId: input.placeId ?? null,
+        placeName: input.placeName ?? null,
       },
       'pending_approval',
     );

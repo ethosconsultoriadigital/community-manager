@@ -18,9 +18,13 @@ export class HybridLlmProvider implements LlmProvider {
     private readonly mock: MockLlmProvider,
   ) {}
 
-  generateCopy(input: GenerateCopyInput): Promise<GenerateCopyResult> {
-    if (this.hasApiKey()) return this.openAi.generateCopy(input);
-    return this.mock.generateCopy(input);
+  async generateCopy(input: GenerateCopyInput): Promise<GenerateCopyResult> {
+    if (this.hasApiKey()) {
+      const result = await this.openAi.generateCopy(input);
+      return { ...result, usedMock: false };
+    }
+    const result = await this.mock.generateCopy(input);
+    return { ...result, usedMock: true };
   }
 
   generateReportNarrative(
