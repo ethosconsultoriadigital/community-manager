@@ -98,15 +98,18 @@ export default function ComposerPage() {
     const video = post.media_assets?.find((m) => m.type === 'video');
     setLibraryMediaItemId(null);
     if (image?.storage_url) {
+      // Media ya existente: modo upload (no IA) para poder enviar a aprobación sin brief.
       setAiPreviewUrl(image.storage_url);
       setMediaFile(null);
       setMediaPreview(null);
-      setMediaMode(image.source === 'ai_generated' ? 'ai' : 'upload');
+      setMediaMode('upload');
+      setPublishAsReel(false);
     } else if (video?.storage_url) {
       setAiPreviewUrl(null);
       setMediaFile(null);
       setMediaPreview(video.storage_url);
       setMediaMode(post.video_format === 'reel' ? 'reel' : 'upload');
+      setPublishAsReel(post.video_format === 'reel');
     }
   }, []);
 
@@ -216,18 +219,20 @@ export default function ComposerPage() {
     if (mediaPreview?.startsWith('blob:')) URL.revokeObjectURL(mediaPreview);
     setMediaFile(null);
     setLibraryMediaItemId(item.id);
+    setAiBrief('');
+    // Nunca activar modo IA: el media ya está listo para adjuntar / enviar a aprobación.
     if (item.kind === 'image') {
       setAiPreviewUrl(item.storage_url);
       setMediaPreview(null);
-      setMediaMode(item.media_source === 'ai_generated' ? 'ai' : 'upload');
+      setMediaMode('upload');
       setPublishAsReel(false);
     } else {
       setAiPreviewUrl(null);
       setMediaPreview(item.storage_url);
-      setMediaMode('reel');
-      setPublishAsReel(true);
+      setMediaMode('upload');
+      setPublishAsReel(false);
     }
-    setMessage('Media cargado desde la biblioteca.');
+    setMessage('Media cargado desde la biblioteca. Puedes enviarlo a aprobación.');
   }
 
   async function saveCaptionToLibrary() {
@@ -922,13 +927,42 @@ export default function ComposerPage() {
                     className="max-h-48 w-full rounded object-contain"
                   />
                 )}
-                {mediaFile && (
+                {(mediaFile || libraryMediaItemId) && (
                   <button
                     type="button"
-                    onClick={() => handleMediaChange(null)}
+                    onClick={() => {
+                      handleMediaChange(null);
+                      setLibraryMediaItemId(null);
+                    }}
                     className="mt-2 text-xs text-red-600 hover:text-red-700"
                   >
                     Quitar adjunto
+                  </button>
+                )}
+              </div>
+            )}
+            {!mediaPreview && aiPreviewUrl && (
+              <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
+                <img
+                  src={aiPreviewUrl}
+                  alt="Vista previa"
+                  className="max-h-48 w-full rounded object-contain"
+                />
+                <p className="mt-1 text-xs text-muted">
+                  {libraryMediaItemId
+                    ? 'Imagen de la biblioteca (se adjuntará al guardar).'
+                    : 'Imagen lista en el post.'}
+                </p>
+                {libraryMediaItemId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiPreviewUrl(null);
+                      setLibraryMediaItemId(null);
+                    }}
+                    className="mt-2 text-xs text-red-600 hover:text-red-700"
+                  >
+                    Quitar imagen
                   </button>
                 )}
               </div>
