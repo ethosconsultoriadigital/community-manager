@@ -429,37 +429,57 @@ export class MetaGraphClient {
     };
   }
 
-  /** Busca lugares (Pages) para etiquetar en FB/IG. */
+  /** Busca Pages con ubicación (Pages Search API). Requiere token de usuario o de app. */
   async searchPlaces(
     accessToken: string,
     query: string,
-  ): Promise<Array<{ id: string; name: string; locationLabel?: string }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      name: string;
+      locationLabel?: string;
+      taggableOnInstagram: boolean;
+    }>
+  > {
     const q = query.trim();
     if (!q) return [];
+    // Endpoint oficial: GET /pages/search (sin type=place, deprecado).
     const params = new URLSearchParams({
-      type: 'place',
       q,
-      fields: 'id,name,location{city,country,street}',
-      limit: '8',
+      fields: 'id,name,location{city,country,street,latitude,longitude,zip}',
+      limit: '25',
       access_token: accessToken,
     });
     const response = await this.getJson<{
       data?: Array<{
         id: string;
         name: string;
-        location?: { city?: string; country?: string; street?: string };
+        location?: {
+          city?: string;
+          country?: string;
+          street?: string;
+          latitude?: number;
+          longitude?: number;
+          zip?: string;
+        };
       }>;
     }>(`${this.graphBase}/pages/search?${params}`);
 
-    return (response.data ?? []).map((row) => {
-      const loc = row.location;
-      const parts = [loc?.street, loc?.city, loc?.country].filter(Boolean);
-      return {
-        id: row.id,
-        name: row.name,
-        locationLabel: parts.length ? parts.join(', ') : undefined,
-      };
-    });
+    return (response.data ?? [])
+      .filter((row) => Boolean(row.location))
+      .map((row) => {
+        const loc = row.location!;
+        const hasCoords =
+          typeof loc.latitude === 'number' && typeof loc.longitude === 'number';
+        const parts = [loc.street, loc.city, loc.country].filter(Boolean);
+        return {
+          id: row.id,
+          name: row.name,
+          locationLabel: parts.length ? parts.join(', ') : undefined,
+          taggableOnInstagram: hasCoords,
+        };
+      })
+      .slice(0, 12);
   }
 
   private requireConfig(key: string): string {

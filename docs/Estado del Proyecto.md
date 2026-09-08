@@ -3,7 +3,21 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-07 (Composer: copy IA, ubicación, reconectar)
+**Última actualización:** 2026-09-08 (Fix búsqueda/publicación de ubicación)
+
+---
+
+## 2026-09-08 — Fix ubicación Composer (búsqueda + publish) ✅
+
+**Causa probable del 500:** `/pages/search` con solo page token / errores Graph sin capturar → 500.
+**Causa de “no sale ubicación”:** hay que **elegir un resultado** de la lista (solo escribir el nombre no guarda `place_id`); IG exige Page con coordenadas.
+
+**Fix:**
+- `MetaPlacesService`: busca con **app access token** y fallback a page token; errores → 400 con mensaje claro.
+- UI: instrucciones + marca FB/IG; Enter para buscar.
+- IG: si `location_id` inválido, reintenta publicar sin ubicación (no tumba el post).
+
+**Criterio:** ✅ tests places/publish OK. ⏳ redeploy API+web; en Meta App puede hacer falta *Page Public Content Access* para Pages Search.
 
 ---
 

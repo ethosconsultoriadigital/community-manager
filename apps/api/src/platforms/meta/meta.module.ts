@@ -4,6 +4,7 @@ import { MediaModule } from '../../media/media.module';
 import { MetaGraphClient } from './meta-graph.client';
 import { MetaMetricsService } from './meta-metrics.service';
 import { MetaOAuthService } from './meta-oauth.service';
+import { MetaPlacesService } from './meta-places.service';
 import { MetaPublishService } from './meta-publish.service';
 import { MetaTokenRefreshService } from './meta-token-refresh.service';
 import { StoryMediaComposerService } from './story-media-composer.service';
@@ -16,6 +17,7 @@ import { StoryMediaComposerService } from './story-media-composer.service';
     MetaTokenRefreshService,
     MetaPublishService,
     MetaMetricsService,
+    MetaPlacesService,
     StoryMediaComposerService,
   ],
   exports: [
@@ -24,6 +26,7 @@ import { StoryMediaComposerService } from './story-media-composer.service';
     MetaTokenRefreshService,
     MetaPublishService,
     MetaMetricsService,
+    MetaPlacesService,
   ],
 })
 export class MetaModule {}

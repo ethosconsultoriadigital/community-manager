@@ -56,7 +56,12 @@ export default function ComposerPage() {
   const [placeName, setPlaceName] = useState<string | null>(null);
   const [placeQuery, setPlaceQuery] = useState('');
   const [placeResults, setPlaceResults] = useState<
-    Array<{ id: string; name: string; locationLabel?: string }>
+    Array<{
+      id: string;
+      name: string;
+      locationLabel?: string;
+      taggableOnInstagram?: boolean;
+    }>
   >([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -202,18 +207,29 @@ export default function ComposerPage() {
     }
     setSearchingPlaces(true);
     setError(null);
+    setMessage(null);
     try {
       const data = await apiFetch<{
-        places: Array<{ id: string; name: string; locationLabel?: string }>;
+        places: Array<{
+          id: string;
+          name: string;
+          locationLabel?: string;
+          taggableOnInstagram?: boolean;
+        }>;
       }>(
         `/platforms/meta/places?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(placeQuery.trim())}`,
       );
       setPlaceResults(data.places ?? []);
       if (!(data.places?.length)) {
-        setMessage('No se encontraron ubicaciones. Prueba otro nombre.');
+        setMessage(
+          'No se encontraron lugares con ubicación. Prueba el nombre de un negocio o ciudad.',
+        );
+      } else {
+        setMessage('Elige un resultado de la lista para etiquetar la ubicación.');
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo buscar ubicaciones');
+      setPlaceResults([]);
     } finally {
       setSearchingPlaces(false);
     }
@@ -524,6 +540,10 @@ export default function ComposerPage() {
           <label htmlFor="place" className="mb-1 block text-sm text-muted">
             Ubicación (Facebook / Instagram, opcional)
           </label>
+          <p className="mb-1 text-xs text-muted">
+            Busca y <strong>elige un resultado</strong> de la lista. Solo escribir el nombre no
+            etiqueta la publicación. Para Instagram el lugar debe tener coordenadas.
+          </p>
           <div className="flex flex-wrap gap-2">
             <input
               id="place"
@@ -533,6 +553,12 @@ export default function ComposerPage() {
                 if (placeId) {
                   setPlaceId(null);
                   setPlaceName(null);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void searchPlaces();
                 }
               }}
               className="min-w-[12rem] flex-1 rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
@@ -576,12 +602,18 @@ export default function ComposerPage() {
                       setPlaceName(p.name);
                       setPlaceQuery(p.name);
                       setPlaceResults([]);
+                      setMessage(`Ubicación lista: ${p.name}`);
                     }}
                   >
                     <span className="text-ink">{p.name}</span>
                     {p.locationLabel ? (
                       <span className="ml-2 text-xs text-muted">{p.locationLabel}</span>
                     ) : null}
+                    <span className="ml-2 text-xs text-muted">
+                      {p.taggableOnInstagram === false
+                        ? '(FB)'
+                        : '(FB + IG)'}
+                    </span>
                   </button>
                 </li>
               ))}

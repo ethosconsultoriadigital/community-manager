@@ -211,7 +211,25 @@ export class MetaPublishService implements PlatformPublisher {
   private async publishInstagramFeedOnly(
     input: PublishTargetInput,
   ): Promise<PublishResult> {
-    const locationId = input.placeId;
+    try {
+      return await this.publishInstagramFeedWithLocation(input, input.placeId);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '';
+      // Si el Page ID no es válido como location de IG, publica sin ubicación
+      if (input.placeId && /location|LOCATION/i.test(msg)) {
+        this.logger.warn(
+          `Instagram rechazó location_id=${input.placeId}; se publica sin ubicación`,
+        );
+        return this.publishInstagramFeedWithLocation(input, undefined);
+      }
+      throw error;
+    }
+  }
+
+  private async publishInstagramFeedWithLocation(
+    input: PublishTargetInput,
+    locationId: string | undefined,
+  ): Promise<PublishResult> {
     if (input.videoUrl) {
       const asReelOnly = input.videoFormat === 'reel';
       const container = await this.meta.createInstagramReelsMedia(
