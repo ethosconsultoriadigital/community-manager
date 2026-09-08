@@ -151,7 +151,6 @@ export default function BibliotecaPage() {
                 <p className="line-clamp-4 whitespace-pre-wrap text-sm text-ink">{item.caption}</p>
               )}
               {item.kind === 'image' && item.storage_url && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={item.storage_url}
                   alt=""

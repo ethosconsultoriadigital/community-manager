@@ -95,7 +95,6 @@ export function LibraryPicker({
                 {(item.kind === 'image' || item.kind === 'video') && item.storage_url && (
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded bg-canvas">
                     {item.kind === 'image' ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={item.storage_url}
                         alt=""
