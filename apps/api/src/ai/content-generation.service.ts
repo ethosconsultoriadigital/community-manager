@@ -27,7 +27,10 @@ export type GenerateFromBriefInput = {
 };
 
 export type GenerateFromBriefResult = {
+  /** Primer post (compatibilidad con clientes que esperan un solo post). */
   post: Awaited<ReturnType<PostsRepository['findById']>>;
+  /** Un post por cuenta destino (alineado a Radar / Composer). */
+  posts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[];
   media: Awaited<ReturnType<MediaAssetsRepository['findByPost']>>;
   generations: Awaited<ReturnType<GenerationsRepository['findByPost']>>;
   /** true si se usó picsum mock (sin IMAGE_API_KEY de OpenAI). */
@@ -106,31 +109,51 @@ export class ContentGenerationService {
       throw error;
     }
 
-    const post = await this.posts.create(
-      agencyId,
-      userId,
-      {
-        clientId: input.clientId,
-        caption: input.caption.trim(),
-        hashtags: input.hashtags ?? [],
-        socialAccountIds: input.socialAccountIds,
-        videoFormat: input.videoFormat ?? null,
-        placeId: input.placeId ?? null,
-        placeName: input.placeName ?? null,
-      },
-      'pending_approval',
-    );
+    const uniqueIds = [...new Set(input.socialAccountIds)];
+    if (!uniqueIds.length) {
+      throw new PostsValidationError('Debe indicar al menos un destino');
+    }
 
-    await this.approvals.createPending(post.id);
+    const createdPosts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[] =
+      [];
+    let firstMediaId: string | null = null;
 
-    const media = await this.mediaAssets.create(agencyId, {
-      postId: post.id,
-      type: 'image',
-      source: 'ai_generated',
-      storageUrl: generatedImage.url,
-      width: generatedImage.width,
-      height: generatedImage.height,
-    });
+    for (const accountId of uniqueIds) {
+      const post = await this.posts.create(
+        agencyId,
+        userId,
+        {
+          clientId: input.clientId,
+          caption: input.caption.trim(),
+          hashtags: input.hashtags ?? [],
+          socialAccountIds: [accountId],
+          videoFormat: input.videoFormat ?? null,
+          placeId: input.placeId ?? null,
+          placeName: input.placeName ?? null,
+        },
+        'pending_approval',
+      );
+
+      await this.approvals.createPending(post.id);
+
+      const media = await this.mediaAssets.create(agencyId, {
+        postId: post.id,
+        type: 'image',
+        source: 'ai_generated',
+        storageUrl: generatedImage.url,
+        width: generatedImage.width,
+        height: generatedImage.height,
+      });
+      if (!firstMediaId) firstMediaId = media.id;
+
+      const fullPost = await this.posts.findById(agencyId, post.id);
+      if (fullPost) createdPosts.push(fullPost);
+    }
+
+    const primary = createdPosts[0];
+    if (!primary) {
+      throw new PostsValidationError('No se pudo crear el post');
+    }
 
     await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {
       output: {
@@ -138,19 +161,20 @@ export class ContentGenerationService {
         provider: generatedImage.provider ?? 'unknown',
         width: generatedImage.width,
         height: generatedImage.height,
+        postIds: createdPosts.map((p) => p.id),
       },
-      mediaId: media.id,
-      postId: post.id,
+      mediaId: firstMediaId,
+      postId: primary.id,
       model: generatedImage.model ?? generatedImage.provider ?? 'image',
     });
-    await this.generations.linkPost(agencyId, imageGen.id, post.id);
+    await this.generations.linkPost(agencyId, imageGen.id, primary.id);
 
-    const fullPost = await this.posts.findById(agencyId, post.id);
-    const postGenerations = await this.generations.findByPost(agencyId, post.id);
-    const postMedia = await this.mediaAssets.findByPost(agencyId, post.id);
+    const postGenerations = await this.generations.findByPost(agencyId, primary.id);
+    const postMedia = await this.mediaAssets.findByPost(agencyId, primary.id);
 
     return {
-      post: fullPost,
+      post: primary,
+      posts: createdPosts,
       media: postMedia,
       generations: postGenerations,
       usedMock: generatedImage.provider === 'mock',

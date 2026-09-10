@@ -3,7 +3,31 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-08 (Parrilla PDF de aprobaciones)
+**Última actualización:** 2026-09-10 (Composer: un post por red)
+
+---
+
+## 2026-09-10 — Composer: un post por red (como Radar) ✅
+
+**Cambio:** al crear contenido en Composer (guardar / enviar a aprobación / generar visual IA) con varias cuentas seleccionadas, se crea **un post independiente por cuenta**, no un solo post multi-destino.
+
+- Story (`also_publish_as_story`) solo en destinos Facebook/Instagram.
+- Editar un borrador existente sigue actualizando ese post; redes adicionales marcadas generan posts nuevos.
+- **Sin migración de BD** (el esquema ya soporta 1 post → 1 destino, igual que Radar).
+
+**Criterio:** ✅ Alineado a auto-promote Radar; tests `ContentGenerationService` actualizados.
+
+---
+
+## 2026-09-09 — Documento de novedades para usuario/cliente ✅
+
+**Implementado:**
+- `docs/Novedades_usuario_2026-09-08.md`: explicación en lenguaje claro de los cambios hasta el 8-sep (duplicar, biblioteca, parrilla PDF, Composer, cuentas).
+- Pensado para entregar al cliente o al equipo que usa el sistema día a día (no es bitácora técnica).
+
+**WIP esta semana (redes):**
+- **Threads:** código listo; activación OAuth en curso (Meta evaluadores / posible app dedicada). Ver `Plan_Redes_Adicionales.md`.
+- **X** y **TikTok:** pendientes (Fases 2 y 3 del plan).
 
 ---
 

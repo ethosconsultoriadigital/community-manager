@@ -472,15 +472,22 @@ export default function ComposerPage() {
         handleMediaChange(null);
       }
 
+      const createdCount = result.posts?.length ?? 1;
+      const firstId = result.post.id;
       if (result.usedMock || result.imageProvider === 'mock') {
         setMessage(
-          `Visual de prueba enviado a aprobación (${result.post.id.slice(0, 8)}…).`,
+          createdCount > 1
+            ? `Visual de prueba: ${createdCount} posts enviados a aprobación (uno por red).`
+            : `Visual de prueba enviado a aprobación (${firstId.slice(0, 8)}…).`,
         );
       } else {
         setMessage(
-          `Imagen generada con IA (${result.imageModel ?? 'openai'}) y enviada a aprobación (${result.post.id.slice(0, 8)}…)`,
+          createdCount > 1
+            ? `Imagen IA generada: ${createdCount} posts enviados a aprobación (uno por red).`
+            : `Imagen generada con IA (${result.imageModel ?? 'openai'}) y enviada a aprobación (${firstId.slice(0, 8)}…)`,
         );
       }
+      clearForm();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar con IA');
     } finally {
@@ -488,11 +495,49 @@ export default function ComposerPage() {
     }
   }
 
+  function storyEnabledForPlatform(platform: string): boolean {
+    return (
+      alsoPublishAsStory &&
+      (platform === 'facebook' || platform === 'instagram') &&
+      Boolean(mediaFile || aiPreviewUrl || mediaPreview)
+    );
+  }
+
+  async function createPostForAccount(accountId: string, tagList: string[]): Promise<string> {
+    const account = accounts.find((a) => a.id === accountId);
+    const platform = account?.platform ?? '';
+    const post = await apiFetch<Post>('/posts', {
+      method: 'POST',
+      body: JSON.stringify({
+        clientId,
+        caption,
+        hashtags: tagList,
+        socialAccountIds: [accountId],
+        videoFormat: videoFormatPayload(),
+        alsoPublishAsStory: storyEnabledForPlatform(platform),
+        ...placePayload(),
+      }),
+    });
+    if (mediaFile) {
+      await apiUploadMedia<MediaAsset>(post.id, mediaFile);
+    } else if (libraryMediaItemId) {
+      await apiFetch(`/library/${libraryMediaItemId}/attach-to-post`, {
+        method: 'POST',
+        body: JSON.stringify({ postId: post.id, replace: true }),
+      });
+    }
+    return post.id;
+  }
+
   async function handleSubmit(e: FormEvent, sendToApproval: boolean) {
     e.preventDefault();
     setError(null);
     setMessage(null);
 
+    if (selectedAccounts.length === 0) {
+      setError('Selecciona al menos un destino');
+      return;
+    }
     if (mediaMode === 'reel' && !hasVideoAttachment() && !mediaFile) {
       setError('Para Reel adjunta un video');
       return;
@@ -506,61 +551,86 @@ export default function ComposerPage() {
     const tagList = parseHashtags();
 
     try {
-      let postId = editingPostId;
-
-      if (postId) {
-        await apiFetch<Post>(`/posts/${postId}`, {
+      // Editar un post existente: se mantiene un solo post (no se parte en varios).
+      if (editingPostId) {
+        const primaryAccountId = selectedAccounts[0];
+        const account = accounts.find((a) => a.id === primaryAccountId);
+        await apiFetch<Post>(`/posts/${editingPostId}`, {
           method: 'PATCH',
           body: JSON.stringify({
             caption,
             hashtags: tagList,
-            socialAccountIds: selectedAccounts,
+            socialAccountIds: [primaryAccountId],
             videoFormat: videoFormatPayload(),
-            alsoPublishAsStory: alsoPublishAsStory && Boolean(mediaFile || aiPreviewUrl || mediaPreview),
+            alsoPublishAsStory: storyEnabledForPlatform(account?.platform ?? ''),
             ...placePayload(),
           }),
         });
         if (mediaFile) {
-          await apiUploadMedia<MediaAsset>(postId, mediaFile);
+          await apiUploadMedia<MediaAsset>(editingPostId, mediaFile);
         } else if (libraryMediaItemId) {
           await apiFetch(`/library/${libraryMediaItemId}/attach-to-post`, {
             method: 'POST',
-            body: JSON.stringify({ postId, replace: true }),
+            body: JSON.stringify({ postId: editingPostId, replace: true }),
           });
         }
-      } else {
-        const post = await apiFetch<Post>('/posts', {
-          method: 'POST',
-          body: JSON.stringify({
-            clientId,
-            caption,
-            hashtags: tagList,
-            socialAccountIds: selectedAccounts,
-            videoFormat: videoFormatPayload(),
-            alsoPublishAsStory: alsoPublishAsStory && Boolean(mediaFile || aiPreviewUrl || mediaPreview),
-            ...placePayload(),
-          }),
-        });
-        postId = post.id;
-        if (mediaFile) {
-          await apiUploadMedia<MediaAsset>(postId, mediaFile);
-        } else if (libraryMediaItemId) {
-          await apiFetch(`/library/${libraryMediaItemId}/attach-to-post`, {
-            method: 'POST',
-            body: JSON.stringify({ postId, replace: true }),
-          });
+
+        const extraIds = selectedAccounts.slice(1);
+        const createdExtras: string[] = [];
+        for (const accountId of extraIds) {
+          const id = await createPostForAccount(accountId, tagList);
+          createdExtras.push(id);
+          if (sendToApproval) {
+            await apiFetch(`/posts/${id}/submit-for-approval`, { method: 'POST' });
+          }
         }
+
+        if (sendToApproval) {
+          await apiFetch(`/posts/${editingPostId}/submit-for-approval`, { method: 'POST' });
+          const total = 1 + createdExtras.length;
+          setMessage(
+            total > 1
+              ? `${total} posts enviados a aprobación (uno por red).`
+              : `Post enviado a aprobación${mediaFile || aiPreviewUrl ? ' con media' : ''} (${editingPostId.slice(0, 8)}…)`,
+          );
+          clearForm();
+        } else {
+          setMessage(
+            createdExtras.length
+              ? `Borrador actualizado y ${createdExtras.length} borrador(es) extra (uno por red adicional).`
+              : `Borrador guardado (${editingPostId.slice(0, 8)}…)`,
+          );
+        }
+        return;
+      }
+
+      // Alta nueva: un post independiente por cada red/cuenta (como Radar).
+      const createdIds: string[] = [];
+      for (const accountId of selectedAccounts) {
+        const id = await createPostForAccount(accountId, tagList);
+        createdIds.push(id);
       }
 
       if (sendToApproval) {
-        await apiFetch(`/posts/${postId}/submit-for-approval`, { method: 'POST' });
+        for (const id of createdIds) {
+          await apiFetch(`/posts/${id}/submit-for-approval`, { method: 'POST' });
+        }
         setMessage(
-          `Post enviado a aprobación${mediaFile || aiPreviewUrl ? ' con media' : ''} (${postId.slice(0, 8)}…)`,
+          createdIds.length > 1
+            ? `${createdIds.length} posts enviados a aprobación (uno por red).`
+            : `Post enviado a aprobación${mediaFile || aiPreviewUrl ? ' con media' : ''} (${createdIds[0].slice(0, 8)}…)`,
         );
         clearForm();
       } else {
-        setEditingPostId(postId);
-        setMessage(`Borrador guardado (${postId.slice(0, 8)}…)`);
+        setEditingPostId(createdIds[0] ?? null);
+        setMessage(
+          createdIds.length > 1
+            ? `${createdIds.length} borradores guardados (uno por red). Puedes editarlos en Aprobaciones.`
+            : `Borrador guardado (${createdIds[0].slice(0, 8)}…)`,
+        );
+        if (createdIds.length > 1) {
+          clearForm();
+        }
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al crear el post');
@@ -578,7 +648,9 @@ export default function ComposerPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Generar Contenido</h1>
         <p className="text-sm text-muted">
-          Elige cómo quieres el media: generar contenido visual con IA, subir un archivo o publicar un Reel.
+          Elige cómo quieres el media: generar contenido visual con IA, subir un archivo o publicar un
+          Reel. Si marcas varias redes, se crea <strong>un post por red</strong> (como en Radar),
+          cada uno con su aprobación.
         </p>
       </div>
 

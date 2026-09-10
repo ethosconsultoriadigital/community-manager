@@ -156,6 +156,8 @@ export type CanvaStatus = {
 
 export type GenerateFromBriefResult = {
   post: Post;
+  /** Presente cuando se creó un post por cada red/cuenta. */
+  posts?: Post[];
   media: MediaAsset[];
   usedMock?: boolean;
   imageProvider?: 'openai' | 'mock' | 'unknown';
