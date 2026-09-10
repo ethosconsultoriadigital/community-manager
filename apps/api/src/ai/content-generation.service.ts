@@ -163,7 +163,7 @@ export class ContentGenerationService {
         height: generatedImage.height,
         postIds: createdPosts.map((p) => p.id),
       },
-      mediaId: firstMediaId,
+      mediaId: firstMediaId ?? undefined,
       postId: primary.id,
       model: generatedImage.model ?? generatedImage.provider ?? 'image',
     });
