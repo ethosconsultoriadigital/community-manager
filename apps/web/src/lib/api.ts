@@ -122,3 +122,35 @@ export async function apiUploadReference<T>(file: File, token?: string | null): 
 
   return res.json() as Promise<T>;
 }
+
+export async function apiUploadStandaloneImage(
+  file: File,
+  token?: string | null,
+): Promise<{ storageUrl: string; type: 'image' }> {
+  const authToken = token ?? getStoredToken();
+  const form = new FormData();
+  form.append('file', file);
+
+  const headers = new Headers();
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+
+  const res = await fetch(`${API_URL}/media/upload`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as { message?: string | string[] };
+      if (typeof body.message === 'string') message = body.message;
+      else if (Array.isArray(body.message)) message = body.message.join(', ');
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return res.json() as Promise<{ storageUrl: string; type: 'image' }>;
+}

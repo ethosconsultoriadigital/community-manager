@@ -150,6 +150,7 @@ S3_REGION=auto
 S3_PUBLIC_BASE_URL=https://media.tudominio.com
 MEDIA_PUBLIC_BASE_URL=https://media.tudominio.com
 IMAGE_API_KEY=...         # opcional; sin ella usa mock de imagen
+FAL_KEY=...               # opcional; sin ella Reels IA usan mock
 IMAGE_MODEL=gpt-image-2
 GOOGLE_SERVICE_ACCOUNT_JSON=...  # Radar Sheets (JSON service account en una línea)
 RADAR_SYNC_ENABLED=true

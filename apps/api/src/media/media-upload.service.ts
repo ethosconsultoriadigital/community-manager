@@ -62,4 +62,37 @@ export class MediaUploadService {
 
     return asset;
   }
+
+  /** Sube una imagen suelta (p. ej. referencia para generar Reel) sin asociarla a un post. */
+  async uploadStandalone(agencyId: string, file: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new MediaValidationError('No se recibió ningún archivo');
+    }
+
+    const { mediaType, extension } = validateUploadFile({
+      mime: file.mimetype,
+      size: file.size,
+      originalName: file.originalname,
+    });
+
+    if (mediaType !== 'image') {
+      throw new MediaValidationError(
+        'Para referencia de Reel solo se admiten imágenes (JPEG, PNG, WebP, GIF)',
+      );
+    }
+
+    const stored = await this.storage.save({
+      agencyId,
+      buffer: file.buffer,
+      extension,
+      contentType: file.mimetype,
+    });
+
+    return {
+      storageUrl: stored.storageUrl,
+      storageKey: stored.storageKey,
+      type: 'image' as const,
+      contentType: file.mimetype,
+    };
+  }
 }

@@ -34,6 +34,19 @@ class GenerateFromBriefDto {
   placeName?: string | null;
 }
 
+class GenerateReelFromBriefDto {
+  clientId!: string;
+  brief!: string;
+  caption!: string;
+  hashtags?: string[];
+  socialAccountIds!: string[];
+  referenceText?: string;
+  /** URL pública de foto para image-to-video (biblioteca o /media/upload). */
+  referenceImageUrl?: string;
+  placeId?: string | null;
+  placeName?: string | null;
+}
+
 class GenerateCopyDto {
   brief!: string;
   platforms?: string[];
@@ -91,6 +104,24 @@ export class GenerationsController {
     await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
       return await this.generation.generateFromBrief(user.agencyId, user.id, body);
+    } catch (error) {
+      if (error instanceof PostsValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post('from-brief-reel')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async generateReelFromBrief(
+    @CurrentUser() user: AuthUser,
+    @Body() body: GenerateReelFromBriefDto,
+  ) {
+    await this.clientAccess.assertClientAccess(user, body.clientId);
+    try {
+      return await this.generation.generateReelFromBrief(user.agencyId, user.id, body);
     } catch (error) {
       if (error instanceof PostsValidationError) {
         throw new BadRequestException(error.message);

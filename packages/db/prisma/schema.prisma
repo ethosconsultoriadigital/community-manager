@@ -335,6 +335,7 @@ enum approval_status {
 enum generation_kind {
   copy
   image
+  video
 }
 
 enum generation_status {

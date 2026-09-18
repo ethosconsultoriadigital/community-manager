@@ -456,28 +456,35 @@ Con localhost el pipeline funciona pero Meta falla; con túnel público debería
 
 El flujo de media del Composer **no depende de Canva**. Opciones:
 
-1. **Generar imagen (IA)** — brief → copy + imagen OpenAI → aprobación  
+1. **Generar imagen (IA)** — brief → imagen OpenAI → aprobación  
 2. **Subir archivo** — imagen o video adjunto  
-3. **Reel (video)** — video adjunto publicado como Reel en Instagram  
+3. **Reel (video)** — subir video **o generar Reel con IA** (fal.ai) → aprobación  
 
 ### Variables `.env`
 
 ```
 IMAGE_API_KEY=sk-...
 IMAGE_MODEL=gpt-image-2
+FAL_KEY=...   # Reels IA; sin ella usa mock de video
 ```
 
-Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador usa **mock** (picsum) para desarrollo local.
-La clave debe ser de **OpenAI** (no Anthropic `sk-ant-…`). El brief + caption anclan el tema de la imagen.
+Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador de **imagen** usa **mock** (picsum).
+Sin `FAL_KEY`, el generador de **Reel** usa un MP4 de muestra (mock).
+La clave de imágenes debe ser de **OpenAI** (no Anthropic `sk-ant-…`).
 `dall-e-3` ya no existe en la API (retirado mayo 2026); usa `gpt-image-2`.
-Si se usó mock, el Composer lo avisa en el mensaje de éxito.
 
-### Prueba manual
+### Prueba manual (imagen)
 
 1. `pnpm dev:api` + `pnpm dev:web`
 2. Login → Composer → **Generar imagen (IA)**
-3. Brief visual detallado + caption + destinos → **Generar imagen y enviar a aprobación**
-4. Aprobaciones → **Editar** si hace falta (texto/media) → **Aprobar** o **Cancelar** → programar → publicar
+3. Brief visual + caption + destinos → **Generar visual y enviar a aprobación**
+4. Aprobaciones → aprobar → programar → publicar
+
+### Prueba manual (Reel IA)
+
+1. Migración `schema_generation_kind_video.sql` aplicada
+2. Composer → **Reel (video)** → brief (± foto) → **Generar Reel y enviar a aprobación**
+3. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 

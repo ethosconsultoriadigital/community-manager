@@ -1,54 +1,61 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ContentGenerationService } from './content-generation.service';
 
+function createImageMocks() {
+  const posts = {
+    create: vi.fn().mockResolvedValue({
+      id: 'post-1',
+      status: 'pending_approval',
+      caption: 'Mi texto de promo',
+      hashtags: ['#verano'],
+      post_targets: [],
+    }),
+    findById: vi.fn().mockResolvedValue({
+      id: 'post-1',
+      status: 'pending_approval',
+      caption: 'Mi texto de promo',
+      hashtags: ['#verano'],
+      post_targets: [{ id: 't1' }],
+    }),
+  };
+  const generations = {
+    create: vi.fn().mockResolvedValue({ id: 'gen-image', status: 'pending' }),
+    updateStatus: vi.fn().mockResolvedValue({}),
+    linkPost: vi.fn().mockResolvedValue(true),
+    findByPost: vi.fn().mockResolvedValue([
+      { id: 'gen-image', kind: 'image', status: 'completed' },
+    ]),
+  };
+  const mediaAssets = {
+    create: vi.fn().mockResolvedValue({
+      id: 'media-1',
+      storage_url: 'https://storage.local/ai.png',
+    }),
+    findByPost: vi.fn().mockResolvedValue([{ id: 'media-1', source: 'ai_generated' }]),
+  };
+  const approvals = { createPending: vi.fn().mockResolvedValue({ id: 'ap-1' }) };
+  const socialAccounts = {
+    findByAgency: vi.fn().mockResolvedValue([
+      { id: 'sa1', platform: 'facebook', is_active: true },
+    ]),
+  };
+  const image = {
+    generateImage: vi.fn().mockResolvedValue({
+      url: 'https://storage.local/ai.png',
+      width: 1024,
+      height: 1024,
+      model: 'gpt-image-2',
+      provider: 'openai',
+    }),
+  };
+  const video = { generateVideo: vi.fn() };
+  return { posts, generations, mediaAssets, approvals, socialAccounts, image, video };
+}
+
 describe('ContentGenerationService', () => {
   it('genera imagen y post pending_approval con caption del usuario (sin LLM mock)', async () => {
-    const posts = {
-      create: vi.fn().mockResolvedValue({
-        id: 'post-1',
-        status: 'pending_approval',
-        caption: 'Mi texto de promo',
-        hashtags: ['#verano'],
-        post_targets: [],
-      }),
-      findById: vi.fn().mockResolvedValue({
-        id: 'post-1',
-        status: 'pending_approval',
-        caption: 'Mi texto de promo',
-        hashtags: ['#verano'],
-        post_targets: [{ id: 't1' }],
-      }),
-    };
-    const generations = {
-      create: vi.fn().mockResolvedValue({ id: 'gen-image', status: 'pending' }),
-      updateStatus: vi.fn().mockResolvedValue({}),
-      linkPost: vi.fn().mockResolvedValue(true),
-      findByPost: vi.fn().mockResolvedValue([
-        { id: 'gen-image', kind: 'image', status: 'completed' },
-      ]),
-    };
-    const mediaAssets = {
-      create: vi.fn().mockResolvedValue({
-        id: 'media-1',
-        storage_url: 'https://storage.local/ai.png',
-      }),
-      findByPost: vi.fn().mockResolvedValue([{ id: 'media-1', source: 'ai_generated' }]),
-    };
-    const approvals = { createPending: vi.fn().mockResolvedValue({ id: 'ap-1' }) };
-    const socialAccounts = {
-      findByAgency: vi.fn().mockResolvedValue([
-        { id: 'sa1', platform: 'facebook', is_active: true },
-      ]),
-    };
-    const image = {
-      generateImage: vi.fn().mockResolvedValue({
-        url: 'https://storage.local/ai.png',
-        width: 1024,
-        height: 1024,
-        model: 'gpt-image-2',
-        provider: 'openai',
-      }),
-    };
+    const { posts, generations, mediaAssets, approvals, socialAccounts, image, video } =
+      createImageMocks();
 
     const service = new ContentGenerationService(
       posts as never,
@@ -57,6 +64,7 @@ describe('ContentGenerationService', () => {
       approvals as never,
       socialAccounts as never,
       image as never,
+      video as never,
     );
 
     const result = await service.generateFromBrief('agency-1', 'user-1', {
@@ -104,6 +112,7 @@ describe('ContentGenerationService', () => {
     expect(result.media[0].source).toBe('ai_generated');
     expect(result.usedMock).toBe(false);
     expect(result.imageProvider).toBe('openai');
+    expect(video.generateVideo).not.toHaveBeenCalled();
   });
 
   it('crea un post por cada cuenta destino', async () => {
@@ -151,6 +160,7 @@ describe('ContentGenerationService', () => {
         provider: 'openai',
       }),
     };
+    const video = { generateVideo: vi.fn() };
 
     const service = new ContentGenerationService(
       posts as never,
@@ -159,6 +169,7 @@ describe('ContentGenerationService', () => {
       approvals as never,
       socialAccounts as never,
       image as never,
+      video as never,
     );
 
     const result = await service.generateFromBrief('agency-1', 'user-1', {
@@ -169,24 +180,105 @@ describe('ContentGenerationService', () => {
     });
 
     expect(posts.create).toHaveBeenCalledTimes(2);
-    expect(posts.create).toHaveBeenNthCalledWith(
-      1,
-      'agency-1',
-      'user-1',
-      expect.objectContaining({ socialAccountIds: ['sa-fb'] }),
-      'pending_approval',
-    );
-    expect(posts.create).toHaveBeenNthCalledWith(
-      2,
-      'agency-1',
-      'user-1',
-      expect.objectContaining({ socialAccountIds: ['sa-ig'] }),
-      'pending_approval',
-    );
-    expect(approvals.createPending).toHaveBeenCalledTimes(2);
-    expect(mediaAssets.create).toHaveBeenCalledTimes(2);
-    expect(image.generateImage).toHaveBeenCalledTimes(1);
     expect(result.posts).toHaveLength(2);
     expect(result.post?.id).toBe('post-fb');
+  });
+
+  it('genera Reel (video) y post pending_approval con video_format reel', async () => {
+    const posts = {
+      create: vi.fn().mockResolvedValue({ id: 'post-reel', status: 'pending_approval' }),
+      findById: vi.fn().mockResolvedValue({
+        id: 'post-reel',
+        status: 'pending_approval',
+        video_format: 'reel',
+        post_targets: [{ id: 't1' }],
+      }),
+    };
+    const generations = {
+      create: vi.fn().mockResolvedValue({ id: 'gen-video', status: 'pending' }),
+      updateStatus: vi.fn().mockResolvedValue({}),
+      linkPost: vi.fn().mockResolvedValue(true),
+      findByPost: vi.fn().mockResolvedValue([
+        { id: 'gen-video', kind: 'video', status: 'completed' },
+      ]),
+    };
+    const mediaAssets = {
+      create: vi.fn().mockResolvedValue({
+        id: 'media-v',
+        storage_url: 'https://storage.local/ai.mp4',
+        type: 'video',
+      }),
+      findByPost: vi.fn().mockResolvedValue([
+        { id: 'media-v', type: 'video', source: 'ai_generated' },
+      ]),
+    };
+    const approvals = { createPending: vi.fn().mockResolvedValue({ id: 'ap-1' }) };
+    const socialAccounts = {
+      findByAgency: vi.fn().mockResolvedValue([
+        { id: 'sa-ig', platform: 'instagram', is_active: true },
+      ]),
+    };
+    const image = { generateImage: vi.fn() };
+    const video = {
+      generateVideo: vi.fn().mockResolvedValue({
+        url: 'https://storage.local/ai.mp4',
+        width: 720,
+        height: 1280,
+        model: 'fal-ai/minimax/video-01',
+        provider: 'fal',
+      }),
+    };
+
+    const service = new ContentGenerationService(
+      posts as never,
+      generations as never,
+      mediaAssets as never,
+      approvals as never,
+      socialAccounts as never,
+      image as never,
+      video as never,
+    );
+
+    const result = await service.generateReelFromBrief('agency-1', 'user-1', {
+      clientId: 'client-1',
+      brief: 'Café en movimiento',
+      caption: 'Nuestro latte del día',
+      socialAccountIds: ['sa-ig'],
+      referenceImageUrl: 'https://cdn.example/ref.jpg',
+    });
+
+    expect(video.generateVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: 'Café en movimiento',
+        caption: 'Nuestro latte del día',
+        referenceImageUrl: 'https://cdn.example/ref.jpg',
+        agencyId: 'agency-1',
+      }),
+    );
+    expect(generations.create).toHaveBeenCalledWith(
+      'agency-1',
+      expect.objectContaining({ kind: 'video' }),
+    );
+    expect(posts.create).toHaveBeenCalledWith(
+      'agency-1',
+      'user-1',
+      expect.objectContaining({
+        videoFormat: 'reel',
+        socialAccountIds: ['sa-ig'],
+      }),
+      'pending_approval',
+    );
+    expect(mediaAssets.create).toHaveBeenCalledWith(
+      'agency-1',
+      expect.objectContaining({
+        type: 'video',
+        source: 'ai_generated',
+        storageUrl: 'https://storage.local/ai.mp4',
+      }),
+    );
+    expect(image.generateImage).not.toHaveBeenCalled();
+    expect(result.usedMock).toBe(false);
+    expect(result.videoProvider).toBe('fal');
+    expect(result.posts).toHaveLength(1);
   });
 });

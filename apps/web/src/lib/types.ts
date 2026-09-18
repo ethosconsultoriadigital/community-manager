@@ -164,6 +164,15 @@ export type GenerateFromBriefResult = {
   imageModel?: string | null;
 };
 
+export type GenerateReelFromBriefResult = {
+  post: Post;
+  posts?: Post[];
+  media: MediaAsset[];
+  usedMock?: boolean;
+  videoProvider?: 'fal' | 'mock' | 'unknown';
+  videoModel?: string | null;
+};
+
 export type AdminUserClient = {
   id: string;
   name: string;

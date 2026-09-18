@@ -2,13 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ApiError, apiFetch, apiUploadMedia, apiUploadReference } from '@/lib/api';
+import { ApiError, apiFetch, apiUploadMedia, apiUploadReference, apiUploadStandaloneImage } from '@/lib/api';
 import { visualPresetChips } from '@/lib/platform-visual-hints';
 import { ClientScopeField } from '@/components/ClientScopeField';
 import { LibraryPicker } from '@/components/LibraryPicker';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
   GenerateFromBriefResult,
+  GenerateReelFromBriefResult,
   LibraryItem,
   MediaAsset,
   Post,
@@ -21,6 +22,8 @@ const ACCEPT_MEDIA =
 
 const ACCEPT_REFERENCE =
   'image/jpeg,image/png,image/webp,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx';
+
+const ACCEPT_REEL_STILL = 'image/jpeg,image/png,image/webp,image/gif';
 
 type MediaMode = 'ai' | 'upload' | 'reel';
 
@@ -50,7 +53,11 @@ export default function ComposerPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [generatingReel, setGeneratingReel] = useState(false);
   const [generatingCopy, setGeneratingCopy] = useState(false);
+  const [reelStillFile, setReelStillFile] = useState<File | null>(null);
+  const [reelStillPreview, setReelStillPreview] = useState<string | null>(null);
+  const [reelPreviewUrl, setReelPreviewUrl] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [publishAsReel, setPublishAsReel] = useState(false);
   const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(false);
@@ -197,6 +204,10 @@ export default function ComposerPage() {
     setHashtags('');
     setAiBrief('');
     setAiPreviewUrl(null);
+    setReelPreviewUrl(null);
+    setReelStillFile(null);
+    if (reelStillPreview?.startsWith('blob:')) URL.revokeObjectURL(reelStillPreview);
+    setReelStillPreview(null);
     setEditingPostId(null);
     setPublishAsReel(mediaMode === 'reel');
     setAlsoPublishAsStory(false);
@@ -495,6 +506,79 @@ export default function ComposerPage() {
     }
   }
 
+  async function handleGenerateReel() {
+    if (!aiBrief.trim()) {
+      setError('Escribe un brief para generar el Reel con IA');
+      return;
+    }
+    if (!caption.trim()) {
+      setError('Escribe el texto de publicación del post antes de generar');
+      return;
+    }
+    if (selectedAccounts.length === 0) {
+      setError('Selecciona al menos un destino');
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setGeneratingReel(true);
+
+    try {
+      let referenceImageUrl: string | undefined;
+      if (reelStillFile) {
+        const uploaded = await apiUploadStandaloneImage(reelStillFile);
+        referenceImageUrl = uploaded.storageUrl;
+      } else if (aiPreviewUrl && !aiPreviewUrl.startsWith('blob:')) {
+        referenceImageUrl = aiPreviewUrl;
+      }
+
+      const result = await apiFetch<GenerateReelFromBriefResult>(
+        '/generations/from-brief-reel',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientId,
+            brief: aiBrief.trim(),
+            caption: caption.trim(),
+            hashtags: parseHashtags(),
+            socialAccountIds: selectedAccounts,
+            ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
+            ...(referenceImageUrl ? { referenceImageUrl } : {}),
+            ...placePayload(),
+          }),
+        },
+      );
+
+      const video = result.media.find((m) => m.type === 'video');
+      if (video?.storage_url) {
+        setReelPreviewUrl(video.storage_url);
+        handleMediaChange(null);
+      }
+
+      const createdCount = result.posts?.length ?? 1;
+      const firstId = result.post.id;
+      if (result.usedMock || result.videoProvider === 'mock') {
+        setMessage(
+          createdCount > 1
+            ? `Reel de prueba: ${createdCount} posts enviados a aprobación (uno por red). Configura FAL_KEY para video real.`
+            : `Reel de prueba enviado a aprobación (${firstId.slice(0, 8)}…). Configura FAL_KEY para video real.`,
+        );
+      } else {
+        setMessage(
+          createdCount > 1
+            ? `Reel IA generado: ${createdCount} posts enviados a aprobación (uno por red).`
+            : `Reel generado con IA (${result.videoModel ?? 'fal'}) y enviado a aprobación (${firstId.slice(0, 8)}…)`,
+        );
+      }
+      clearForm();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al generar el Reel');
+    } finally {
+      setGeneratingReel(false);
+    }
+  }
+
   function storyEnabledForPlatform(platform: string): boolean {
     return (
       alsoPublishAsStory &&
@@ -687,7 +771,7 @@ export default function ComposerPage() {
               [
                 { id: 'ai', label: 'Generar contenido visual con IA' },
                 { id: 'upload', label: 'Subir archivo' },
-                { id: 'reel', label: 'Reel (video)' },
+                { id: 'reel', label: 'Reel (IA o video)' },
               ] as const
             ).map((option) => (
               <button
@@ -968,92 +1052,161 @@ export default function ComposerPage() {
         )}
 
         {(mediaMode === 'upload' || mediaMode === 'reel') && (
-          <div className="space-y-2">
-            <label htmlFor="media" className="mb-1 block text-sm text-muted">
-              {mediaMode === 'reel' ? 'Video para Reel' : 'Imagen o video (opcional)'}
-            </label>
-            <input
-              id="media"
-              type="file"
-              accept={mediaMode === 'reel' ? 'video/mp4,video/quicktime,video/webm' : ACCEPT_MEDIA}
-              onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
-              className="w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-ink"
-            />
-            <p className="text-xs text-muted">
-              {mediaMode === 'reel'
-                ? 'Videos hasta 50 MB (MP4, MOV, WebM). Se publicará como Reel en Instagram.'
-                : 'Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)'}
-            </p>
-            {mediaPreview && (
-              <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
-                {hasVideoAttachment() ? (
+          <div className="space-y-4">
+            {mediaMode === 'reel' && (
+              <div className="rounded-md border border-brand/30 bg-[#E7F3FF] p-4 space-y-3">
+                <div>
+                  <h2 className="text-sm font-medium text-brand">Generar Reel con IA</h2>
+                  <p className="text-xs text-muted">
+                    Describe el video (escena, movimiento, estilo). Opcionalmente adjunta una foto
+                    para animarla. Se crea un post por red marcado como Reel y va a aprobación.
+                  </p>
+                </div>
+                <textarea
+                  rows={3}
+                  value={aiBrief}
+                  onChange={(e) => setAiBrief(e.target.value)}
+                  className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
+                  placeholder="Ej: cámara lenta acercándose a un latte con vapor, luz cálida de cafetería…"
+                />
+                <div>
+                  <label htmlFor="reel-still" className="mb-1 block text-xs text-muted">
+                    Foto de referencia (opcional, image-to-video)
+                  </label>
+                  <input
+                    id="reel-still"
+                    type="file"
+                    accept={ACCEPT_REEL_STILL}
+                    disabled={generatingReel || submitting}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      if (reelStillPreview?.startsWith('blob:')) {
+                        URL.revokeObjectURL(reelStillPreview);
+                      }
+                      setReelStillFile(file);
+                      setReelStillPreview(file ? URL.createObjectURL(file) : null);
+                    }}
+                    className="block w-full text-xs text-muted file:mr-2 file:rounded file:border-0 file:bg-brand file:px-2 file:py-1 file:text-white"
+                  />
+                  {reelStillPreview && (
+                    <img
+                      src={reelStillPreview}
+                      alt="Referencia para Reel"
+                      className="mt-2 max-h-32 rounded object-contain"
+                    />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    generatingReel || submitting || selectedAccounts.length === 0
+                  }
+                  onClick={() => void handleGenerateReel()}
+                  className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                >
+                  {generatingReel
+                    ? 'Generando Reel (puede tardar 1–2 min)…'
+                    : 'Generar Reel y enviar a aprobación'}
+                </button>
+                {reelPreviewUrl && (
                   <video
-                    src={mediaPreview}
+                    src={reelPreviewUrl}
                     controls
                     className="max-h-48 w-full rounded object-contain"
                   />
-                ) : (
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label htmlFor="media" className="mb-1 block text-sm text-muted">
+                {mediaMode === 'reel'
+                  ? 'O subir un video propio para Reel'
+                  : 'Imagen o video (opcional)'}
+              </label>
+              <input
+                id="media"
+                type="file"
+                accept={mediaMode === 'reel' ? 'video/mp4,video/quicktime,video/webm' : ACCEPT_MEDIA}
+                onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
+                className="w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-ink"
+              />
+              <p className="text-xs text-muted">
+                {mediaMode === 'reel'
+                  ? 'Videos hasta 50 MB (MP4, MOV, WebM). Se publicará como Reel en Instagram.'
+                  : 'Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)'}
+              </p>
+              {mediaPreview && (
+                <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
+                  {hasVideoAttachment() ? (
+                    <video
+                      src={mediaPreview}
+                      controls
+                      className="max-h-48 w-full rounded object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={mediaPreview}
+                      alt="Vista previa del adjunto"
+                      className="max-h-48 w-full rounded object-contain"
+                    />
+                  )}
+                  {(mediaFile || libraryMediaItemId) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleMediaChange(null);
+                        setLibraryMediaItemId(null);
+                      }}
+                      className="mt-2 text-xs text-red-600 hover:text-red-700"
+                    >
+                      Quitar adjunto
+                    </button>
+                  )}
+                </div>
+              )}
+              {!mediaPreview && aiPreviewUrl && (
+                <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
                   <img
-                    src={mediaPreview}
-                    alt="Vista previa del adjunto"
+                    src={aiPreviewUrl}
+                    alt="Vista previa"
                     className="max-h-48 w-full rounded object-contain"
                   />
-                )}
-                {(mediaFile || libraryMediaItemId) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleMediaChange(null);
-                      setLibraryMediaItemId(null);
-                    }}
-                    className="mt-2 text-xs text-red-600 hover:text-red-700"
-                  >
-                    Quitar adjunto
-                  </button>
-                )}
-              </div>
-            )}
-            {!mediaPreview && aiPreviewUrl && (
-              <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
-                <img
-                  src={aiPreviewUrl}
-                  alt="Vista previa"
-                  className="max-h-48 w-full rounded object-contain"
-                />
+                  <p className="mt-1 text-xs text-muted">
+                    {libraryMediaItemId
+                      ? 'Imagen de la biblioteca (se adjuntará al guardar).'
+                      : 'Imagen lista en el post.'}
+                  </p>
+                  {libraryMediaItemId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiPreviewUrl(null);
+                        setLibraryMediaItemId(null);
+                      }}
+                      className="mt-2 text-xs text-red-600 hover:text-red-700"
+                    >
+                      Quitar imagen
+                    </button>
+                  )}
+                </div>
+              )}
+              {mediaMode === 'upload' && hasVideoAttachment() && (
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
+                  <input
+                    type="checkbox"
+                    checked={publishAsReel}
+                    onChange={(e) => setPublishAsReel(e.target.checked)}
+                  />
+                  Publicar como Reel en Instagram
+                </label>
+              )}
+              {(mediaMode === 'reel' || publishAsReel) && hasVideoAttachment() && (
                 <p className="mt-1 text-xs text-muted">
-                  {libraryMediaItemId
-                    ? 'Imagen de la biblioteca (se adjuntará al guardar).'
-                    : 'Imagen lista en el post.'}
+                  Facebook recibirá el video en feed. Solo Instagram usa formato Reel.
                 </p>
-                {libraryMediaItemId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiPreviewUrl(null);
-                      setLibraryMediaItemId(null);
-                    }}
-                    className="mt-2 text-xs text-red-600 hover:text-red-700"
-                  >
-                    Quitar imagen
-                  </button>
-                )}
-              </div>
-            )}
-            {mediaMode === 'upload' && hasVideoAttachment() && (
-              <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
-                <input
-                  type="checkbox"
-                  checked={publishAsReel}
-                  onChange={(e) => setPublishAsReel(e.target.checked)}
-                />
-                Publicar como Reel en Instagram
-              </label>
-            )}
-            {(mediaMode === 'reel' || publishAsReel) && hasVideoAttachment() && (
-              <p className="mt-1 text-xs text-muted">
-                Facebook recibirá el video en feed. Solo Instagram usa formato Reel.
-              </p>
-            )}
+              )}
+            </div>
           </div>
         )}
 

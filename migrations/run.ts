@@ -17,6 +17,7 @@ const MIGRATIONS = [
   'schema_threads_platform.sql',
   'schema_post_place.sql',
   'schema_library_items.sql',
+  'schema_generation_kind_video.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

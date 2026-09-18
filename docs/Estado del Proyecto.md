@@ -3,7 +3,25 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-10 (Composer: un post por red)
+**Última actualización:** 2026-09-15 (Reels con IA vía fal.ai)
+
+---
+
+## 2026-09-15 — Generación de Reels con IA (fal.ai) ✅
+
+**Contexto:** Canva Connect no disponible para la integración; OpenAI Sora/Videos API en deprecación. Se usó **fal.ai** detrás de `VideoProvider`.
+
+**Implementado:**
+- `VideoProvider` + `FalVideoProvider` + `HybridVideoProvider` + mock (sin `FAL_KEY`).
+- `POST /generations/from-brief-reel`: brief (± foto de referencia) → MP4 en storage → un post por red con `video_format=reel` → aprobación.
+- `POST /media/upload`: imagen suelta para image-to-video.
+- Composer → **Reel (video)** → panel «Generar Reel con IA» (sigue permitiendo subir MP4 propio).
+- Migración `schema_generation_kind_video.sql` (`generation_kind` + `video`).
+- Variables: `FAL_KEY`, opcionales `FAL_VIDEO_MODEL` / `FAL_IMAGE_TO_VIDEO_MODEL`.
+
+**Operativo:** aplicar migración en Neon/local (`pnpm migrate` o el SQL), poner `FAL_KEY` en Render, redeploy API+web.
+
+**Criterio:** ✅ Código + tests; ⏳ migración + `FAL_KEY` en prod.
 
 ---
 
