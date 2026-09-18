@@ -3,7 +3,22 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-15 (Reels con IA vía fal.ai)
+**Última actualización:** 2026-09-18 (Fase Organización)
+
+---
+
+## 2026-09-18 — Fase Organización (UX: menú, tema, Composer, guía) ✅
+
+**Objetivo:** ordenar la UI sin cambiar lógica de negocio (aprobación, multi-tenant, publicación, IA).
+
+**Implementado:**
+- Tema **claro / oscuro** (`ThemeProvider` + tokens CSS; preferencia en `localStorage`; toggle en menú).
+- **AppShell** rediseñado: sidebar agrupada en desktop; menú hamburguesa / drawer en móvil; tooltips en ítems.
+- **Composer** reorganizado: 1) Cliente/redes → 2) Texto (+ biblioteca) → 3) Media con «Generar con IA» → Foto | Video/Reel, y «Subir archivo» aparte → 4) Opciones; `title` en acciones.
+- Página **Guía del usuario** (`/guia`), solo lectura.
+- Sin migración de BD.
+
+**Criterio:** ✅ Código listo; ⏳ redeploy web (Vercel). Probar menú móvil, tema y Composer.
 
 ---
 

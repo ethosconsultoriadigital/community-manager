@@ -62,7 +62,11 @@ export default function InicioPage() {
       <div>
         <h1 className="text-xl font-semibold text-ink">Inicio</h1>
         <p className="text-sm text-muted">
-          Resumen visual de tu contenido y accesos rápidos.
+          Resumen visual de tu contenido y accesos rápidos. ¿Dudas? Abre la{' '}
+          <a href="/guia" className="font-medium text-brand hover:underline">
+            Guía del usuario
+          </a>
+          .
         </p>
       </div>
 

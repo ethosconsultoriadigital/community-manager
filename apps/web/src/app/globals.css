@@ -1,18 +1,57 @@
 @import 'tailwindcss';
 
-/* Paleta global — azul Facebook + blanco (todo el producto) */
+/* Tokens semánticos (claro / oscuro) */
+:root {
+  --cm-brand: #1877f2;
+  --cm-brand-hover: #166fe5;
+  --cm-brand-active: #0d65d9;
+  --cm-canvas: #f0f2f5;
+  --cm-surface: #ffffff;
+  --cm-ink: #1c1e21;
+  --cm-muted: #65676b;
+  --cm-line: #e4e6eb;
+  --cm-line-strong: #ccd0d5;
+  --cm-overlay: rgba(0, 0, 0, 0.45);
+  --cm-success: #047857;
+  --cm-danger: #dc2626;
+}
+
+html.dark {
+  --cm-brand: #4599ff;
+  --cm-brand-hover: #6aafff;
+  --cm-brand-active: #1877f2;
+  --cm-canvas: #18191a;
+  --cm-surface: #242526;
+  --cm-ink: #e4e6eb;
+  --cm-muted: #b0b3b8;
+  --cm-line: #3a3b3c;
+  --cm-line-strong: #4e4f50;
+  --cm-overlay: rgba(0, 0, 0, 0.65);
+  --cm-success: #34d399;
+  --cm-danger: #f87171;
+}
+
 @theme {
-  --color-brand: #1877f2;
-  --color-brand-hover: #166fe5;
-  --color-brand-active: #0d65d9;
-  --color-canvas: #f0f2f5;
-  --color-surface: #ffffff;
-  --color-ink: #1c1e21;
-  --color-muted: #65676b;
-  --color-line: #e4e6eb;
-  --color-line-strong: #ccd0d5;
+  --color-brand: var(--cm-brand);
+  --color-brand-hover: var(--cm-brand-hover);
+  --color-brand-active: var(--cm-brand-active);
+  --color-canvas: var(--cm-canvas);
+  --color-surface: var(--cm-surface);
+  --color-ink: var(--cm-ink);
+  --color-muted: var(--cm-muted);
+  --color-line: var(--cm-line);
+  --color-line-strong: var(--cm-line-strong);
   --font-landing-display: var(--font-landing-display);
   --font-landing-body: var(--font-landing-body);
+}
+
+/* Evita FOUC de tema: script inline en layout también aplica .dark */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 .landing-root {
@@ -29,6 +68,12 @@
   background:
     radial-gradient(ellipse 80% 60% at 15% 10%, rgba(24, 119, 242, 0.22), transparent 55%),
     linear-gradient(180deg, #ffffff 0%, #f0f2f5 100%);
+}
+
+html.dark .landing-hero-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 10%, rgba(69, 153, 255, 0.18), transparent 55%),
+    linear-gradient(180deg, #18191a 0%, #242526 100%);
 }
 
 .landing-fade-up {
@@ -50,4 +95,23 @@
   .landing-fade-up {
     animation: none;
   }
+}
+
+/* Utilidad: paneles de la app */
+.app-panel {
+  border-radius: 0.75rem;
+  border: 1px solid var(--cm-line);
+  background: var(--cm-surface);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

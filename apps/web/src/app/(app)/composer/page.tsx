@@ -727,351 +727,318 @@ export default function ComposerPage() {
     return <p className="text-muted">Cargando composer…</p>;
   }
 
+  const aiSourceActive = mediaMode === 'ai' || mediaMode === 'reel';
+  const btnSecondary =
+    'rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50';
+  const inputClass =
+    'w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink';
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-ink">Generar Contenido</h1>
         <p className="text-sm text-muted">
-          Elige cómo quieres el media: generar contenido visual con IA, subir un archivo o publicar un
-          Reel. Si marcas varias redes, se crea <strong>un post por red</strong> (como en Radar),
-          cada uno con su aprobación.
+          Escribe el texto, elige redes y adjunta media (IA foto/video, archivo o biblioteca). Si
+          marcas varias redes, se crea <strong>un post por red</strong>, cada uno con su aprobación.
         </p>
       </div>
 
-      <form className="space-y-4 rounded-lg border border-line bg-surface p-4">
-        <div>
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted">Media de la publicación</p>
-            <button
-              type="button"
-              onClick={() => setLibraryPicker('media')}
-              disabled={!clientId || submitting}
-              className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
-            >
-              De biblioteca
-            </button>
-            <button
-              type="button"
-              onClick={() => void saveCurrentMediaToLibrary()}
-              disabled={
-                savingLibrary ||
-                submitting ||
-                !(
-                  aiPreviewUrl ||
-                  (mediaPreview && !mediaPreview.startsWith('blob:'))
-                )
-              }
-              className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
-            >
-              Guardar media
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { id: 'ai', label: 'Generar contenido visual con IA' },
-                { id: 'upload', label: 'Subir archivo' },
-                { id: 'reel', label: 'Reel (IA o video)' },
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => selectMediaMode(option.id)}
-                className={`rounded-md px-3 py-1.5 text-sm ${
-                  mediaMode === option.id
-                    ? 'bg-brand text-white'
-                    : 'border border-line-strong text-muted hover:bg-canvas'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {libraryMediaItemId && (
-            <p className="mt-2 text-xs text-emerald-700">
-              Media seleccionado desde la biblioteca (se adjuntará al guardar).
-            </p>
-          )}
-        </div>
+      <form className="space-y-6 rounded-xl border border-line bg-surface p-4 sm:p-6">
+        {/* 1. Cliente y destinos */}
+        <section className="space-y-4" aria-labelledby="composer-scope">
+          <h2 id="composer-scope" className="text-sm font-semibold text-ink">
+            1. Cliente y redes
+          </h2>
+          <ClientScopeField
+            clients={clients}
+            clientId={clientId}
+            onClientIdChange={setClientId}
+            showSelector={showClientSelector}
+            selectedClient={selectedClient}
+            className="block"
+          />
+          <fieldset>
+            <legend className="mb-2 text-sm text-muted">Destinos</legend>
+            <div className="flex flex-wrap gap-2">
+              {accounts.length === 0 ? (
+                <p className="text-xs text-muted">No hay cuentas conectadas para este cliente.</p>
+              ) : (
+                accounts.map((a) => (
+                  <label
+                    key={a.id}
+                    title={`Publicar en ${a.platform}${a.username ? ` (${a.username})` : ''}`}
+                    className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-xs text-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAccounts.includes(a.id)}
+                      onChange={() => toggleAccount(a.id)}
+                    />
+                    {a.platform}
+                    {a.username ? ` · ${a.username}` : ''}
+                  </label>
+                ))
+              )}
+            </div>
+            {presetChips.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {presetChips.map((chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-full border border-line bg-canvas px-2 py-0.5 text-xs text-muted"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
+          </fieldset>
+        </section>
 
-        <ClientScopeField
-          clients={clients}
-          clientId={clientId}
-          onClientIdChange={setClientId}
-          showSelector={showClientSelector}
-          selectedClient={selectedClient}
-          className="block"
-        />
-
-        <div>
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="caption" className="block text-sm text-muted">
-              Texto de publicación
-            </label>
+        {/* 2. Texto */}
+        <section className="space-y-3 border-t border-line pt-5" aria-labelledby="composer-text">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="composer-text" className="text-sm font-semibold text-ink">
+              2. Texto de la publicación
+            </h2>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
+                title="Cargar un texto guardado en la biblioteca"
                 onClick={() => setLibraryPicker('text')}
                 disabled={!clientId || submitting}
-                className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+                className={btnSecondary}
               >
                 De biblioteca
               </button>
               <button
                 type="button"
+                title="Guardar el texto actual en la biblioteca para reutilizarlo"
                 onClick={() => void saveCaptionToLibrary()}
                 disabled={savingLibrary || submitting || !caption.trim()}
-                className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+                className={btnSecondary}
               >
                 {savingLibrary ? 'Guardando…' : 'Guardar texto'}
               </button>
               <button
                 type="button"
+                title="Generar caption y hashtags con IA a partir de una idea breve"
                 onClick={() => void handleGenerateCopy()}
-                disabled={generatingCopy || generatingAi || submitting}
-                className="rounded-md border border-line-strong bg-white px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50"
+                disabled={generatingCopy || generatingAi || generatingReel || submitting}
+                className={btnSecondary}
               >
                 {generatingCopy ? 'Generando texto…' : 'Generar texto con IA'}
               </button>
             </div>
           </div>
-          <textarea
-            id="caption"
-            required
-            rows={5}
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-            placeholder="Texto del post… o escribe una idea y usa «Generar texto con IA»"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="hashtags" className="mb-1 block text-sm text-muted">
-            Hashtags (separados por espacio o coma)
-          </label>
-          <input
-            id="hashtags"
-            value={hashtags}
-            onChange={(e) => setHashtags(e.target.value)}
-            className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-            placeholder="#marca #promo"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="place" className="mb-1 block text-sm text-muted">
-            Ubicación (Facebook / Instagram, opcional)
-          </label>
-          <p className="mb-1 text-xs text-muted">
-            Busca y <strong>elige un resultado</strong> de la lista. Solo escribir el nombre no
-            etiqueta la publicación. Para Instagram el lugar debe tener coordenadas.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <input
-              id="place"
-              value={placeQuery}
-              onChange={(e) => {
-                setPlaceQuery(e.target.value);
-                if (placeId) {
-                  setPlaceId(null);
-                  setPlaceName(null);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void searchPlaces();
-                }
-              }}
-              className="min-w-[12rem] flex-1 rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-              placeholder="Ej: Ciudad de México, café…"
+          <div>
+            <label htmlFor="caption" className="mb-1 block text-sm text-muted">
+              Texto de publicación
+            </label>
+            <textarea
+              id="caption"
+              required
+              rows={5}
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              className={inputClass}
+              placeholder="Texto del post… o escribe una idea y usa «Generar texto con IA»"
             />
-            <button
-              type="button"
-              onClick={() => void searchPlaces()}
-              disabled={searchingPlaces || !clientId || !placeQuery.trim()}
-              className="rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
-            >
-              {searchingPlaces ? 'Buscando…' : 'Buscar'}
-            </button>
-            {placeId && (
+          </div>
+          <div>
+            <label htmlFor="hashtags" className="mb-1 block text-sm text-muted">
+              Hashtags (separados por espacio o coma)
+            </label>
+            <input
+              id="hashtags"
+              value={hashtags}
+              onChange={(e) => setHashtags(e.target.value)}
+              className={inputClass}
+              placeholder="#marca #promo"
+            />
+          </div>
+        </section>
+
+        {/* 3. Media */}
+        <section className="space-y-4 border-t border-line pt-5" aria-labelledby="composer-media">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="composer-media" className="text-sm font-semibold text-ink">
+              3. Media (imagen o video)
+            </h2>
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => {
-                  setPlaceId(null);
-                  setPlaceName(null);
-                  setPlaceQuery('');
-                  setPlaceResults([]);
-                }}
-                className="rounded-md border border-line px-3 py-2 text-xs text-muted hover:bg-canvas"
+                title="Elegir imagen o video ya guardado en la biblioteca"
+                onClick={() => setLibraryPicker('media')}
+                disabled={!clientId || submitting}
+                className={btnSecondary}
               >
-                Quitar
+                De biblioteca
               </button>
-            )}
+              <button
+                type="button"
+                title="Guardar el media actual del post en la biblioteca"
+                onClick={() => void saveCurrentMediaToLibrary()}
+                disabled={
+                  savingLibrary ||
+                  submitting ||
+                  !(
+                    aiPreviewUrl ||
+                    (mediaPreview && !mediaPreview.startsWith('blob:'))
+                  )
+                }
+                className={btnSecondary}
+              >
+                Guardar media
+              </button>
+            </div>
           </div>
-          {placeId && placeName && (
-            <p className="mt-1 text-xs text-emerald-700">Seleccionada: {placeName}</p>
-          )}
-          {placeResults.length > 0 && (
-            <ul className="mt-2 max-h-40 overflow-auto rounded-md border border-line bg-white text-sm">
-              {placeResults.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-2 text-left hover:bg-canvas"
-                    onClick={() => {
-                      setPlaceId(p.id);
-                      setPlaceName(p.name);
-                      setPlaceQuery(p.name);
-                      setPlaceResults([]);
-                      setMessage(`Ubicación lista: ${p.name}`);
-                    }}
-                  >
-                    <span className="text-ink">{p.name}</span>
-                    {p.locationLabel ? (
-                      <span className="ml-2 text-xs text-muted">{p.locationLabel}</span>
-                    ) : null}
-                    <span className="ml-2 text-xs text-muted">
-                      {p.taggableOnInstagram === false
-                        ? '(FB)'
-                        : '(FB + IG)'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
 
-        <fieldset>
-          <legend className="mb-2 text-sm text-muted">Destinos</legend>
           <div className="flex flex-wrap gap-2">
-            {accounts.length === 0 ? (
-              <p className="text-xs text-muted">No hay cuentas conectadas para este cliente.</p>
-            ) : (
-              accounts.map((a) => (
-                <label
-                  key={a.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md border border-line-strong px-3 py-1.5 text-xs text-muted"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedAccounts.includes(a.id)}
-                    onChange={() => toggleAccount(a.id)}
-                  />
-                  {a.platform}
-                  {a.username ? ` · ${a.username}` : ''}
-                </label>
-              ))
-            )}
-          </div>
-          {presetChips.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {presetChips.map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full bg-canvas px-2 py-0.5 text-xs text-muted border border-line"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          )}
-        </fieldset>
-
-        {mediaMode === 'ai' && (
-          <div className="rounded-md border border-brand/30 bg-[#E7F3FF] p-4 space-y-3">
-            <div>
-              <h2 className="text-sm font-medium text-brand">Generar contenido visual con IA</h2>
-              <p className="text-xs text-muted">
-                Describe la escena visual con detalle (producto, colores, estilo). El texto de
-                publicación de arriba también se usa para anclar el tema. Opcionalmente adjunta una
-                referencia (imagen, PDF o Word).
-              </p>
-            </div>
-
-            <textarea
-              rows={3}
-              value={aiBrief}
-              onChange={(e) => setAiBrief(e.target.value)}
-              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-              placeholder="Ej: foto de un latte en taza blanca sobre mesa de madera, luz natural, estilo café boutique…"
-            />
-
-            <div>
-              <label htmlFor="reference" className="mb-1 block text-xs text-muted">
-                Referencia visual o documento (opcional)
-              </label>
-              <input
-                id="reference"
-                type="file"
-                accept={ACCEPT_REFERENCE}
-                disabled={parsingReference || generatingAi}
-                onChange={(e) => void handleReferenceFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-xs text-muted file:mr-2 file:rounded file:border-0 file:bg-brand file:px-2 file:py-1 file:text-white"
-              />
-              {referenceFileName && (
-                <p className="mt-1 text-xs text-muted">
-                  Referencia: {referenceFileName}
-                  {referenceText ? ' (lista para usar)' : ''}
-                </p>
-              )}
-              {parsingReference && (
-                <p className="mt-1 text-xs text-brand">Procesando referencia…</p>
-              )}
-            </div>
-
             <button
               type="button"
-              disabled={
-                generatingAi || submitting || parsingReference || selectedAccounts.length === 0
-              }
-              onClick={handleGenerateWithAi}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              title="Generar foto o Reel con inteligencia artificial"
+              onClick={() => selectMediaMode(mediaMode === 'reel' ? 'reel' : 'ai')}
+              className={`rounded-md px-3 py-2 text-sm ${
+                aiSourceActive
+                  ? 'bg-brand text-white'
+                  : 'border border-line-strong text-muted hover:bg-canvas'
+              }`}
             >
-              {generatingAi
-                ? 'Generando contenido visual…'
-                : 'Generar visual y enviar a aprobación'}
+              Generar contenido visual con IA
             </button>
+            <button
+              type="button"
+              title="Subir una imagen o video desde tu equipo"
+              onClick={() => selectMediaMode('upload')}
+              className={`rounded-md px-3 py-2 text-sm ${
+                mediaMode === 'upload'
+                  ? 'bg-brand text-white'
+                  : 'border border-line-strong text-muted hover:bg-canvas'
+              }`}
+            >
+              Subir archivo
+            </button>
+          </div>
 
-            {aiPreviewUrl && (
-              <div className="rounded-md border border-line-strong bg-white p-2">
-                <img
-                  src={aiPreviewUrl}
-                  alt="Vista previa generada"
-                  className="max-h-48 w-full rounded object-contain"
-                />
-                <p className="mt-1 text-xs text-muted">
-                  Imagen generada (ya guardada en el post)
+          {aiSourceActive && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                title="Generar una imagen estática con IA (OpenAI)"
+                onClick={() => selectMediaMode('ai')}
+                className={`rounded-md px-3 py-1.5 text-xs ${
+                  mediaMode === 'ai'
+                    ? 'bg-brand/90 text-white'
+                    : 'border border-line-strong text-muted hover:bg-canvas'
+                }`}
+              >
+                Foto
+              </button>
+              <button
+                type="button"
+                title="Generar un Reel/video con IA (fal.ai) o preparar formato Reel"
+                onClick={() => selectMediaMode('reel')}
+                className={`rounded-md px-3 py-1.5 text-xs ${
+                  mediaMode === 'reel'
+                    ? 'bg-brand/90 text-white'
+                    : 'border border-line-strong text-muted hover:bg-canvas'
+                }`}
+              >
+                Video / Reel
+              </button>
+            </div>
+          )}
+
+          {libraryMediaItemId && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              Media seleccionado desde la biblioteca (se adjuntará al guardar).
+            </p>
+          )}
+
+          {mediaMode === 'ai' && (
+            <div className="space-y-3 rounded-lg border border-brand/30 bg-brand/5 p-4">
+              <div>
+                <h3 className="text-sm font-medium text-brand">Foto con IA</h3>
+                <p className="text-xs text-muted">
+                  Describe la escena. El texto de publicación también ancla el tema. Opcional:
+                  referencia (imagen, PDF o Word).
                 </p>
               </div>
-            )}
-          </div>
-        )}
+              <textarea
+                rows={3}
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                className={inputClass}
+                placeholder="Ej: foto de un latte en taza blanca sobre mesa de madera, luz natural…"
+              />
+              <div>
+                <label htmlFor="reference" className="mb-1 block text-xs text-muted">
+                  Referencia visual o documento (opcional)
+                </label>
+                <input
+                  id="reference"
+                  type="file"
+                  accept={ACCEPT_REFERENCE}
+                  disabled={parsingReference || generatingAi}
+                  onChange={(e) => void handleReferenceFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-xs text-muted file:mr-2 file:rounded file:border-0 file:bg-brand file:px-2 file:py-1 file:text-white"
+                />
+                {referenceFileName && (
+                  <p className="mt-1 text-xs text-muted">
+                    Referencia: {referenceFileName}
+                    {referenceText ? ' (lista para usar)' : ''}
+                  </p>
+                )}
+                {parsingReference && (
+                  <p className="mt-1 text-xs text-brand">Procesando referencia…</p>
+                )}
+              </div>
+              <button
+                type="button"
+                title="Genera la imagen y envía el post a aprobación (uno por red)"
+                disabled={
+                  generatingAi || submitting || parsingReference || selectedAccounts.length === 0
+                }
+                onClick={handleGenerateWithAi}
+                className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              >
+                {generatingAi
+                  ? 'Generando contenido visual…'
+                  : 'Generar foto y enviar a aprobación'}
+              </button>
+              {aiPreviewUrl && (
+                <div className="rounded-md border border-line-strong bg-surface p-2">
+                  <img
+                    src={aiPreviewUrl}
+                    alt="Vista previa generada"
+                    className="max-h-48 w-full rounded object-contain"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
-        {(mediaMode === 'upload' || mediaMode === 'reel') && (
-          <div className="space-y-4">
-            {mediaMode === 'reel' && (
-              <div className="rounded-md border border-brand/30 bg-[#E7F3FF] p-4 space-y-3">
+          {mediaMode === 'reel' && (
+            <div className="space-y-4">
+              <div className="space-y-3 rounded-lg border border-brand/30 bg-brand/5 p-4">
                 <div>
-                  <h2 className="text-sm font-medium text-brand">Generar Reel con IA</h2>
+                  <h3 className="text-sm font-medium text-brand">Video / Reel con IA</h3>
                   <p className="text-xs text-muted">
-                    Describe el video (escena, movimiento, estilo). Opcionalmente adjunta una foto
-                    para animarla. Se crea un post por red marcado como Reel y va a aprobación.
+                    Describe el video. Opcionalmente adjunta una foto para animarla. Requiere saldo
+                    en fal.ai para video real.
                   </p>
                 </div>
                 <textarea
                   rows={3}
                   value={aiBrief}
                   onChange={(e) => setAiBrief(e.target.value)}
-                  className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm text-ink"
-                  placeholder="Ej: cámara lenta acercándose a un latte con vapor, luz cálida de cafetería…"
+                  className={inputClass}
+                  placeholder="Ej: cámara lenta acercándose a un latte con vapor…"
                 />
                 <div>
                   <label htmlFor="reel-still" className="mb-1 block text-xs text-muted">
-                    Foto de referencia (opcional, image-to-video)
+                    Foto de referencia (opcional)
                   </label>
                   <input
                     id="reel-still"
@@ -1098,9 +1065,8 @@ export default function ComposerPage() {
                 </div>
                 <button
                   type="button"
-                  disabled={
-                    generatingReel || submitting || selectedAccounts.length === 0
-                  }
+                  title="Genera el Reel y lo envía a aprobación (puede tardar 1–2 min)"
+                  disabled={generatingReel || submitting || selectedAccounts.length === 0}
                   onClick={() => void handleGenerateReel()}
                   className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
@@ -1116,83 +1082,44 @@ export default function ComposerPage() {
                   />
                 )}
               </div>
-            )}
+              <div className="space-y-2 rounded-lg border border-line p-4">
+                <label htmlFor="media-reel" className="mb-1 block text-sm text-muted">
+                  O subir un video propio
+                </label>
+                <input
+                  id="media-reel"
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm"
+                  onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
+                  className="w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-ink"
+                />
+                <p className="text-xs text-muted">
+                  Videos hasta 50 MB (MP4, MOV, WebM). Se publicará como Reel en Instagram.
+                </p>
+              </div>
+            </div>
+          )}
 
-            <div className="space-y-2">
+          {mediaMode === 'upload' && (
+            <div className="space-y-2 rounded-lg border border-line p-4">
               <label htmlFor="media" className="mb-1 block text-sm text-muted">
-                {mediaMode === 'reel'
-                  ? 'O subir un video propio para Reel'
-                  : 'Imagen o video (opcional)'}
+                Imagen o video desde tu equipo
               </label>
               <input
                 id="media"
                 type="file"
-                accept={mediaMode === 'reel' ? 'video/mp4,video/quicktime,video/webm' : ACCEPT_MEDIA}
+                accept={ACCEPT_MEDIA}
                 onChange={(e) => handleMediaChange(e.target.files?.[0] ?? null)}
                 className="w-full text-sm text-muted file:mr-3 file:rounded-md file:border-0 file:bg-canvas file:px-3 file:py-1.5 file:text-ink"
               />
               <p className="text-xs text-muted">
-                {mediaMode === 'reel'
-                  ? 'Videos hasta 50 MB (MP4, MOV, WebM). Se publicará como Reel en Instagram.'
-                  : 'Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)'}
+                Imágenes hasta 10 MB · Videos hasta 50 MB (JPEG, PNG, WebP, GIF, MP4, MOV, WebM)
               </p>
-              {mediaPreview && (
-                <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
-                  {hasVideoAttachment() ? (
-                    <video
-                      src={mediaPreview}
-                      controls
-                      className="max-h-48 w-full rounded object-contain"
-                    />
-                  ) : (
-                    <img
-                      src={mediaPreview}
-                      alt="Vista previa del adjunto"
-                      className="max-h-48 w-full rounded object-contain"
-                    />
-                  )}
-                  {(mediaFile || libraryMediaItemId) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleMediaChange(null);
-                        setLibraryMediaItemId(null);
-                      }}
-                      className="mt-2 text-xs text-red-600 hover:text-red-700"
-                    >
-                      Quitar adjunto
-                    </button>
-                  )}
-                </div>
-              )}
-              {!mediaPreview && aiPreviewUrl && (
-                <div className="mt-3 rounded-md border border-line-strong bg-white p-2">
-                  <img
-                    src={aiPreviewUrl}
-                    alt="Vista previa"
-                    className="max-h-48 w-full rounded object-contain"
-                  />
-                  <p className="mt-1 text-xs text-muted">
-                    {libraryMediaItemId
-                      ? 'Imagen de la biblioteca (se adjuntará al guardar).'
-                      : 'Imagen lista en el post.'}
-                  </p>
-                  {libraryMediaItemId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAiPreviewUrl(null);
-                        setLibraryMediaItemId(null);
-                      }}
-                      className="mt-2 text-xs text-red-600 hover:text-red-700"
-                    >
-                      Quitar imagen
-                    </button>
-                  )}
-                </div>
-              )}
               {mediaMode === 'upload' && hasVideoAttachment() && (
-                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
+                <label
+                  title="En Instagram se publicará como Reel; en Facebook como video de feed"
+                  className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted"
+                >
                   <input
                     type="checkbox"
                     checked={publishAsReel}
@@ -1201,30 +1128,177 @@ export default function ComposerPage() {
                   Publicar como Reel en Instagram
                 </label>
               )}
-              {(mediaMode === 'reel' || publishAsReel) && hasVideoAttachment() && (
-                <p className="mt-1 text-xs text-muted">
-                  Facebook recibirá el video en feed. Solo Instagram usa formato Reel.
-                </p>
+            </div>
+          )}
+
+          {mediaPreview && (
+            <div className="rounded-md border border-line-strong bg-surface p-2">
+              {hasVideoAttachment() ? (
+                <video
+                  src={mediaPreview}
+                  controls
+                  className="max-h-48 w-full rounded object-contain"
+                />
+              ) : (
+                <img
+                  src={mediaPreview}
+                  alt="Vista previa del adjunto"
+                  className="max-h-48 w-full rounded object-contain"
+                />
+              )}
+              {(mediaFile || libraryMediaItemId) && (
+                <button
+                  type="button"
+                  title="Quitar el archivo adjunto"
+                  onClick={() => {
+                    handleMediaChange(null);
+                    setLibraryMediaItemId(null);
+                  }}
+                  className="mt-2 text-xs text-red-600 hover:text-red-700"
+                >
+                  Quitar adjunto
+                </button>
               )}
             </div>
-          </div>
-        )}
+          )}
+          {!mediaPreview && aiPreviewUrl && mediaMode === 'upload' && (
+            <div className="rounded-md border border-line-strong bg-surface p-2">
+              <img
+                src={aiPreviewUrl}
+                alt="Vista previa"
+                className="max-h-48 w-full rounded object-contain"
+              />
+              <p className="mt-1 text-xs text-muted">
+                {libraryMediaItemId
+                  ? 'Imagen de la biblioteca (se adjuntará al guardar).'
+                  : 'Imagen lista en el post.'}
+              </p>
+              {libraryMediaItemId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiPreviewUrl(null);
+                    setLibraryMediaItemId(null);
+                  }}
+                  className="mt-2 text-xs text-red-600 hover:text-red-700"
+                >
+                  Quitar imagen
+                </button>
+              )}
+            </div>
+          )}
+          {(mediaMode === 'reel' || publishAsReel) && hasVideoAttachment() && (
+            <p className="text-xs text-muted">
+              Facebook recibirá el video en feed. Solo Instagram usa formato Reel.
+            </p>
+          )}
+        </section>
 
-        {(mediaFile || aiPreviewUrl || mediaPreview) && (
-          <StoryPublishCheckbox
-            checked={alsoPublishAsStory}
-            onChange={setAlsoPublishAsStory}
-            className="text-sm"
-          />
-        )}
+        {/* 4. Opciones */}
+        <section className="space-y-3 border-t border-line pt-5" aria-labelledby="composer-opts">
+          <h2 id="composer-opts" className="text-sm font-semibold text-ink">
+            4. Opciones
+          </h2>
+          <div>
+            <label htmlFor="place" className="mb-1 block text-sm text-muted">
+              Ubicación (Facebook / Instagram, opcional)
+            </label>
+            <p className="mb-1 text-xs text-muted">
+              Busca y <strong>elige un resultado</strong> de la lista. Solo escribir el nombre no
+              etiqueta la publicación.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                id="place"
+                value={placeQuery}
+                onChange={(e) => {
+                  setPlaceQuery(e.target.value);
+                  if (placeId) {
+                    setPlaceId(null);
+                    setPlaceName(null);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void searchPlaces();
+                  }
+                }}
+                className="min-w-[12rem] flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
+                placeholder="Ej: Ciudad de México, café…"
+              />
+              <button
+                type="button"
+                title="Buscar lugares en Meta"
+                onClick={() => void searchPlaces()}
+                disabled={searchingPlaces || !clientId || !placeQuery.trim()}
+                className={btnSecondary + ' px-3 py-2 text-sm'}
+              >
+                {searchingPlaces ? 'Buscando…' : 'Buscar'}
+              </button>
+              {placeId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlaceId(null);
+                    setPlaceName(null);
+                    setPlaceQuery('');
+                    setPlaceResults([]);
+                  }}
+                  className="rounded-md border border-line px-3 py-2 text-xs text-muted hover:bg-canvas"
+                >
+                  Quitar
+                </button>
+              )}
+            </div>
+            {placeId && placeName && (
+              <p className="mt-1 text-xs text-emerald-600">Seleccionada: {placeName}</p>
+            )}
+            {placeResults.length > 0 && (
+              <ul className="mt-2 max-h-40 overflow-auto rounded-md border border-line bg-surface text-sm">
+                {placeResults.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 text-left hover:bg-canvas"
+                      onClick={() => {
+                        setPlaceId(p.id);
+                        setPlaceName(p.name);
+                        setPlaceQuery(p.name);
+                        setPlaceResults([]);
+                        setMessage(`Ubicación lista: ${p.name}`);
+                      }}
+                    >
+                      <span className="text-ink">{p.name}</span>
+                      {p.locationLabel ? (
+                        <span className="ml-2 text-xs text-muted">{p.locationLabel}</span>
+                      ) : null}
+                      <span className="ml-2 text-xs text-muted">
+                        {p.taggableOnInstagram === false ? '(FB)' : '(FB + IG)'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {(mediaFile || aiPreviewUrl || mediaPreview) && (
+            <StoryPublishCheckbox
+              checked={alsoPublishAsStory}
+              onChange={setAlsoPublishAsStory}
+              className="text-sm"
+            />
+          )}
+        </section>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-emerald-600">{message}</p>}
 
         {mediaMode !== 'ai' && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-line pt-5">
             <button
               type="button"
+              title="Guarda el post como borrador sin enviar a aprobación"
               disabled={submitting || selectedAccounts.length === 0}
               onClick={(e) => handleSubmit(e, false)}
               className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
@@ -1233,6 +1307,7 @@ export default function ComposerPage() {
             </button>
             <button
               type="button"
+              title="Envía el post a la bandeja de Aprobaciones"
               disabled={submitting || selectedAccounts.length === 0}
               onClick={(e) => handleSubmit(e, true)}
               className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
