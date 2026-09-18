@@ -116,7 +116,7 @@ function NavLink({
       className={`block rounded-lg px-3 py-2 text-sm transition-colors ${
         active
           ? 'bg-brand font-medium text-white'
-          : 'text-muted hover:bg-canvas hover:text-ink'
+          : 'text-ink/80 hover:bg-canvas hover:text-ink'
       }`}
     >
       {item.label}
@@ -178,9 +178,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         {groups.map((group) => (
           <div key={group.id}>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              {group.label}
-            </p>
+            <p className="nav-group-label">{group.label}</p>
             <div className="space-y-0.5">
               {group.items.map((item) => (
                 <NavLink

@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { ApiError, apiFetch, getStoredToken } from '@/lib/api';
 import { ClientScopeField } from '@/components/ClientScopeField';
+import { PageHeader } from '@/components/PageTypography';
 import { DashboardStatCard } from '@/components/DashboardStatCard';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import {
@@ -165,12 +166,10 @@ export default function ReportesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Reportes</h1>
-        <p className="text-sm text-muted">
-          Métricas de posts publicados en Meta. Gráficos por red y export PDF con análisis IA.
-        </p>
-      </div>
+      <PageHeader
+        title="Reportes"
+        description="Métricas de posts publicados en Meta. Gráficos por red y export PDF con análisis IA."
+      />
 
       {message && <p className="text-sm text-emerald-600">{message}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}

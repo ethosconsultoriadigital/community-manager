@@ -6,6 +6,7 @@ import { ApiError, apiFetch, apiUploadMedia, apiUploadReference, apiUploadStanda
 import { visualPresetChips } from '@/lib/platform-visual-hints';
 import { ClientScopeField } from '@/components/ClientScopeField';
 import { LibraryPicker } from '@/components/LibraryPicker';
+import { PageHeader, SectionHeading } from '@/components/PageTypography';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
   GenerateFromBriefResult,
@@ -735,20 +736,23 @@ export default function ComposerPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Generar Contenido</h1>
-        <p className="text-sm text-muted">
-          Escribe el texto, elige redes y adjunta media (IA foto/video, archivo o biblioteca). Si
-          marcas varias redes, se crea <strong>un post por red</strong>, cada uno con su aprobación.
-        </p>
-      </div>
+      <PageHeader
+        title="Generar Contenido"
+        description={
+          <>
+            Escribe el texto, elige redes y adjunta media (IA foto/video, archivo o biblioteca). Si
+            marcas varias redes, se crea <strong className="text-ink">un post por red</strong>, cada
+            uno con su aprobación.
+          </>
+        }
+      />
 
       <form className="space-y-6 rounded-xl border border-line bg-surface p-4 sm:p-6">
         {/* 1. Cliente y destinos */}
         <section className="space-y-4" aria-labelledby="composer-scope">
-          <h2 id="composer-scope" className="text-sm font-semibold text-ink">
-            1. Cliente y redes
-          </h2>
+          <SectionHeading id="composer-scope" step={1}>
+            Cliente y redes
+          </SectionHeading>
           <ClientScopeField
             clients={clients}
             clientId={clientId}
@@ -798,9 +802,9 @@ export default function ComposerPage() {
         {/* 2. Texto */}
         <section className="space-y-3 border-t border-line pt-5" aria-labelledby="composer-text">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="composer-text" className="text-sm font-semibold text-ink">
-              2. Texto de la publicación
-            </h2>
+            <SectionHeading id="composer-text" step={2}>
+              Texto de la publicación
+            </SectionHeading>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -862,9 +866,9 @@ export default function ComposerPage() {
         {/* 3. Media */}
         <section className="space-y-4 border-t border-line pt-5" aria-labelledby="composer-media">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="composer-media" className="text-sm font-semibold text-ink">
-              3. Media (imagen o video)
-            </h2>
+            <SectionHeading id="composer-media" step={3}>
+              Media (imagen o video)
+            </SectionHeading>
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -1196,9 +1200,9 @@ export default function ComposerPage() {
 
         {/* 4. Opciones */}
         <section className="space-y-3 border-t border-line pt-5" aria-labelledby="composer-opts">
-          <h2 id="composer-opts" className="text-sm font-semibold text-ink">
-            4. Opciones
-          </h2>
+          <SectionHeading id="composer-opts" step={4}>
+            Opciones
+          </SectionHeading>
           <div>
             <label htmlFor="place" className="mb-1 block text-sm text-muted">
               Ubicación (Facebook / Instagram, opcional)

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardStatCard, postsForStatus } from '@/components/DashboardStatCard';
+import { PageHeader } from '@/components/PageTypography';
 import { apiFetch } from '@/lib/api';
 import type { Post } from '@/lib/types';
 
@@ -59,16 +60,18 @@ export default function InicioPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Inicio</h1>
-        <p className="text-sm text-muted">
-          Resumen visual de tu contenido y accesos rápidos. ¿Dudas? Abre la{' '}
-          <a href="/guia" className="font-medium text-brand hover:underline">
-            Guía del usuario
-          </a>
-          .
-        </p>
-      </div>
+      <PageHeader
+        title="Inicio"
+        description={
+          <>
+            Resumen visual de tu contenido y accesos rápidos. ¿Dudas? Abre la{' '}
+            <a href="/guia" className="font-medium text-brand hover:underline">
+              Guía del usuario
+            </a>
+            .
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (

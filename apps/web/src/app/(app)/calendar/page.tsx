@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarPostDetail } from '@/components/CalendarPostDetail';
+import { PageHeader } from '@/components/PageTypography';
 import { Pagination } from '@/components/Pagination';
 import { formatDate, statusLabel } from '@/components/PostCard';
 import { apiFetch } from '@/lib/api';
@@ -263,14 +264,10 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Calendario</h1>
-        <p className="text-sm text-muted">
-          Vista en cuadrícula de programados y publicados. Filtra por red y fecha. Puedes
-          editar o eliminar programados y posts con error; en publicados verás likes y
-          comentarios cuando estén sincronizados.
-        </p>
-      </div>
+      <PageHeader
+        title="Calendario"
+        description="Vista en cuadrícula de programados y publicados. Filtra por red y fecha. Puedes editar o eliminar programados y posts con error; en publicados verás likes y comentarios cuando estén sincronizados."
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-18 (Fase Organización)
+**Última actualización:** 2026-09-18 (pulido tipografía y tema oscuro)
+
+---
+
+## 2026-09-18 — Pulido UX: contraste oscuro, menú y tipografía ✅
+
+- Tema oscuro: mayor contraste en `muted`/`ink`; mapeo CSS de `bg-white` / emerald / red / pasteles de tarjetas.
+- Menú: etiquetas de grupo (Resumen, Crear…) con recuadro y color brand (`.nav-group-label`).
+- Tipografía: `PageHeader` / `SectionHeading` en módulos; Composer con pasos numerados.
+
+**Criterio:** ✅ Build web OK; ⏳ redeploy Vercel.
 
 ---
 

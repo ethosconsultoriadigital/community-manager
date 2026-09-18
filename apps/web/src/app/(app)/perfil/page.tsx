@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { PageHeader } from '@/components/PageTypography';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -40,10 +41,7 @@ export default function PerfilPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Mi perfil</h1>
-        <p className="text-sm text-muted">Cuenta: {user?.email}</p>
-      </div>
+      <PageHeader title="Mi perfil" description={<>Cuenta: {user?.email}</>} />
 
       <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
         <h2 className="text-sm font-medium text-ink">Cambiar contraseña</h2>

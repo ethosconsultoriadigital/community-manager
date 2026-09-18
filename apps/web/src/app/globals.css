@@ -8,27 +8,31 @@
   --cm-canvas: #f0f2f5;
   --cm-surface: #ffffff;
   --cm-ink: #1c1e21;
-  --cm-muted: #65676b;
+  --cm-muted: #5b5e63;
   --cm-line: #e4e6eb;
   --cm-line-strong: #ccd0d5;
   --cm-overlay: rgba(0, 0, 0, 0.45);
   --cm-success: #047857;
-  --cm-danger: #dc2626;
+  --cm-danger: #b91c1c;
+  --cm-nav-group-bg: #e8f1fc;
+  --cm-nav-group-fg: #0d65d9;
 }
 
 html.dark {
-  --cm-brand: #4599ff;
-  --cm-brand-hover: #6aafff;
-  --cm-brand-active: #1877f2;
-  --cm-canvas: #18191a;
-  --cm-surface: #242526;
-  --cm-ink: #e4e6eb;
-  --cm-muted: #b0b3b8;
+  --cm-brand: #5babff;
+  --cm-brand-hover: #7bbcff;
+  --cm-brand-active: #4599ff;
+  --cm-canvas: #121314;
+  --cm-surface: #1e1f21;
+  --cm-ink: #f0f2f5;
+  --cm-muted: #c2c6cc;
   --cm-line: #3a3b3c;
-  --cm-line-strong: #4e4f50;
+  --cm-line-strong: #55575a;
   --cm-overlay: rgba(0, 0, 0, 0.65);
-  --cm-success: #34d399;
-  --cm-danger: #f87171;
+  --cm-success: #6ee7b7;
+  --cm-danger: #fca5a5;
+  --cm-nav-group-bg: rgba(91, 171, 255, 0.14);
+  --cm-nav-group-fg: #8ec5ff;
 }
 
 @theme {
@@ -41,17 +45,110 @@ html.dark {
   --color-muted: var(--cm-muted);
   --color-line: var(--cm-line);
   --color-line-strong: var(--cm-line-strong);
+  --color-success: var(--cm-success);
+  --color-danger: var(--cm-danger);
   --font-landing-display: var(--font-landing-display);
   --font-landing-body: var(--font-landing-body);
 }
 
-/* Evita FOUC de tema: script inline en layout también aplica .dark */
 html {
   color-scheme: light;
 }
 
 html.dark {
   color-scheme: dark;
+}
+
+/*
+ * Contraste en tema oscuro: muchos módulos aún usan bg-white / emerald-600 / red-600.
+ * Mapeamos a tokens semánticos para que textos y botones se lean bien.
+ */
+html.dark .bg-white {
+  background-color: var(--cm-surface) !important;
+}
+
+html.dark .text-emerald-600,
+html.dark .text-emerald-700 {
+  color: var(--cm-success) !important;
+}
+
+html.dark .text-red-600,
+html.dark .text-red-700 {
+  color: var(--cm-danger) !important;
+}
+
+html.dark .bg-emerald-50 {
+  background-color: rgba(52, 211, 153, 0.12) !important;
+}
+
+html.dark .bg-red-50,
+html.dark .hover\:bg-red-50:hover {
+  background-color: rgba(248, 113, 113, 0.12) !important;
+}
+
+html.dark .border-red-200 {
+  border-color: rgba(248, 113, 113, 0.35) !important;
+}
+
+html.dark .hover\:bg-\[\#E7F3FF\]:hover,
+html.dark .bg-\[\#E7F3FF\] {
+  background-color: rgba(91, 171, 255, 0.14) !important;
+}
+
+html.dark .bg-amber-50,
+html.dark .from-amber-50 {
+  --tw-gradient-from: rgba(251, 191, 36, 0.12) var(--tw-gradient-from-position);
+}
+
+html.dark .text-amber-700,
+html.dark .text-amber-800 {
+  color: #fbbf24 !important;
+}
+
+html.dark .bg-amber-100 {
+  background-color: rgba(251, 191, 36, 0.18) !important;
+}
+
+html.dark .border-amber-200 {
+  border-color: rgba(251, 191, 36, 0.35) !important;
+}
+
+html.dark .text-sky-700,
+html.dark .text-sky-800 {
+  color: #7dd3fc !important;
+}
+
+html.dark .bg-sky-100 {
+  background-color: rgba(56, 189, 248, 0.18) !important;
+}
+
+html.dark .border-sky-200 {
+  border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+html.dark .text-violet-700,
+html.dark .text-violet-800 {
+  color: #c4b5fd !important;
+}
+
+html.dark .bg-violet-100 {
+  background-color: rgba(167, 139, 250, 0.18) !important;
+}
+
+html.dark .border-violet-200 {
+  border-color: rgba(167, 139, 250, 0.35) !important;
+}
+
+html.dark .bg-emerald-100 {
+  background-color: rgba(52, 211, 153, 0.18) !important;
+}
+
+html.dark .border-emerald-200 {
+  border-color: rgba(52, 211, 153, 0.35) !important;
+}
+
+html.dark .bg-white\/80 {
+  background-color: color-mix(in srgb, var(--cm-surface) 80%, transparent) !important;
 }
 
 .landing-root {
@@ -73,7 +170,7 @@ html.dark {
 html.dark .landing-hero-bg {
   background:
     radial-gradient(ellipse 80% 60% at 15% 10%, rgba(69, 153, 255, 0.18), transparent 55%),
-    linear-gradient(180deg, #18191a 0%, #242526 100%);
+    linear-gradient(180deg, #121314 0%, #1e1f21 100%);
 }
 
 .landing-fade-up {
@@ -97,11 +194,26 @@ html.dark .landing-hero-bg {
   }
 }
 
-/* Utilidad: paneles de la app */
 .app-panel {
   border-radius: 0.75rem;
   border: 1px solid var(--cm-line);
   background: var(--cm-surface);
+}
+
+/* Etiquetas de grupo del menú (no son links) */
+.nav-group-label {
+  margin-left: 0.25rem;
+  margin-right: 0.25rem;
+  margin-bottom: 0.375rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--cm-line);
+  background: var(--cm-nav-group-bg);
+  padding: 0.375rem 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cm-nav-group-fg);
 }
 
 .sr-only {

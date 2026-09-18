@@ -16,6 +16,7 @@ import {
 } from '@/lib/platform-filters';
 import type { Post } from '@/lib/types';
 import { postHasMedia, StoryPublishCheckbox } from '@/lib/story-publish';
+import { PageHeader } from '@/components/PageTypography';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 
 function defaultScheduleValue() {
@@ -267,13 +268,10 @@ export default function ApprovalsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Bandeja de aprobación</h1>
-        <p className="text-sm text-muted">
-          Aprueba aquí mismo y programa la fecha sin que el post se mueva a otra sección.
-          También puedes exportar una parrilla PDF para revisión offline.
-        </p>
-      </div>
+      <PageHeader
+        title="Bandeja de aprobación"
+        description="Aprueba aquí mismo y programa la fecha sin que el post se mueva a otra sección. También puedes exportar una parrilla PDF para revisión offline."
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-emerald-600">{message}</p>}

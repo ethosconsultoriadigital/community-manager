@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClientScopeField } from '@/components/ClientScopeField';
+import { PageHeader } from '@/components/PageTypography';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type { LibraryItem } from '@/lib/types';
@@ -75,12 +76,10 @@ export default function BibliotecaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Biblioteca</h1>
-        <p className="text-sm text-muted">
-          Textos, imágenes y videos guardados para reutilizar en nuevas publicaciones.
-        </p>
-      </div>
+      <PageHeader
+        title="Biblioteca"
+        description="Textos, imágenes y videos guardados para reutilizar en nuevas publicaciones."
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-emerald-700">{message}</p>}

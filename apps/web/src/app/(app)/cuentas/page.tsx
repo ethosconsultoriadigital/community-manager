@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ApiError, apiFetch } from '@/lib/api';
 import { ClientScopeField } from '@/components/ClientScopeField';
+import { PageHeader } from '@/components/PageTypography';
 import { useAuth } from '@/lib/auth';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type { SocialAccount } from '@/lib/types';
@@ -160,12 +161,10 @@ export default function CuentasPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Cuentas sociales</h1>
-        <p className="text-sm text-muted">
-          Conecta o desconecta cuentas por cliente (Meta y, si está habilitado, Threads).
-        </p>
-      </div>
+      <PageHeader
+        title="Cuentas sociales"
+        description="Conecta o desconecta cuentas por cliente (Meta y, si está habilitado, Threads)."
+      />
 
       {message && <p className="text-sm text-emerald-600">{message}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}

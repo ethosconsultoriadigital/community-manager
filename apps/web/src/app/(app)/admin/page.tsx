@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { PageHeader } from '@/components/PageTypography';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { AdminUserListItem, Client, UserRole } from '@/lib/types';
@@ -373,12 +374,10 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Administración</h1>
-        <p className="text-sm text-muted">
-          Crea clientes (negocios), usuarios de acceso y conecta sus cuentas Meta.
-        </p>
-      </div>
+      <PageHeader
+        title="Administración"
+        description="Crea clientes (negocios), usuarios de acceso y conecta sus cuentas Meta."
+      />
 
       {message && <p className="text-sm text-emerald-600">{message}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}

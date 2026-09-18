@@ -67,7 +67,7 @@ function MediaCollage({
   const emptySlots = Math.max(0, 4 - slots.length);
 
   return (
-    <div className="grid grid-cols-2 gap-1 overflow-hidden rounded-md border border-line/60 bg-white/80 p-1">
+    <div className="grid grid-cols-2 gap-1 overflow-hidden rounded-md border border-line/60 bg-surface/80 p-1">
       {slots.map((url, i) => (
         <div key={`${url}-${i}`} className="relative aspect-square overflow-hidden rounded-sm bg-canvas">
           {url.match(/\.(mp4|webm|mov)(\?|$)/i) ? (

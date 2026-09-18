@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ClientScopeField } from '@/components/ClientScopeField';
+import { PageHeader } from '@/components/PageTypography';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
@@ -313,14 +314,16 @@ export default function RadarPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Conectar fuente</h1>
-        <p className="text-sm text-muted">
-          Solo entran a Aprobaciones noticias con <strong>url_radarmex</strong> y{' '}
-          <strong>fecha_publicacion</strong> en el rango (por defecto: hoy). Puedes conectar
-          varios Sheets por cliente.
-        </p>
-      </div>
+      <PageHeader
+        title="Conectar fuente"
+        description={
+          <>
+            Solo entran a Aprobaciones noticias con <strong>url_radarmex</strong> y{' '}
+            <strong>fecha_publicacion</strong> en el rango (por defecto: hoy). Puedes conectar
+            varios Sheets por cliente.
+          </>
+        }
+      />
 
       {(clientsError || error) && (
         <p className="text-sm text-red-600">{clientsError ?? error}</p>

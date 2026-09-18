@@ -1,17 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { PageHeader } from '@/components/PageTypography';
 
 const SECTIONS = [
   {
     id: 'inicio',
     title: 'Inicio',
     body: 'Resumen visual de tus posts: pendientes de aprobación, aprobados sin programar, programados y publicados. Toca una tarjeta para ir a Aprobaciones o Calendario.',
+    href: '/inicio',
+    linkLabel: 'Ir a Inicio',
   },
   {
     id: 'composer',
     title: 'Generar Contenido',
     body: 'Crea el texto del post, elige destinos (redes) y adjunta media. Puedes generar con IA (foto o Reel), subir un archivo o usar la biblioteca. Si marcas varias redes, se crea un post por red. Todo pasa por aprobación humana antes de publicar.',
+    href: '/composer',
+    linkLabel: 'Ir a Generar Contenido',
   },
   {
     id: 'biblioteca',
@@ -58,13 +63,10 @@ const SECTIONS = [
 export default function GuiaPage() {
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-ink">Guía del usuario</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Solo lectura. Explica qué hace cada módulo para que no te pierdas. Si necesitas el
-          manual completo con capturas, pídeselo a Ethos.
-        </p>
-      </div>
+      <PageHeader
+        title="Guía del usuario"
+        description="Solo lectura. Explica qué hace cada módulo para que no te pierdas. Si necesitas el manual completo con capturas, pídeselo a Ethos."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {SECTIONS.map((section) => (
@@ -73,24 +75,18 @@ export default function GuiaPage() {
             id={section.id}
             className="rounded-xl border border-line bg-surface p-4 shadow-sm"
           >
-            <h2 className="text-sm font-semibold text-ink">{section.title}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted">{section.body}</p>
-            {section.id === 'composer' && (
+            <h2 className="font-[family-name:var(--font-landing-display)] text-base font-semibold tracking-tight text-ink">
+              <span className="border-b-2 border-brand/40 pb-0.5">{section.title}</span>
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted">{section.body}</p>
+            {'href' in section && section.href ? (
               <Link
-                href="/composer"
+                href={section.href}
                 className="mt-3 inline-block text-sm font-medium text-brand hover:underline"
               >
-                Ir a Generar Contenido
+                {section.linkLabel}
               </Link>
-            )}
-            {section.id === 'inicio' && (
-              <Link
-                href="/inicio"
-                className="mt-3 inline-block text-sm font-medium text-brand hover:underline"
-              >
-                Ir a Inicio
-              </Link>
-            )}
+            ) : null}
           </section>
         ))}
       </div>
