@@ -200,6 +200,39 @@ html.dark .landing-hero-bg {
   background: var(--cm-surface);
 }
 
+/* Logo Ethos (SVG) — transparente, sin caja; colores por tema */
+.ethos-logo-svg .ethos-mark-stroke {
+  stroke: #0a1628;
+}
+
+.ethos-logo-svg .ethos-mark-accent {
+  stroke: #1877f2;
+}
+
+.ethos-wordmark {
+  color: #0a1628;
+}
+
+.ethos-tagline {
+  color: #5b5e63;
+}
+
+html.dark .ethos-logo-svg .ethos-mark-stroke {
+  stroke: #f0f2f5;
+}
+
+html.dark .ethos-logo-svg .ethos-mark-accent {
+  stroke: #5babff;
+}
+
+html.dark .ethos-wordmark {
+  color: #f0f2f5;
+}
+
+html.dark .ethos-tagline {
+  color: #c2c6cc;
+}
+
 /* Etiquetas de grupo del menú (no son links) */
 .nav-group-label {
   margin-left: 0.25rem;

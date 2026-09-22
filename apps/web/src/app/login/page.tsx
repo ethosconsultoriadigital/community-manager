@@ -18,20 +18,20 @@ export default function LoginPage() {
 
   if (loading || user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F0F2F5] text-[#65676B]">
+      <div className="flex min-h-screen items-center justify-center bg-canvas text-muted">
         Cargando…
       </div>
     );
   }
 
   return (
-    <div className="landing-root flex min-h-screen flex-col bg-[#F0F2F5] text-[#1C1E21]">
-      <header className="border-b border-[#E4E6EB] bg-white">
+    <div className="landing-root flex min-h-screen flex-col bg-canvas text-ink">
+      <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <EthosLogo href="/" compact />
           <Link
             href="/"
-            className="text-sm font-medium text-[#1877F2] hover:underline"
+            className="text-sm font-medium text-brand hover:underline"
           >
             Volver al inicio
           </Link>
@@ -39,12 +39,12 @@ export default function LoginPage() {
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-        <div className="w-full max-w-sm rounded-lg border border-[#E4E6EB] bg-white p-6 shadow-sm">
+        <div className="w-full max-w-sm rounded-lg border border-line bg-surface p-6 shadow-sm">
           <div className="mb-6 flex flex-col items-center gap-4 text-center">
             <EthosLogo href={false} compact />
             <div>
-              <p className="text-lg font-bold text-[#1C1E21]">Community Manager</p>
-              <p className="mt-1 text-sm text-[#65676B]">Inicia sesión para gestionar contenido</p>
+              <p className="text-lg font-bold text-ink">Community Manager</p>
+              <p className="mt-1 text-sm text-muted">Inicia sesión para gestionar contenido</p>
             </div>
           </div>
           <LoginForm />

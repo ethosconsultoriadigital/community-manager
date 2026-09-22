@@ -3,7 +3,18 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-18 (pulido tipografía y tema oscuro)
+**Última actualización:** 2026-09-22 (logo SVG sin caja)
+
+---
+
+## 2026-09-22 — Logo Ethos profesional (SVG, sin recuadro) ✅
+
+- `EthosLogo` deja de usar PNG con fondo blanco/azul (se veía «cuadrado» sobre canvas).
+- Nuevo mark + wordmark en **SVG transparente**; colores por tema (claro/oscuro) vía CSS.
+- Mismo componente en menú, footer, landing, login y recuperación → aspecto uniforme.
+- PDF parrilla sigue con asset PNG de API (impreso); sin cambio de lógica.
+
+**Criterio:** ✅ Sin caja; legible en ambos temas. ⏳ Redeploy web.
 
 ---
 
