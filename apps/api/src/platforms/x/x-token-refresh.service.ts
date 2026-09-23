@@ -40,16 +40,15 @@ export class XTokenRefreshService {
         const refreshToken = decryptToken(account.refresh_token_enc, encryptionKey);
         const renewed = await this.x.refreshAccessToken(refreshToken);
         const accessEnc = encryptToken(renewed.access_token, encryptionKey);
-        const refreshEnc = renewed.refresh_token
-          ? encryptToken(renewed.refresh_token, encryptionKey)
-          : account.refresh_token_enc;
         const tokenExpiresAt = renewed.expires_in
           ? new Date(Date.now() + renewed.expires_in * 1000)
           : account.token_expires_at;
 
         await this.socialAccounts.updateTokens(account.agency_id, account.id, {
           accessTokenEnc: accessEnc,
-          refreshTokenEnc: refreshEnc,
+          ...(renewed.refresh_token
+            ? { refreshTokenEnc: encryptToken(renewed.refresh_token, encryptionKey) }
+            : {}),
           tokenExpiresAt,
         });
         refreshed += 1;
