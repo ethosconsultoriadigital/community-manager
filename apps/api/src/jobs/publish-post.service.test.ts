@@ -264,4 +264,36 @@ describe('PublishPostService', () => {
       }),
     );
   });
+
+  it('despacha a publisher de X vía registry', async () => {
+    const xPublish = { publish: vi.fn().mockResolvedValue({ platformPostId: 'tw-1' }) };
+    const { service, posts, socialAccounts, publishers } = createService();
+    publishers.getPublisher.mockReturnValue(xPublish);
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Tweet',
+      hashtags: [],
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa-x' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa-x',
+      platform: 'x',
+      external_account_id: 'x-user-1',
+      access_token_enc: encryptedToken('x-token'),
+      is_active: true,
+    });
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(publishers.getPublisher).toHaveBeenCalledWith('x');
+    expect(xPublish.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'x',
+        externalAccountId: 'x-user-1',
+      }),
+    );
+  });
 });

@@ -57,12 +57,23 @@ Tras cada fase: revisar en staging antes de la siguiente.
 
 ---
 
-## Fase 2 — X (Twitter) — pendiente
+## Fase 2 — X (Twitter) ✅ código
 
-- App developer.x.com + plan con write.
-- OAuth 2.0 + refresh; `X_PUBLISH_ENABLED`.
-- Publisher `POST /2/tweets`; truncado/hilo de caption.
-- Sin tocar Meta ni Threads.
+**Entregables:**
+- Módulo `platforms/x/`: OAuth 2.0 + PKCE (`twitter.com/i/oauth2`), API `api.twitter.com/2`, publish texto/hilo, refresh.
+- Endpoints: `GET /oauth/x/connect-url`, `GET /oauth/x/callback`, `GET /oauth/x/status`.
+- UI Cuentas: «Conectar X» si `X_PUBLISH_ENABLED` + credenciales.
+- Flag `X_PUBLISH_ENABLED` + `X_CLIENT_ID` / `X_CLIENT_SECRET` / `X_REDIRECT_URI`.
+- Sin migración (enum `x` ya en schema base).
+- Doc operativa: `docs/X_activacion.md`.
+
+**Aceptación:** ✅ código listo; ⏳ conectar cuenta de prueba requiere app en developer.x.com + vars en Render.
+
+**Operativo:**
+1. App OAuth 2.0 confidential + redirect `…/oauth/x/callback`.
+2. Scopes: `tweet.read tweet.write users.read offline.access`.
+3. Plan con write.
+4. Redeploy API/web.
 
 ---
 
@@ -86,7 +97,7 @@ Tras cada fase: revisar en staging antes de la siguiente.
 | Variable | Default | Efecto |
 |----------|---------|--------|
 | `THREADS_PUBLISH_ENABLED` | `false` | Activa OAuth + publish Threads |
-| `X_PUBLISH_ENABLED` | `false` | (Fase 2) |
+| `X_PUBLISH_ENABLED` | `false` | Activa OAuth + publish X |
 | `TIKTOK_PUBLISH_ENABLED` | `false` | (Fase 3) |
 
 ---

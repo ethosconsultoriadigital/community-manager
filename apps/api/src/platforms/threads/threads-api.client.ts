@@ -22,7 +22,7 @@ export class ThreadsApiClient {
       response_type: 'code',
       state,
     });
-    return `https://threads.net/oauth/authorize?${params}`;
+    return `https://threads.com/oauth/authorize?${params}`;
   }
 
   async exchangeCodeForToken(

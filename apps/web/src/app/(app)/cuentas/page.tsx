@@ -44,7 +44,7 @@ export default function CuentasPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [features, setFeatures] = useState<PlatformFeatures | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState<'meta' | 'threads' | null>(null);
+  const [connecting, setConnecting] = useState<'meta' | 'threads' | 'x' | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +85,8 @@ export default function CuentasPage() {
       setMessage('Cuenta Meta conectada correctamente.');
     } else if (connected === 'threads') {
       setMessage('Cuenta Threads conectada correctamente.');
+    } else if (connected === 'x') {
+      setMessage('Cuenta X conectada correctamente.');
     }
   }, [searchParams]);
 
@@ -120,6 +122,21 @@ export default function CuentasPage() {
       setError(
         err instanceof ApiError ? err.message : 'No se pudo iniciar la conexión con Threads',
       );
+      setConnecting(null);
+    }
+  }
+
+  async function connectX() {
+    if (!clientId) return;
+    setConnecting('x');
+    setError(null);
+    try {
+      const { url } = await apiFetch<{ url: string }>(
+        `/oauth/x/connect-url?clientId=${encodeURIComponent(clientId)}`,
+      );
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo iniciar la conexión con X');
       setConnecting(null);
     }
   }
@@ -163,7 +180,7 @@ export default function CuentasPage() {
     <div className="space-y-6">
       <PageHeader
         title="Cuentas sociales"
-        description="Conecta o desconecta cuentas por cliente (Meta y, si está habilitado, Threads)."
+        description="Conecta o desconecta cuentas por cliente (Meta y, si están habilitadas, Threads y X)."
       />
 
       {message && <p className="text-sm text-emerald-600">{message}</p>}
@@ -198,6 +215,16 @@ export default function CuentasPage() {
                 {connecting === 'threads' ? 'Redirigiendo…' : 'Conectar Threads'}
               </button>
             )}
+            {features?.x && (
+              <button
+                type="button"
+                onClick={connectX}
+                disabled={!clientId || connecting !== null}
+                className="rounded-md border border-line-strong bg-white px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+              >
+                {connecting === 'x' ? 'Redirigiendo…' : 'Conectar X'}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -209,7 +236,7 @@ export default function CuentasPage() {
         {activeAccounts.length === 0 ? (
           <p className="text-sm text-muted">
             No hay cuentas activas para este cliente.
-            {canManage && ' Usa «Conectar Meta» (o Threads) para añadir destinos.'}
+            {canManage && ' Usa «Conectar Meta» (u otras redes habilitadas) para añadir destinos.'}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -265,6 +292,8 @@ export default function CuentasPage() {
                     onClick={() => {
                       if (account.platform === 'threads') {
                         void connectThreads();
+                      } else if (account.platform === 'x') {
+                        void connectX();
                       } else {
                         void connectMeta();
                       }
@@ -277,7 +306,9 @@ export default function CuentasPage() {
                       ? 'Redirigiendo…'
                       : account.platform === 'threads'
                         ? 'Volver a conectar Threads'
-                        : 'Volver a conectar Meta'}
+                        : account.platform === 'x'
+                          ? 'Volver a conectar X'
+                          : 'Volver a conectar Meta'}
                   </button>
                 )}
               </li>

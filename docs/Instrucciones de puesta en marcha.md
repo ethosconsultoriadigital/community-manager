@@ -52,6 +52,9 @@ Editar `.env` y completar al menos:
 | `THREADS_PUBLISH_ENABLED` | Activar Threads | `false` hasta configurar app Threads |
 | `THREADS_APP_ID` / `THREADS_APP_SECRET` | App Threads (Meta) | Developer Dashboard → Threads |
 | `THREADS_REDIRECT_URI` | Callback OAuth Threads | `http://localhost:4000/oauth/threads/callback` |
+| `X_PUBLISH_ENABLED` | Activar X | `false` hasta configurar app en developer.x.com |
+| `X_CLIENT_ID` / `X_CLIENT_SECRET` | App X (OAuth 2.0) | Developer Portal X |
+| `X_REDIRECT_URI` | Callback OAuth X | `http://localhost:4000/oauth/x/callback` |
 | `FRONTEND_URL` | Redirección tras OAuth | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | URL de la API para el frontend | `http://localhost:4000` |
 | `MEDIA_PUBLIC_BASE_URL` | URL base para media subida en local | `http://localhost:4000` |

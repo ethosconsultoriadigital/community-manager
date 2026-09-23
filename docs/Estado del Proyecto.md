@@ -3,7 +3,33 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-22 (logo SVG sin caja)
+**Última actualización:** 2026-09-23 (Fase 2 X: OAuth + publish texto)
+
+---
+
+## 2026-09-23 — Fase 2 X (Twitter): OAuth + publish ✅
+
+**Objetivo:** conectar y publicar en X sin alterar Meta/Threads.
+
+**Implementado:**
+- Módulo `platforms/x/` (OAuth 2.0 PKCE, `POST /2/tweets`, hilo si caption > 280, refresh horario).
+- Endpoints `/oauth/x/connect-url|callback|status`; registry despacha `x` con flag.
+- UI Cuentas: «Conectar X» si `GET /platforms/features` → `x: true`.
+- Docs: `X_activacion.md`, Plan Fase 2, Instrucciones + `.env.example`.
+- Sin migración (enum `x` ya existía). Media en tweet queda para iteración posterior.
+
+**Operativo:** app en developer.x.com + vars `X_*` en Render + `X_PUBLISH_ENABLED=true` + redeploy.
+
+**Criterio:** ✅ código + tests; ⏳ credenciales y prueba real de conexión/publicación.
+
+---
+
+## 2026-09-22 — Threads: guía del bloqueo 1349245 + OAuth `threads.com` ✅
+
+- Doc `docs/Threads_activacion.md`: error admin vs evaluador, rutas A/B/C para conectar.
+- `ThreadsApiClient.buildOAuthUrl` usa `https://threads.com/oauth/authorize` (docs actuales).
+
+**Criterio:** ✅ Documentado; ⏳ usuario completa evaluador/sesión limpia en Meta.
 
 ---
 
@@ -175,8 +201,9 @@
 3. En Meta App: Threads API + redirect `…/oauth/threads/callback`.
 4. En `.env`: `THREADS_PUBLISH_ENABLED=true`, `THREADS_APP_ID`, `THREADS_APP_SECRET`, `THREADS_REDIRECT_URI`.
 5. Probar conectar + publicar post de prueba en Threads.
+6. **Bloqueo conocido:** error `1349245` (invite tester). Ver guía `docs/Threads_activacion.md` — admin no puede autoañadirse como evaluador de Threads; usar sesión limpia o otro evaluador.
 
-**Criterio de aceptación:** ✅ Código y tests listos; ⏳ conexión real pendiente de credenciales/migración en el entorno.
+**Criterio de aceptación:** ✅ Código y tests listos; ⏳ conexión real pendiente de testers/App Review (ver `Threads_activacion.md`).
 
 ---
 
