@@ -57,4 +57,53 @@ describe('AutoPromoteService', () => {
     expect(approvals.createPending).toHaveBeenCalledTimes(2);
     expect(sourceItems.linkPost).toHaveBeenCalledWith('agency-1', 'item-1', 'post-fb');
   });
+
+  it('Threads usa copy_x (formato corto) y no el de Facebook', async () => {
+    const item = {
+      id: 'item-1',
+      client_id: 'client-1',
+      source_id: 'source-1',
+      external_id: 'noticia_1',
+      copy_facebook: 'Texto muy largo de Facebook para feed',
+      copy_instagram: 'Texto IG',
+      copy_x: 'Copy corto X',
+      hashtags: ['#mx'],
+      source_url: 'https://radarmex.example/n1',
+      image_url: null,
+      post_id: null,
+    };
+
+    const sourceItems = {
+      findPromotable: vi.fn().mockResolvedValue([item]),
+      linkPost: vi.fn().mockResolvedValue(true),
+    };
+    const posts = {
+      create: vi.fn().mockResolvedValue({ id: 'post-th' }),
+    };
+    const mediaAssets = { create: vi.fn() };
+    const approvals = { createPending: vi.fn().mockResolvedValue({}) };
+    const socialAccounts = {
+      findByAgency: vi.fn().mockResolvedValue([
+        { id: 'sa-th', platform: 'threads', is_active: true },
+      ]),
+    };
+    const mediaStorage = { save: vi.fn() };
+
+    const service = new AutoPromoteService(
+      sourceItems as never,
+      posts as never,
+      mediaAssets as never,
+      approvals as never,
+      socialAccounts as never,
+      mediaStorage as never,
+    );
+
+    const result = await service.promoteSource('agency-1', 'user-1', 'source-1');
+
+    expect(result.postsCreated).toBe(1);
+    expect(posts.create).toHaveBeenCalledTimes(1);
+    expect(posts.create.mock.calls[0][2].socialAccountIds).toEqual(['sa-th']);
+    expect(posts.create.mock.calls[0][2].caption).toContain('Copy corto X');
+    expect(posts.create.mock.calls[0][2].caption).not.toContain('Texto muy largo');
+  });
 });

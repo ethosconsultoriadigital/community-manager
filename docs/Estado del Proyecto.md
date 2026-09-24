@@ -3,7 +3,15 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-23 (Fase 2 X: OAuth + publish texto)
+**Última actualización:** 2026-09-24 (Radar: Threads usa copy corto de X)
+
+---
+
+## 2026-09-24 — Radar auto-promote: Threads con copy de X ✅
+
+**Cambio:** al promover noticias del Sheet, Threads usa `copy_x` (columna `post_x`, texto corto) en lugar del copy largo de Facebook/Instagram. Fallback a FB/IG solo si no hay `copy_x`. FB e IG sin cambios.
+
+**Criterio:** ✅ Código; ⏳ redeploy API. Posts ya creados no se reescriben.
 
 ---
 

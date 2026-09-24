@@ -95,10 +95,10 @@ export class AutoPromoteService {
     }> = [
       { platform: 'facebook', copy: item.copy_facebook },
       { platform: 'instagram', copy: item.copy_instagram },
-      // Threads: reutiliza copy de Facebook o Instagram si hay cuenta Threads
+      // Threads: mismo formato corto que X (columna post_x del Sheet)
       {
         platform: 'threads',
-        copy: item.copy_facebook?.trim() || item.copy_instagram,
+        copy: item.copy_x?.trim() || item.copy_facebook?.trim() || item.copy_instagram,
       },
     ];
 
