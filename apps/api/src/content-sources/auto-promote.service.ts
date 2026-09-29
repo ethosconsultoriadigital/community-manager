@@ -90,7 +90,7 @@ export class AutoPromoteService {
     const active = accounts.filter((a) => a.is_active);
 
     const platforms: Array<{
-      platform: 'facebook' | 'instagram' | 'threads';
+      platform: 'facebook' | 'instagram' | 'threads' | 'x';
       copy: string | null | undefined;
     }> = [
       { platform: 'facebook', copy: item.copy_facebook },
@@ -100,6 +100,8 @@ export class AutoPromoteService {
         platform: 'threads',
         copy: item.copy_x?.trim() || item.copy_facebook?.trim() || item.copy_instagram,
       },
+      // X: solo columna post_x (texto corto)
+      { platform: 'x', copy: item.copy_x },
     ];
 
     let skippedNoAccount = 0;

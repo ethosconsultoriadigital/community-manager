@@ -3,7 +3,15 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-29 (X: publish con imágenes)
+**Última actualización:** 2026-09-29 (Radar: auto-promote también a X)
+
+---
+
+## 2026-09-29 — Radar auto-promote: destino X con copy_x ✅
+
+**Cambio:** al promover noticias del Sheet, si hay cuenta X activa y `copy_x` (`post_x`), se crea post para X. FB/IG/Threads sin cambios (Threads sigue con copy corto).
+
+**Criterio:** ✅ código + test; ⏳ redeploy API.
 
 ---
 
