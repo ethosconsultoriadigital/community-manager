@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-24 (Radar: Threads usa copy corto de X)
+**Última actualización:** 2026-09-29 (OAuth X: state opaco + Redis PKCE)
+
+---
+
+## 2026-09-29 — OAuth X: state ≤500 chars (Redis PKCE) ✅
+
+**Problema:** `state` JWT ~523 chars con `codeVerifier` en URL; X rechaza >500 y debilita PKCE.
+
+**Cambio:** state opaco (43 chars), `codeVerifier` en Redis `oauth:x:${state}` TTL 600s, `GETDEL` en callback. Token URL `api.x.com/2/oauth2/token`. Redirect `?error=x_oauth_state` si state inválido.
+
+**Criterio:** ✅ tests; ⏳ redeploy API.
 
 ---
 

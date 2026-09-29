@@ -122,7 +122,9 @@ export class XApiClient {
     if (!response.ok || !json.access_token) {
       const detail =
         json.error_description ?? json.error ?? `HTTP ${response.status}`;
-      this.logger.error('Error en token X (sin exponer tokens)');
+      this.logger.error(
+        `Error token OAuth X: status=${response.status} body=${this.sanitizeForLog(json)}`,
+      );
       throw new Error(`No se pudo obtener token de X: ${detail}`);
     }
     return json;
@@ -145,6 +147,24 @@ export class XApiClient {
       return (await response.json()) as JsonRecord;
     } catch {
       return {};
+    }
+  }
+
+  private sanitizeForLog(body: JsonRecord): string {
+    const copy = { ...body };
+    for (const key of [
+      'access_token',
+      'refresh_token',
+      'code',
+      'code_verifier',
+      'client_secret',
+    ]) {
+      if (key in copy) copy[key] = '[redacted]';
+    }
+    try {
+      return JSON.stringify(copy).slice(0, 500);
+    } catch {
+      return '[unserializable]';
     }
   }
 

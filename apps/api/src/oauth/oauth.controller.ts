@@ -16,6 +16,7 @@ import { CanvaOAuthService } from '../platforms/canva/canva-oauth.service';
 import { MetaOAuthService } from '../platforms/meta/meta-oauth.service';
 import { ThreadsOAuthService } from '../platforms/threads/threads-oauth.service';
 import { XOAuthService } from '../platforms/x/x-oauth.service';
+import { XOAuthStateInvalidError } from '../platforms/x/x.types';
 
 @Controller('oauth')
 export class OauthController {
@@ -121,8 +122,15 @@ export class OauthController {
     if (!code || !state) {
       throw new UnauthorizedException('Parámetros OAuth de X incompletos');
     }
-    await this.xOAuth.handleCallback(code, state);
-    return res.redirect(this.xOAuth.getSuccessRedirectUrl());
+    try {
+      await this.xOAuth.handleCallback(code, state);
+      return res.redirect(this.xOAuth.getSuccessRedirectUrl());
+    } catch (err) {
+      if (err instanceof XOAuthStateInvalidError) {
+        return res.redirect(err.redirectUrl);
+      }
+      throw err;
+    }
   }
 
   @Get('x/status')

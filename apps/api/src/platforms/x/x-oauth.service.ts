@@ -1,11 +1,11 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { ClientsRepository, SocialAccountsRepository } from '@cm/db';
 import type { AuthUser } from '@cm/shared';
 import { encryptToken } from '@cm/shared';
@@ -13,14 +13,17 @@ import { createHash, randomBytes } from 'node:crypto';
 import { ClientAccessService } from '../../access/client-access.service';
 import { isXPublishEnabled } from '../platform-features';
 import { XApiClient } from './x-api.client';
-import { X_OAUTH_SCOPES, type XOAuthState } from './x.types';
+import { XOAuthStateStore } from './x-oauth-state.store';
+import { X_OAUTH_SCOPES, XOAuthStateInvalidError } from './x.types';
 
 @Injectable()
 export class XOAuthService {
+  private readonly logger = new Logger(XOAuthService.name);
+
   constructor(
     private readonly config: ConfigService,
-    private readonly jwt: JwtService,
     private readonly x: XApiClient,
+    private readonly stateStore: XOAuthStateStore,
     private readonly clients: ClientsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
     private readonly clientAccess: ClientAccessService,
@@ -45,18 +48,15 @@ export class XOAuthService {
 
     const codeVerifier = randomBytes(64).toString('base64url');
     const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+    const state = randomBytes(32).toString('base64url');
     const redirectUri = this.getRedirectUri();
 
-    const state = this.jwt.sign(
-      {
-        sub: user.id,
-        agencyId: user.agencyId,
-        clientId,
-        codeVerifier,
-        nonce: randomBytes(16).toString('hex'),
-      } satisfies XOAuthState,
-      { expiresIn: '15m' },
-    );
+    await this.stateStore.save(state, {
+      userId: user.id,
+      agencyId: user.agencyId,
+      clientId,
+      codeVerifier,
+    });
 
     return this.x.buildOAuthUrl(
       redirectUri,
@@ -68,15 +68,29 @@ export class XOAuthService {
 
   async handleCallback(code: string, state: string) {
     this.assertEnabled();
-    const payload = this.verifyState(state);
-    await this.assertClientBelongsToAgency(payload.agencyId, payload.clientId);
+
+    const pending = await this.stateStore.consume(state);
+    if (!pending) {
+      throw new XOAuthStateInvalidError(this.getStateErrorRedirectUrl());
+    }
+
+    await this.assertClientBelongsToAgency(pending.agencyId, pending.clientId);
 
     const redirectUri = this.getRedirectUri();
-    const tokens = await this.x.exchangeCodeForToken(
-      code,
-      redirectUri,
-      payload.codeVerifier,
-    );
+    let tokens;
+    try {
+      tokens = await this.x.exchangeCodeForToken(
+        code,
+        redirectUri,
+        pending.codeVerifier,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Callback OAuth X: fallo intercambio de token (${error instanceof Error ? error.message : 'error'})`,
+      );
+      throw error;
+    }
+
     const profile = await this.x.getMe(tokens.access_token);
 
     if (!profile.id) {
@@ -90,8 +104,8 @@ export class XOAuthService {
       : [...X_OAUTH_SCOPES];
 
     const account = await this.socialAccounts.upsert({
-      agencyId: payload.agencyId,
-      clientId: payload.clientId,
+      agencyId: pending.agencyId,
+      clientId: pending.clientId,
       platform: 'x',
       externalAccountId: String(profile.id),
       username: profile.username ?? null,
@@ -104,8 +118,8 @@ export class XOAuthService {
     });
 
     return {
-      agencyId: payload.agencyId,
-      clientId: payload.clientId,
+      agencyId: pending.agencyId,
+      clientId: pending.clientId,
       accounts: [account],
     };
   }
@@ -115,12 +129,9 @@ export class XOAuthService {
     return `${frontend}/cuentas?connected=x`;
   }
 
-  private verifyState(state: string): XOAuthState {
-    try {
-      return this.jwt.verify<XOAuthState>(state);
-    } catch {
-      throw new BadRequestException('State OAuth de X inválido o expirado');
-    }
+  getStateErrorRedirectUrl(): string {
+    const frontend = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    return `${frontend}/cuentas?error=x_oauth_state`;
   }
 
   private async assertClientBelongsToAgency(agencyId: string, clientId: string) {

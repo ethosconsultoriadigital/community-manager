@@ -1,5 +1,5 @@
 export const X_AUTHORIZE_URL = 'https://twitter.com/i/oauth2/authorize';
-export const X_TOKEN_URL = 'https://api.twitter.com/2/oauth2/token';
+export const X_TOKEN_URL = 'https://api.x.com/2/oauth2/token';
 export const X_API_BASE = 'https://api.twitter.com/2';
 
 /** Límite de caracteres por tweet (API v2, cuentas estándar). */
@@ -30,13 +30,19 @@ export type XProfile = {
   name?: string;
 };
 
-export type XOAuthState = {
-  sub: string;
+export type XOAuthPendingState = {
+  userId: string;
   agencyId: string;
   clientId: string;
   codeVerifier: string;
-  nonce: string;
 };
+
+export class XOAuthStateInvalidError extends Error {
+  constructor(public readonly redirectUrl: string) {
+    super('state inválido o expirado');
+    this.name = 'XOAuthStateInvalidError';
+  }
+}
 
 export type XTweetCreateResponse = {
   data?: { id: string; text?: string };
