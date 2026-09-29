@@ -83,9 +83,14 @@ export class PublishPostService {
         this.requireEncryptionKey(),
       );
       const message = this.buildMessage(post.caption, post.hashtags);
+      const imageAssets = post.media_assets.filter((m) => m.type === 'image');
       const primaryMedia = post.media_assets[0];
       const imageUrl =
         primaryMedia?.type === 'image' ? primaryMedia.storage_url : undefined;
+      const imageUrls = imageAssets
+        .slice(0, 4)
+        .map((m) => m.storage_url)
+        .filter(Boolean);
       const videoUrl =
         primaryMedia?.type === 'video' ? primaryMedia.storage_url : undefined;
       const videoFormat =
@@ -100,8 +105,10 @@ export class PublishPostService {
         externalAccountId: account.external_account_id,
         accessToken,
         agencyId,
+        postId,
         message,
         imageUrl,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         videoUrl,
         videoFormat: videoUrl ? videoFormat : undefined,
         alsoPublishAsStory: Boolean(post.also_publish_as_story),

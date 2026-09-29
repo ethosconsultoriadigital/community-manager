@@ -79,4 +79,32 @@ export class MediaStorageService {
   resolveLocalPath(storageKey: string): string {
     return this.local.resolvePath(storageKey);
   }
+
+  /**
+   * Lee bytes desde storage (S3/local) a partir de la URL pública.
+   * Si no es URL de nuestro storage, descarga por HTTP (p. ej. imágenes externas).
+   */
+  async readBytesFromUrl(url: string): Promise<{ buffer: Buffer; contentType: string }> {
+    if (this.s3) {
+      const key = this.s3.keyFromPublicUrl(url);
+      if (key) return this.s3.read(key);
+    }
+    const localKey = this.local.keyFromPublicUrl(url);
+    if (localKey) return this.local.read(localKey);
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'CommunityManager/1.0' },
+      redirect: 'follow',
+    });
+    if (!response.ok) {
+      throw new Error(`No se pudo descargar media (${response.status}): ${url}`);
+    }
+    const contentType =
+      response.headers.get('content-type')?.split(';')[0]?.trim() ||
+      'application/octet-stream';
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      contentType,
+    };
+  }
 }

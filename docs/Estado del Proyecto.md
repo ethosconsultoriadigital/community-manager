@@ -3,7 +3,15 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-29 (OAuth X: state opaco + Redis PKCE)
+**Última actualización:** 2026-09-29 (X: publish con imágenes)
+
+---
+
+## 2026-09-29 — X: adjuntar imágenes al tweet ✅
+
+**Cambio:** `XPublishService` sube hasta 4 imágenes vía `POST /2/media/upload` (bytes desde storage) y las adjunta al tweet. Scope OAuth `media.write`. Si falla media → destino failed (no solo texto).
+
+**Criterio:** ✅ código + tests; ⏳ redeploy + reconectar cuentas X para el scope nuevo.
 
 ---
 

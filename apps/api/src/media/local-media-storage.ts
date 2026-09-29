@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export type StoredMedia = {
@@ -7,11 +7,28 @@ export type StoredMedia = {
   publicUrl: string;
 };
 
+export type ReadMediaResult = {
+  buffer: Buffer;
+  contentType: string;
+};
+
+const EXT_MIME: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
 export class LocalMediaStorage {
+  readonly publicBaseUrl: string;
+
   constructor(
     private readonly uploadsDir: string,
-    private readonly publicBaseUrl: string,
-  ) {}
+    publicBaseUrl: string,
+  ) {
+    this.publicBaseUrl = publicBaseUrl.replace(/\/$/, '');
+  }
 
   async save(
     agencyId: string,
@@ -25,7 +42,7 @@ export class LocalMediaStorage {
     await writeFile(filePath, buffer);
 
     const storageKey = `${agencyId}/${fileName}`;
-    const publicUrl = `${this.publicBaseUrl.replace(/\/$/, '')}/media/files/${storageKey}`;
+    const publicUrl = `${this.publicBaseUrl}/media/files/${storageKey}`;
     return { storageKey, publicUrl };
   }
 
@@ -35,5 +52,20 @@ export class LocalMediaStorage {
       throw new Error('Clave de almacenamiento inválida');
     }
     return join(this.uploadsDir, normalized);
+  }
+
+  async read(storageKey: string): Promise<ReadMediaResult> {
+    const path = this.resolvePath(storageKey);
+    const buffer = await readFile(path);
+    const mime = EXT_MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
+    return { buffer, contentType: mime };
+  }
+
+  keyFromPublicUrl(url: string): string | null {
+    const marker = '/media/files/';
+    const idx = url.indexOf(marker);
+    if (idx < 0) return null;
+    const key = url.slice(idx + marker.length).split('?')[0];
+    return key.includes('/') && !key.includes('..') ? key : null;
   }
 }

@@ -13,7 +13,11 @@ export type PublishTargetInput = {
   accessToken: string;
   message: string;
   agencyId?: string;
+  /** Id del post (logs / trazabilidad). */
+  postId?: string;
   imageUrl?: string;
+  /** Hasta 4 imágenes (misma fuente media_assets que Meta). */
+  imageUrls?: string[];
   videoUrl?: string;
   videoFormat?: VideoFormat;
   alsoPublishAsStory?: boolean;

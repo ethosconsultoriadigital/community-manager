@@ -3,7 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import {
   X_API_BASE,
   X_AUTHORIZE_URL,
+  X_MEDIA_UPLOAD_URL,
   X_TOKEN_URL,
+  type XMediaUploadResponse,
   type XProfile,
   type XTokenResponse,
   type XTweetCreateResponse,
@@ -78,11 +80,14 @@ export class XApiClient {
   async createTweet(
     accessToken: string,
     text: string,
-    inReplyToTweetId?: string,
+    options?: { inReplyToTweetId?: string; mediaIds?: string[] },
   ): Promise<{ id: string }> {
     const payload: Record<string, unknown> = { text };
-    if (inReplyToTweetId) {
-      payload.reply = { in_reply_to_tweet_id: inReplyToTweetId };
+    if (options?.inReplyToTweetId) {
+      payload.reply = { in_reply_to_tweet_id: options.inReplyToTweetId };
+    }
+    if (options?.mediaIds?.length) {
+      payload.media = { media_ids: options.mediaIds };
     }
 
     const response = await fetch(`${X_API_BASE}/tweets`, {
@@ -96,7 +101,45 @@ export class XApiClient {
 
     const body = (await this.readJson(response)) as XTweetCreateResponse;
     if (!response.ok || !body.data?.id) {
-      throw new Error(this.formatApiError('publicar tweet', response.status, body));
+      this.logger.error(
+        `Error publicar tweet X: status=${response.status} body=${this.sanitizeForLog(body as JsonRecord)}`,
+      );
+      throw new Error(this.formatApiError('publicar tweet', response.status, body as JsonRecord));
+    }
+    return { id: body.data.id };
+  }
+
+  async uploadImage(
+    accessToken: string,
+    buffer: Buffer,
+    contentType: string,
+    fileName = 'image',
+  ): Promise<{ id: string }> {
+    const form = new FormData();
+    form.append(
+      'media',
+      new Blob([new Uint8Array(buffer)], { type: contentType }),
+      fileName,
+    );
+    form.append('media_category', 'tweet_image');
+
+    const response = await fetch(X_MEDIA_UPLOAD_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    });
+
+    const body = (await this.readJson(response)) as XMediaUploadResponse;
+    if (!response.ok || !body.data?.id) {
+      this.logger.error(
+        `Error upload media X: status=${response.status} body=${this.sanitizeForLog(body as JsonRecord)}`,
+      );
+      if (response.status === 403) {
+        throw new Error('Token sin media.write: reconectar cuenta X');
+      }
+      throw new Error(
+        this.formatApiError('subir imagen', response.status, body as JsonRecord),
+      );
     }
     return { id: body.data.id };
   }
