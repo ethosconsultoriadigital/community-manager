@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Logger,
   Query,
   Res,
   UnauthorizedException,
@@ -17,13 +18,18 @@ import { MetaOAuthService } from '../platforms/meta/meta-oauth.service';
 import { ThreadsOAuthService } from '../platforms/threads/threads-oauth.service';
 import { XOAuthService } from '../platforms/x/x-oauth.service';
 import { XOAuthStateInvalidError } from '../platforms/x/x.types';
+import { TikTokOAuthService } from '../platforms/tiktok/tiktok-oauth.service';
+import { TikTokOAuthStateInvalidError } from '../platforms/tiktok/tiktok.types';
 
 @Controller('oauth')
 export class OauthController {
+  private readonly logger = new Logger(OauthController.name);
+
   constructor(
     private readonly metaOAuth: MetaOAuthService,
     private readonly threadsOAuth: ThreadsOAuthService,
     private readonly xOAuth: XOAuthService,
+    private readonly tiktokOAuth: TikTokOAuthService,
     private readonly canvaOAuth: CanvaOAuthService,
     private readonly canvaEditor: CanvaEditorService,
   ) {}
@@ -137,6 +143,53 @@ export class OauthController {
   @UseGuards(JwtAuthGuard)
   xStatus() {
     return { enabled: this.xOAuth.isEnabled() };
+  }
+
+  @Get('tiktok/connect-url')
+  @UseGuards(JwtAuthGuard)
+  async tiktokConnectUrl(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId: string,
+  ) {
+    if (!clientId) {
+      throw new BadRequestException('clientId es obligatorio');
+    }
+    const url = await this.tiktokOAuth.startConnect(user, clientId);
+    return { url };
+  }
+
+  @Get('tiktok/callback')
+  async callbackTikTok(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') error: string | undefined,
+    @Query('error_description') errorDescription: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (error || errorDescription) {
+      this.logger.warn(
+        `TikTok OAuth denegado: error=${error ?? 'n/a'} description=${errorDescription ?? 'n/a'}`,
+      );
+      return res.redirect(this.tiktokOAuth.getErrorRedirectUrl('tiktok_denied'));
+    }
+    if (!code || !state) {
+      throw new UnauthorizedException('Parámetros OAuth de TikTok incompletos');
+    }
+    try {
+      await this.tiktokOAuth.handleCallback(code, state);
+      return res.redirect(this.tiktokOAuth.getSuccessRedirectUrl());
+    } catch (err) {
+      if (err instanceof TikTokOAuthStateInvalidError) {
+        return res.redirect(err.redirectUrl);
+      }
+      throw err;
+    }
+  }
+
+  @Get('tiktok/status')
+  @UseGuards(JwtAuthGuard)
+  tiktokStatus() {
+    return { enabled: this.tiktokOAuth.isEnabled() };
   }
 
   @Get('canva/connect-url')

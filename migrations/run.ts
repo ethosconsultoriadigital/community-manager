@@ -18,6 +18,7 @@ const MIGRATIONS = [
   'schema_post_place.sql',
   'schema_library_items.sql',
   'schema_generation_kind_video.sql',
+  'schema_tiktok_oauth.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

@@ -77,11 +77,12 @@ Tras cada fase: revisar en staging antes de la siguiente.
 
 ---
 
-## Fase 3 — TikTok — pendiente
+## Fase 3 — TikTok — ✅ conexión OAuth (publish pendiente)
 
-- TikTok Content Posting API + App Review.
-- MVP: video (Composer Reel/video).
-- `TIKTOK_PUBLISH_ENABLED`.
+- OAuth 2.0 + Redis state; tokens cifrados; refresh; revoke.
+- Flag `TIKTOK_PUBLISH_ENABLED` + `TIKTOK_CLIENT_KEY` / `SECRET` / `REDIRECT_URI`.
+- UI Cuentas: Conectar TikTok (sin publisher de video aún).
+- Doc: `docs/TikTok_activacion.md`.
 
 ---
 

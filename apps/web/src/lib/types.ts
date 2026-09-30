@@ -27,6 +27,8 @@ export type SocialAccount = {
   username: string | null;
   external_account_id: string;
   is_active?: boolean;
+  avatar_url?: string | null;
+  connection_status?: string | null;
 };
 
 export type PostTarget = {

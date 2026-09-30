@@ -13,9 +13,12 @@ export type UpsertSocialAccountData = {
   platform: social_platform;
   externalAccountId: string;
   username?: string | null;
+  avatarUrl?: string | null;
+  connectionStatus?: string | null;
   accessTokenEnc: Buffer;
   refreshTokenEnc?: Buffer | null;
   tokenExpiresAt?: Date | null;
+  refreshExpiresAt?: Date | null;
   scopes: string[];
 };
 
@@ -26,7 +29,10 @@ const publicSelect = {
   platform: true,
   external_account_id: true,
   username: true,
+  avatar_url: true,
+  connection_status: true,
   token_expires_at: true,
+  refresh_expires_at: true,
   scopes: true,
   is_active: true,
   connected_at: true,
@@ -82,22 +88,28 @@ export class SocialAccountsRepository {
         platform: data.platform,
         external_account_id: data.externalAccountId,
         username: data.username,
+        avatar_url: data.avatarUrl ?? null,
+        connection_status: data.connectionStatus ?? null,
         access_token_enc: toPrismaBytes(data.accessTokenEnc),
         refresh_token_enc: data.refreshTokenEnc
           ? toPrismaBytes(data.refreshTokenEnc)
           : null,
         token_expires_at: data.tokenExpiresAt,
+        refresh_expires_at: data.refreshExpiresAt ?? null,
         scopes: data.scopes,
       },
       update: {
         agency_id: data.agencyId,
         client_id: data.clientId,
         username: data.username,
+        avatar_url: data.avatarUrl ?? null,
+        connection_status: data.connectionStatus ?? null,
         access_token_enc: toPrismaBytes(data.accessTokenEnc),
         refresh_token_enc: data.refreshTokenEnc
           ? toPrismaBytes(data.refreshTokenEnc)
           : null,
         token_expires_at: data.tokenExpiresAt,
+        refresh_expires_at: data.refreshExpiresAt ?? null,
         scopes: data.scopes,
         is_active: true,
         updated_at: new Date(),
@@ -113,6 +125,8 @@ export class SocialAccountsRepository {
       accessTokenEnc: Buffer;
       refreshTokenEnc?: Buffer | null;
       tokenExpiresAt?: Date | null;
+      refreshExpiresAt?: Date | null;
+      connectionStatus?: string | null;
     },
   ) {
     return this.prisma.social_accounts.updateMany({
@@ -123,6 +137,22 @@ export class SocialAccountsRepository {
           ? toPrismaBytes(tokens.refreshTokenEnc)
           : tokens.refreshTokenEnc,
         token_expires_at: tokens.tokenExpiresAt,
+        ...(tokens.refreshExpiresAt !== undefined
+          ? { refresh_expires_at: tokens.refreshExpiresAt }
+          : {}),
+        ...(tokens.connectionStatus !== undefined
+          ? { connection_status: tokens.connectionStatus }
+          : {}),
+        updated_at: new Date(),
+      },
+    });
+  }
+
+  updateConnectionStatus(agencyId: string, id: string, status: string | null) {
+    return this.prisma.social_accounts.updateMany({
+      where: scopedWhere(agencyId, { id }),
+      data: {
+        connection_status: status,
         updated_at: new Date(),
       },
     });
@@ -137,6 +167,9 @@ export class SocialAccountsRepository {
         access_token_enc: toPrismaBytes(clearedTokenEnc),
         refresh_token_enc: null,
         token_expires_at: null,
+        refresh_expires_at: null,
+        connection_status: null,
+        avatar_url: null,
         scopes: [],
         updated_at: new Date(),
       },

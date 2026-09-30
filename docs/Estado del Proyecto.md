@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-29 (Radar: auto-promote también a X)
+**Última actualización:** 2026-09-30 (TikTok OAuth conexión)
+
+---
+
+## 2026-09-30 — TikTok: OAuth conexión (sin publish) ✅
+
+**Implementado:** módulo `platforms/tiktok/` (OAuth v2, Redis state, user/info, revoke, refresh &lt;2h). UI Cuentas + migración `schema_tiktok_oauth.sql`. Sin tocar Meta/X/Threads ni cola post-publish.
+
+**Operativo:** `pnpm migrate` + vars `TIKTOK_*` + redeploy.
+
+**Criterio:** ✅ código + tests OAuth; ⏳ App Review TikTok + credenciales prod.
 
 ---
 

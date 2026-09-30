@@ -55,6 +55,9 @@ Editar `.env` y completar al menos:
 | `X_PUBLISH_ENABLED` | Activar X | `false` hasta configurar app en developer.x.com |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | App X (OAuth 2.0) | Developer Portal X |
 | `X_REDIRECT_URI` | Callback OAuth X | `http://localhost:4000/oauth/x/callback` |
+| `TIKTOK_PUBLISH_ENABLED` | Activar conexión TikTok | `false` hasta configurar app |
+| `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` | App TikTok | developers.tiktok.com |
+| `TIKTOK_REDIRECT_URI` | Callback OAuth TikTok | `http://localhost:4000/oauth/tiktok/callback` |
 | `FRONTEND_URL` | Redirección tras OAuth | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | URL de la API para el frontend | `http://localhost:4000` |
 | `MEDIA_PUBLIC_BASE_URL` | URL base para media subida en local | `http://localhost:4000` |

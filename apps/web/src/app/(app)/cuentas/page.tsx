@@ -44,7 +44,9 @@ export default function CuentasPage() {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [features, setFeatures] = useState<PlatformFeatures | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState<'meta' | 'threads' | 'x' | null>(null);
+  const [connecting, setConnecting] = useState<
+    'meta' | 'threads' | 'x' | 'tiktok' | null
+  >(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,12 +83,22 @@ export default function CuentasPage() {
 
   useEffect(() => {
     const connected = searchParams.get('connected');
+    const oauthError = searchParams.get('error');
     if (connected === 'meta') {
       setMessage('Cuenta Meta conectada correctamente.');
     } else if (connected === 'threads') {
       setMessage('Cuenta Threads conectada correctamente.');
     } else if (connected === 'x') {
       setMessage('Cuenta X conectada correctamente.');
+    } else if (connected === 'tiktok') {
+      setMessage('Cuenta TikTok conectada correctamente.');
+    }
+    if (oauthError === 'tiktok_denied') {
+      setError('No se autorizó TikTok. Intenta de nuevo.');
+    } else if (oauthError === 'tiktok_state') {
+      setError('Sesión OAuth de TikTok inválida o expirada. Vuelve a conectar.');
+    } else if (oauthError === 'x_oauth_state') {
+      setError('Sesión OAuth de X inválida o expirada. Vuelve a conectar.');
     }
   }, [searchParams]);
 
@@ -141,6 +153,23 @@ export default function CuentasPage() {
     }
   }
 
+  async function connectTikTok() {
+    if (!clientId) return;
+    setConnecting('tiktok');
+    setError(null);
+    try {
+      const { url } = await apiFetch<{ url: string }>(
+        `/oauth/tiktok/connect-url?clientId=${encodeURIComponent(clientId)}`,
+      );
+      window.location.href = url;
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'No se pudo iniciar la conexión con TikTok',
+      );
+      setConnecting(null);
+    }
+  }
+
   async function disconnectAccount(accountId: string) {
     if (
       !confirm(
@@ -180,7 +209,7 @@ export default function CuentasPage() {
     <div className="space-y-6">
       <PageHeader
         title="Cuentas sociales"
-        description="Conecta o desconecta cuentas por cliente (Meta y, si están habilitadas, Threads y X)."
+        description="Conecta o desconecta cuentas por cliente (Meta y, si están habilitadas, Threads, X y TikTok)."
       />
 
       {message && <p className="text-sm text-emerald-600">{message}</p>}
@@ -225,9 +254,25 @@ export default function CuentasPage() {
                 {connecting === 'x' ? 'Redirigiendo…' : 'Conectar X'}
               </button>
             )}
+            {features?.tiktok && (
+              <button
+                type="button"
+                onClick={connectTikTok}
+                disabled={!clientId || connecting !== null}
+                className="rounded-md border border-line-strong bg-white px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+              >
+                {connecting === 'tiktok' ? 'Redirigiendo…' : 'Conectar TikTok'}
+              </button>
+            )}
           </>
         )}
       </div>
+
+      {features?.tiktok && (
+        <p className="text-xs text-muted">
+          App en revisión: las publicaciones serán privadas hasta la auditoría de TikTok.
+        </p>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted">
@@ -245,12 +290,28 @@ export default function CuentasPage() {
                 key={account.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-surface px-4 py-3"
               >
-                <div>
-                  <p className="text-sm text-ink">
-                    {platformLabel(account.platform)}
-                    {account.username ? ` @${account.username}` : ''}
-                  </p>
-                  <p className="text-xs text-muted">ID: {account.external_account_id}</p>
+                <div className="flex items-center gap-3">
+                  {account.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={account.avatar_url}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  ) : null}
+                  <div>
+                    <p className="text-sm text-ink">
+                      {platformLabel(account.platform)}
+                      {account.username ? ` · ${account.username}` : ''}
+                    </p>
+                    <p className="text-xs text-muted">ID: {account.external_account_id}</p>
+                    {account.connection_status === 'permisos_incompletos' && (
+                      <p className="text-xs text-amber-700">Permisos incompletos — vuelve a conectar</p>
+                    )}
+                    {account.connection_status === 'requiere_reconexion' && (
+                      <p className="text-xs text-amber-700">Requiere reconexión</p>
+                    )}
+                  </div>
                 </div>
                 {canManage && (
                   <button
@@ -294,6 +355,8 @@ export default function CuentasPage() {
                         void connectThreads();
                       } else if (account.platform === 'x') {
                         void connectX();
+                      } else if (account.platform === 'tiktok') {
+                        void connectTikTok();
                       } else {
                         void connectMeta();
                       }
@@ -308,7 +371,9 @@ export default function CuentasPage() {
                         ? 'Volver a conectar Threads'
                         : account.platform === 'x'
                           ? 'Volver a conectar X'
-                          : 'Volver a conectar Meta'}
+                          : account.platform === 'tiktok'
+                            ? 'Volver a conectar TikTok'
+                            : 'Volver a conectar Meta'}
                   </button>
                 )}
               </li>
