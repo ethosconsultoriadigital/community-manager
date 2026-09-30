@@ -3,7 +3,20 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-30 (TikTok OAuth conexión)
+**Última actualización:** 2026-09-30 (SEO: robots + sitemap)
+
+---
+
+## 2026-09-30 — SEO básico para indexación en Google ✅
+
+**Implementado:** `robots.ts`, `sitemap.ts`, `metadataBase` / Open Graph, `noindex` en panel `(app)`. Variable `NEXT_PUBLIC_SITE_URL`.
+
+**Operativo (Vercel + Google):**
+1. Dominio apuntando a Vercel.
+2. `NEXT_PUBLIC_SITE_URL=https://www.tudominio.com` (sin `/`) + Redeploy.
+3. Search Console → verificar dominio → solicitar indexación de `/` y `/sitemap.xml`.
+
+**Criterio:** ✅ código; ⏳ usuario configura Search Console.
 
 ---
 
