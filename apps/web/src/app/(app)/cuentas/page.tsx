@@ -292,7 +292,6 @@ export default function CuentasPage() {
               >
                 <div className="flex items-center gap-3">
                   {account.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={account.avatar_url}
                       alt=""
