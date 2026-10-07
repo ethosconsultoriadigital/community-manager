@@ -47,10 +47,10 @@ export const DEFAULT_LAYOUT_KEY = 'post_feed';
 export const DEFAULT_POST_FEED_LAYOUT: BrandLayout = {
   canvas: { width: 1080, height: 1350 },
   logo: {
-    anchor: 'bottom-right',
-    maxWidth: 220,
-    maxHeight: 120,
-    margin: 48,
+    anchor: 'top-left',
+    maxWidth: 360,
+    maxHeight: 200,
+    margin: 40,
   },
   text: [
     {
@@ -176,7 +176,14 @@ export function resolveLayout(
   brand: ClientBrandConfig,
   layoutKey: string,
 ): BrandLayout {
-  return brand.layouts[layoutKey] ?? brand.layouts[DEFAULT_LAYOUT_KEY]!;
+  const base = brand.layouts[layoutKey] ?? brand.layouts[DEFAULT_LAYOUT_KEY]!;
+  // Posición/tamaño del logo: siempre el default actual (arriba-izquierda, más grande).
+  // Así clientes con layout antiguo en brand no quedan con bottom-right.
+  return {
+    canvas: { ...base.canvas },
+    logo: { ...DEFAULT_POST_FEED_LAYOUT.logo },
+    text: base.text.map((t) => ({ ...t })),
+  };
 }
 
 export function logoPosition(input: {

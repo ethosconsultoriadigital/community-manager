@@ -3,7 +3,15 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-07 (composición logo + texto con sharp)
+**Última actualización:** 2026-10-07 (logo composición: top-left más grande)
+
+---
+
+## 2026-10-07 — Logo composición: arriba-izquierda y más grande ✅
+
+**Cambio:** default `anchor: top-left`, `maxWidth: 360`, `maxHeight: 200`, `margin: 40`. `resolveLayout` aplica siempre ese bloque de logo (ignora posición antigua en `clients.brand`).
+
+**Criterio:** ✅ tests; ⏳ redeploy API.
 
 ---
 

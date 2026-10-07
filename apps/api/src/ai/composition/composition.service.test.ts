@@ -9,16 +9,16 @@ describe('brand-layout helpers', () => {
     expect(brand.layouts.post_feed.canvas).toEqual({ width: 1080, height: 1350 });
   });
 
-  it('calcula ancla bottom-right con margen', () => {
+  it('calcula ancla top-left con margen', () => {
     const pos = logoPosition({
       canvasW: 1080,
       canvasH: 1350,
       logoW: 200,
       logoH: 80,
-      anchor: 'bottom-right',
-      margin: 48,
+      anchor: 'top-left',
+      margin: 40,
     });
-    expect(pos).toEqual({ left: 1080 - 200 - 48, top: 1350 - 80 - 48 });
+    expect(pos).toEqual({ left: 40, top: 40 });
   });
 });
 
@@ -35,11 +35,11 @@ describe('CompositionService', () => {
       .png()
       .toBuffer();
 
-    // Logo 160×80 nativo; max 220×120 → sin ampliación, queda 160×80
+    // Logo 300×150 nativo; max 360×200 → sin ampliación, queda 300×150
     const logo = await sharp({
       create: {
-        width: 160,
-        height: 80,
+        width: 300,
+        height: 150,
         channels: 4,
         background: { r: 255, g: 0, b: 0, alpha: 1 },
       },
@@ -55,6 +55,7 @@ describe('CompositionService', () => {
           layouts: {
             post_feed: {
               canvas: { width: 1080, height: 1350 },
+              // Layout antiguo en brand: compose debe ignorarlo y usar top-left
               logo: {
                 anchor: 'bottom-right',
                 maxWidth: 220,
@@ -103,9 +104,9 @@ describe('CompositionService', () => {
     expect(meta.width).toBe(1080);
     expect(meta.height).toBe(1350);
 
-    // Región del logo (bottom-right): debe conservar rojo dominante sin estirar a 220×120
-    const left = 1080 - 160 - 48;
-    const top = 1350 - 80 - 48;
+    // Región del logo (top-left, margen 40): rojo sin distorsión
+    const left = 40;
+    const top = 40;
     const sample = await sharp(result.buffer)
       .extract({ left: left + 10, top: top + 10, width: 20, height: 20 })
       .raw()
@@ -118,9 +119,9 @@ describe('CompositionService', () => {
     expect(g).toBeLessThan(40);
     expect(b).toBeLessThan(40);
 
-    // Justo fuera del logo (margen derecho) no debe ser rojo
+    // Fuera del logo (esquina inferior derecha) no debe ser rojo
     const outside = await sharp(result.buffer)
-      .extract({ left: 1080 - 20, top: top + 10, width: 10, height: 10 })
+      .extract({ left: 1000, top: 1200, width: 10, height: 10 })
       .raw()
       .toBuffer({ resolveWithObject: true });
     expect(outside.data[0]).toBeLessThan(100);
