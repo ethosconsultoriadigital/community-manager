@@ -14,11 +14,27 @@ type FalQueueStatus = {
   error?: unknown;
 };
 
-const POLL_MS = 2500;
-const MAX_POLLS = 90;
+/** Intervalo entre polls (ms). Override: FAL_QUEUE_POLL_MS */
+const DEFAULT_POLL_MS = 3000;
+/** Espera máxima por job fal (ms). Default 20 min. Override: FAL_QUEUE_MAX_WAIT_MS */
+const DEFAULT_MAX_WAIT_MS = 1_200_000;
+
+function resolvePollMs(): number {
+  const raw = Number(process.env.FAL_QUEUE_POLL_MS);
+  return Number.isFinite(raw) && raw >= 1000 ? raw : DEFAULT_POLL_MS;
+}
+
+function resolveMaxWaitMs(override?: number): number {
+  if (typeof override === 'number' && Number.isFinite(override) && override > 0) {
+    return override;
+  }
+  const raw = Number(process.env.FAL_QUEUE_MAX_WAIT_MS);
+  return Number.isFinite(raw) && raw >= 60_000 ? raw : DEFAULT_MAX_WAIT_MS;
+}
 
 /**
  * Cola genérica fal.ai (submit + poll). Reutilizable por video / lip-sync.
+ * Minimax / SadTalker suelen superar 4 min; el default anterior (~3.75 min) cortaba en falso.
  */
 export async function runFalQueueJob(input: {
   apiKey: string;
@@ -26,9 +42,14 @@ export async function runFalQueueJob(input: {
   body: Record<string, unknown>;
   logger?: Logger;
   failLabel?: string;
+  /** Override de espera máxima (ms). */
+  maxWaitMs?: number;
 }): Promise<Record<string, unknown>> {
   const label = input.failLabel ?? 'fal';
   const logger = input.logger;
+  const pollMs = resolvePollMs();
+  const maxWaitMs = resolveMaxWaitMs(input.maxWaitMs);
+  const maxPolls = Math.max(1, Math.ceil(maxWaitMs / pollMs));
 
   const submitRes = await fetch(`https://queue.fal.run/${input.model}`, {
     method: 'POST',
@@ -54,8 +75,8 @@ export async function runFalQueueJob(input: {
     throw new BadRequestException('fal no devolvió status_url/response_url');
   }
 
-  for (let i = 0; i < MAX_POLLS; i++) {
-    await sleep(POLL_MS);
+  for (let i = 0; i < maxPolls; i++) {
+    await sleep(pollMs);
     const statusRes = await fetch(statusUrl, {
       headers: { Authorization: `Key ${input.apiKey}` },
     });
@@ -89,8 +110,9 @@ export async function runFalQueueJob(input: {
     }
   }
 
+  const minutes = Math.round(maxWaitMs / 60_000);
   throw new BadRequestException(
-    `${label} tardó demasiado. Intenta de nuevo en unos minutos.`,
+    `${label} tardó más de ~${minutes} min en fal. Prueba con menos escenas/duración o reintenta más tarde.`,
   );
 }
 

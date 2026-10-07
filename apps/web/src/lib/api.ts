@@ -1,6 +1,15 @@
-import type { AvatarJobStatusResult, GenerateAvatarFromBriefResult } from './types';
+import type {
+  AvatarJobStatusResult,
+  GenerateAvatarFromBriefResult,
+  GenerateReelFromBriefResult,
+  ReelJobStatusResult,
+} from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
+/** Polling UI: fal multi-escena / lip-sync puede superar 10–15 min. */
+const DEFAULT_VIDEO_POLL_TIMEOUT_MS = 25 * 60 * 1000;
+const DEFAULT_VIDEO_POLL_INTERVAL_MS = 4000;
 
 export class ApiError extends Error {
   constructor(
@@ -94,13 +103,13 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-/** Polling de job de avatar (BullMQ). Timeout por defecto ~12 min. */
+/** Polling de job de avatar (BullMQ). Timeout por defecto ~25 min. */
 export async function pollAvatarJob(
   generationId: string,
   options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },
 ): Promise<GenerateAvatarFromBriefResult> {
-  const intervalMs = options?.intervalMs ?? 3000;
-  const timeoutMs = options?.timeoutMs ?? 12 * 60 * 1000;
+  const intervalMs = options?.intervalMs ?? DEFAULT_VIDEO_POLL_INTERVAL_MS;
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_VIDEO_POLL_TIMEOUT_MS;
   const started = Date.now();
 
   while (Date.now() - started < timeoutMs) {
@@ -119,7 +128,37 @@ export async function pollAvatarJob(
   }
 
   throw new ApiError(
-    'El avatar sigue generándose y superó el tiempo de espera. Revisa Aprobaciones en unos minutos.',
+    'El avatar sigue generándose. Revisa Aprobaciones en unos minutos (el job puede seguir en el servidor).',
+    408,
+  );
+}
+
+/** Polling de job de Reel (BullMQ). Timeout por defecto ~25 min. */
+export async function pollReelJob(
+  generationId: string,
+  options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },
+): Promise<GenerateReelFromBriefResult> {
+  const intervalMs = options?.intervalMs ?? DEFAULT_VIDEO_POLL_INTERVAL_MS;
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_VIDEO_POLL_TIMEOUT_MS;
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    const status = await apiFetch<ReelJobStatusResult>(
+      `/generations/reel/${generationId}`,
+      {},
+      options?.token,
+    );
+    if (status.status === 'completed' && status.result) {
+      return status.result;
+    }
+    if (status.status === 'failed') {
+      throw new ApiError(status.error ?? 'Error al generar el Reel', 500);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+
+  throw new ApiError(
+    'El Reel sigue generándose. Revisa Aprobaciones en unos minutos (el job puede seguir en el servidor).',
     408,
   );
 }

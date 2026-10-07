@@ -178,11 +178,13 @@ export type GenerateAvatarFromBriefResult = {
   videoModel?: string | null;
 };
 
-/** Respuesta 202 al encolar avatar (BullMQ). */
-export type AvatarJobStartResult = {
+/** Respuesta 202 al encolar Reel/Avatar (BullMQ). */
+export type VideoJobStartResult = {
   generationId: string;
   status: 'pending' | 'processing';
 };
+
+export type AvatarJobStartResult = VideoJobStartResult;
 
 export type AvatarJobStatusResult = {
   generationId: string;
@@ -198,6 +200,13 @@ export type GenerateReelFromBriefResult = {
   usedMock?: boolean;
   videoProvider?: 'fal' | 'mock' | 'unknown';
   videoModel?: string | null;
+};
+
+export type ReelJobStatusResult = {
+  generationId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error?: string;
+  result?: GenerateReelFromBriefResult;
 };
 
 export type AdminUserClient = {

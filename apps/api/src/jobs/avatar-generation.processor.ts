@@ -7,8 +7,8 @@ import {
   type AvatarGenerationJobData,
 } from './avatar-generation.constants';
 
-/** Lip-sync + TTS puede superar varios minutos; evita stalled jobs en Render. */
-@Processor(AVATAR_GENERATION_QUEUE, { lockDuration: 900_000 })
+/** Lip-sync + TTS puede superar 10–15 min; evita stalled jobs en Render. */
+@Processor(AVATAR_GENERATION_QUEUE, { lockDuration: 1_200_000 })
 export class AvatarGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(AvatarGenerationProcessor.name);
 

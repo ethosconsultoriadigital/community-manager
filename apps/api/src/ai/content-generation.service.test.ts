@@ -240,6 +240,23 @@ describe('ContentGenerationService', () => {
       post_targets: [{ id: 't1' }],
     });
     mocks.generations.create.mockResolvedValue({ id: 'gen-video', status: 'pending' });
+    mocks.generations.findById.mockResolvedValue({
+      id: 'gen-video',
+      kind: 'video',
+      status: 'processing',
+      model: 'pending-video',
+      output: {
+        job: {
+          clientId: 'client-1',
+          brief: 'Café en movimiento',
+          caption: 'Nuestro latte del día',
+          socialAccountIds: ['sa-ig'],
+          referenceImageUrl: 'https://cdn.example/ref.jpg',
+          sceneCount: 2,
+          userId: 'user-1',
+        },
+      },
+    });
     mocks.generations.findByPost.mockResolvedValue([
       { id: 'gen-video', kind: 'video', status: 'completed' },
     ]);
@@ -271,7 +288,7 @@ describe('ContentGenerationService', () => {
 
     const service = buildService(mocks);
 
-    const result = await service.generateReelFromBrief('agency-1', 'user-1', {
+    const started = await service.startReelFromBrief('agency-1', 'user-1', {
       clientId: 'client-1',
       brief: 'Café en movimiento',
       caption: 'Nuestro latte del día',
@@ -279,6 +296,9 @@ describe('ContentGenerationService', () => {
       referenceImageUrl: 'https://cdn.example/ref.jpg',
       sceneCount: 2,
     });
+    expect(started.generationId).toBe('gen-video');
+
+    await service.processReelJob('agency-1', 'gen-video');
 
     expect(mocks.reelPipeline.generate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -312,9 +332,17 @@ describe('ContentGenerationService', () => {
         height: 1920,
       }),
     );
-    expect(result.usedMock).toBe(false);
-    expect(result.videoProvider).toBe('fal');
-    expect(result.posts).toHaveLength(1);
+    expect(mocks.generations.updateStatus).toHaveBeenCalledWith(
+      'agency-1',
+      'gen-video',
+      'completed',
+      expect.objectContaining({
+        output: expect.objectContaining({
+          videoUrl: 'https://storage.local/reel.mp4',
+          provider: 'fal',
+        }),
+      }),
+    );
   });
 
   it('avatar async: start + process crea post pending_approval', async () => {

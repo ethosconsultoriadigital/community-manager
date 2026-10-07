@@ -26,6 +26,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AvatarGenerationQueueService } from '../jobs/avatar-generation-queue.service';
+import { ReelGenerationQueueService } from '../jobs/reel-generation-queue.service';
 
 class GenerateFromBriefDto {
   clientId!: string;
@@ -95,6 +96,7 @@ export class GenerationsController {
     private readonly referenceMaterial: ReferenceMaterialService,
     private readonly clientAccess: ClientAccessService,
     private readonly avatarQueue: AvatarGenerationQueueService,
+    private readonly reelQueue: ReelGenerationQueueService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
@@ -147,7 +149,12 @@ export class GenerationsController {
     }
   }
 
+  /**
+   * Arranca Reel en cola BullMQ (respuesta rápida).
+   * Polling: GET /generations/reel/:generationId
+   */
   @Post('from-brief-reel')
+  @HttpCode(202)
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async generateReelFromBrief(
@@ -156,10 +163,33 @@ export class GenerationsController {
   ) {
     await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
-      return await this.generation.generateReelFromBrief(user.agencyId, user.id, body);
+      const started = await this.generation.startReelFromBrief(
+        user.agencyId,
+        user.id,
+        body,
+      );
+      await this.reelQueue.enqueue(user.agencyId, started.generationId);
+      return started;
     } catch (error) {
       if (error instanceof PostsValidationError) {
         throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Get('reel/:generationId')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner', 'viewer')
+  async getReelGeneration(
+    @CurrentUser() user: AuthUser,
+    @Param('generationId') generationId: string,
+  ) {
+    try {
+      return await this.generation.getReelJobStatus(user.agencyId, generationId);
+    } catch (error) {
+      if (error instanceof PostsValidationError) {
+        throw new NotFoundException(error.message);
       }
       throw error;
     }

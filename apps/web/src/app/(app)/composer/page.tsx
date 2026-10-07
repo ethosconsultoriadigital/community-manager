@@ -6,6 +6,7 @@ import {
   ApiError,
   apiFetch,
   pollAvatarJob,
+  pollReelJob,
   apiUploadClientCharacter,
   apiUploadClientLogo,
   apiUploadMedia,
@@ -18,13 +19,12 @@ import { LibraryPicker } from '@/components/LibraryPicker';
 import { PageHeader, SectionHeading } from '@/components/PageTypography';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
-  AvatarJobStartResult,
   GenerateFromBriefResult,
-  GenerateReelFromBriefResult,
   LibraryItem,
   MediaAsset,
   Post,
   SocialAccount,
+  VideoJobStartResult,
 } from '@/lib/types';
 import { StoryPublishCheckbox } from '@/lib/story-publish';
 
@@ -294,7 +294,7 @@ export default function ComposerPage() {
     setMessage(null);
     setGeneratingAvatar(true);
     try {
-      const started = await apiFetch<AvatarJobStartResult>('/generations/from-brief-avatar', {
+      const started = await apiFetch<VideoJobStartResult>('/generations/from-brief-avatar', {
         method: 'POST',
         body: JSON.stringify({
           clientId,
@@ -712,25 +712,28 @@ export default function ComposerPage() {
         referenceImageUrl = aiPreviewUrl;
       }
 
-      const result = await apiFetch<GenerateReelFromBriefResult>(
-        '/generations/from-brief-reel',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            clientId,
-            brief: aiBrief.trim(),
-            caption: caption.trim(),
-            hashtags: parseHashtags(),
-            socialAccountIds: selectedAccounts,
-            targetDurationSeconds: reelTargetDuration,
-            withMusic: reelWithMusic,
-            withSubtitles: reelWithSubtitles,
-            ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
-            ...(referenceImageUrl ? { referenceImageUrl } : {}),
-            ...placePayload(),
-          }),
-        },
+      const started = await apiFetch<VideoJobStartResult>('/generations/from-brief-reel', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          brief: aiBrief.trim(),
+          caption: caption.trim(),
+          hashtags: parseHashtags(),
+          socialAccountIds: selectedAccounts,
+          targetDurationSeconds: reelTargetDuration,
+          withMusic: reelWithMusic,
+          withSubtitles: reelWithSubtitles,
+          ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
+          ...(referenceImageUrl ? { referenceImageUrl } : {}),
+          ...placePayload(),
+        }),
+      });
+
+      setMessage(
+        `Reel en cola (${started.generationId.slice(0, 8)}…). Puede tardar varios minutos…`,
       );
+
+      const result = await pollReelJob(started.generationId);
 
       const video = result.media.find((m) => m.type === 'video');
       if (video?.storage_url) {
@@ -1333,13 +1336,13 @@ export default function ComposerPage() {
                 </div>
                 <button
                   type="button"
-                  title="Genera el Reel y lo envía a aprobación (puede tardar 1–2 min)"
+                  title="Genera el Reel y lo envía a aprobación (varios minutos; corre en segundo plano)"
                   disabled={generatingReel || submitting || selectedAccounts.length === 0}
                   onClick={() => void handleGenerateReel()}
                   className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
                   {generatingReel
-                    ? 'Generando Reel (puede tardar 1–2 min)…'
+                    ? 'Generando Reel en segundo plano (puede tardar varios minutos)…'
                     : 'Generar Reel y enviar a aprobación'}
                 </button>
                 {reelPreviewUrl && (

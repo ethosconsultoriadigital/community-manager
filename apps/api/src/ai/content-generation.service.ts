@@ -104,10 +104,13 @@ export type GenerateAvatarFromBriefResult = {
   videoModel: string | null;
 };
 
-export type AvatarJobStartResult = {
+export type VideoJobStartResult = {
   generationId: string;
   status: 'pending' | 'processing';
 };
+
+/** @deprecated usar VideoJobStartResult */
+export type AvatarJobStartResult = VideoJobStartResult;
 
 export type AvatarJobStatusResult = {
   generationId: string;
@@ -116,7 +119,18 @@ export type AvatarJobStatusResult = {
   result?: GenerateAvatarFromBriefResult;
 };
 
+export type ReelJobStatusResult = {
+  generationId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error?: string;
+  result?: GenerateReelFromBriefResult;
+};
+
 type AvatarJobPayload = GenerateAvatarFromBriefInput & {
+  userId: string | null;
+};
+
+type ReelJobPayload = GenerateReelFromBriefInput & {
   userId: string | null;
 };
 
@@ -341,16 +355,19 @@ export class ContentGenerationService {
     };
   }
 
-  async generateReelFromBrief(
+  async startReelFromBrief(
     agencyId: string,
     userId: string | null,
     input: GenerateReelFromBriefInput,
-  ): Promise<GenerateReelFromBriefResult> {
+  ): Promise<VideoJobStartResult> {
     if (!input.brief?.trim()) {
       throw new PostsValidationError('El brief es obligatorio');
     }
     if (!input.caption?.trim()) {
       throw new PostsValidationError('El caption es obligatorio');
+    }
+    if (![...new Set(input.socialAccountIds)].length) {
+      throw new PostsValidationError('Debe indicar al menos un destino');
     }
 
     await this.assertSocialAccountsActive(
@@ -364,8 +381,32 @@ export class ContentGenerationService {
       prompt: input.brief,
       model: 'pending-video',
     });
-    await this.generations.updateStatus(agencyId, videoGen.id, 'processing');
 
+    const job: ReelJobPayload = { ...input, userId };
+    await this.generations.updateStatus(agencyId, videoGen.id, 'processing', {
+      output: { job },
+    });
+
+    return { generationId: videoGen.id, status: 'processing' };
+  }
+
+  async processReelJob(agencyId: string, generationId: string): Promise<void> {
+    const gen = await this.generations.findById(agencyId, generationId);
+    if (!gen || gen.kind !== 'video') {
+      throw new PostsValidationError('Generación de Reel no encontrada');
+    }
+    if (gen.status === 'completed') return;
+
+    const output = (gen.output ?? {}) as { job?: ReelJobPayload };
+    const input = output.job;
+    if (!input) {
+      await this.generations.updateStatus(agencyId, generationId, 'failed', {
+        output: { error: 'Falta el payload del job de Reel' },
+      });
+      throw new PostsValidationError('Falta el payload del job de Reel');
+    }
+
+    const userId = input.userId ?? null;
     let generatedVideo;
     try {
       generatedVideo = await this.reelPipeline.generate({
@@ -381,34 +422,16 @@ export class ContentGenerationService {
         withMusic: input.withMusic,
         withSubtitles: input.withSubtitles,
       });
-      await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
-        output: {
-          videoUrl: generatedVideo.url,
-          provider: generatedVideo.provider ?? 'unknown',
-          width: generatedVideo.width,
-          height: generatedVideo.height,
-          multiScene: generatedVideo.multiScene,
-          sceneCount: generatedVideo.sceneCount,
-          musicSuggestion: generatedVideo.musicSuggestion,
-          musicTrackId: generatedVideo.musicTrackId,
-          burnedSubtitles: generatedVideo.burnedSubtitles,
-          durationSeconds: generatedVideo.durationSeconds,
-          sceneModels: generatedVideo.sceneModels,
-        },
-        model: generatedVideo.model ?? generatedVideo.provider ?? 'video',
-      });
     } catch (error) {
-      await this.generations.updateStatus(agencyId, videoGen.id, 'failed', {
-        output: { error: error instanceof Error ? error.message : 'Error desconocido' },
+      await this.generations.updateStatus(agencyId, generationId, 'failed', {
+        output: {
+          error: error instanceof Error ? error.message : 'Error desconocido',
+        },
       });
       throw error;
     }
 
     const uniqueIds = [...new Set(input.socialAccountIds)];
-    if (!uniqueIds.length) {
-      throw new PostsValidationError('Debe indicar al menos un destino');
-    }
-
     const createdPosts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[] =
       [];
     let firstMediaId: string | null = null;
@@ -447,10 +470,13 @@ export class ContentGenerationService {
 
     const primary = createdPosts[0];
     if (!primary) {
+      await this.generations.updateStatus(agencyId, generationId, 'failed', {
+        output: { error: 'No se pudo crear el post' },
+      });
       throw new PostsValidationError('No se pudo crear el post');
     }
 
-    await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
+    await this.generations.updateStatus(agencyId, generationId, 'completed', {
       output: {
         videoUrl: generatedVideo.url,
         provider: generatedVideo.provider ?? 'unknown',
@@ -463,26 +489,91 @@ export class ContentGenerationService {
         burnedSubtitles: generatedVideo.burnedSubtitles,
         durationSeconds: generatedVideo.durationSeconds,
         sceneModels: generatedVideo.sceneModels,
+        usedMock: generatedVideo.usedMock,
         postIds: createdPosts.map((p) => p.id),
       },
       mediaId: firstMediaId ?? undefined,
       postId: primary.id,
       model: generatedVideo.model ?? generatedVideo.provider ?? 'video',
     });
-    await this.generations.linkPost(agencyId, videoGen.id, primary.id);
+    await this.generations.linkPost(agencyId, generationId, primary.id);
+  }
+
+  async getReelJobStatus(
+    agencyId: string,
+    generationId: string,
+  ): Promise<ReelJobStatusResult> {
+    const gen = await this.generations.findById(agencyId, generationId);
+    if (!gen || gen.kind !== 'video') {
+      throw new PostsValidationError('Generación de Reel no encontrada');
+    }
+
+    if (gen.status === 'pending' || gen.status === 'processing') {
+      return { generationId: gen.id, status: gen.status };
+    }
+
+    const output = (gen.output ?? {}) as {
+      error?: string;
+      usedMock?: boolean;
+      provider?: GenerateReelFromBriefResult['videoProvider'];
+      postIds?: string[];
+    };
+
+    if (gen.status === 'failed') {
+      return {
+        generationId: gen.id,
+        status: 'failed',
+        error: output.error ?? 'Error al generar el Reel',
+      };
+    }
+
+    const postIds = output.postIds ?? (gen.post_id ? [gen.post_id] : []);
+    const createdPosts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[] =
+      [];
+    for (const postId of postIds) {
+      const post = await this.posts.findById(agencyId, postId);
+      if (post) createdPosts.push(post);
+    }
+    const primary = createdPosts[0];
+    if (!primary) {
+      return {
+        generationId: gen.id,
+        status: 'failed',
+        error: 'Reel completado pero sin posts asociados',
+      };
+    }
 
     const postGenerations = await this.generations.findByPost(agencyId, primary.id);
     const postMedia = await this.mediaAssets.findByPost(agencyId, primary.id);
 
     return {
-      post: primary,
-      posts: createdPosts,
-      media: postMedia,
-      generations: postGenerations,
-      usedMock: generatedVideo.usedMock,
-      videoProvider: generatedVideo.provider ?? 'unknown',
-      videoModel: generatedVideo.model ?? null,
+      generationId: gen.id,
+      status: 'completed',
+      result: {
+        post: primary,
+        posts: createdPosts,
+        media: postMedia,
+        generations: postGenerations,
+        usedMock: Boolean(output.usedMock),
+        videoProvider: output.provider ?? 'unknown',
+        videoModel: gen.model,
+      },
     };
+  }
+
+  /** Atajo síncrono (tests). En producción: start + cola + polling. */
+  async generateReelFromBrief(
+    agencyId: string,
+    userId: string | null,
+    input: GenerateReelFromBriefInput,
+  ): Promise<GenerateReelFromBriefResult> {
+    const started = await this.startReelFromBrief(agencyId, userId, input);
+    await this.processReelJob(agencyId, started.generationId);
+    const status = await this.getReelJobStatus(agencyId, started.generationId);
+    if (status.status !== 'completed' || !status.result) {
+      throw new PostsValidationError(status.error ?? 'Error al generar el Reel');
+    }
+    return status.result;
   }
 
   /**
@@ -493,7 +584,7 @@ export class ContentGenerationService {
     agencyId: string,
     userId: string | null,
     input: GenerateAvatarFromBriefInput,
-  ): Promise<AvatarJobStartResult> {
+  ): Promise<VideoJobStartResult> {
     if (!input.brief?.trim()) {
       throw new PostsValidationError('El brief es obligatorio');
     }

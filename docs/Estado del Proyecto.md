@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-07 (Avatar async BullMQ + polling)
+**Última actualización:** 2026-10-07 (Reels async + espera fal 20 min)
+
+---
+
+## 2026-10-07 — Reels async + timeout fal ampliado ✅
+
+**Problema:** mensaje «tardó demasiado» = límite interno de poll a fal (~3.75 min), no CORS. Reels seguían síncronos.
+
+**Cambio:** `FAL_QUEUE_MAX_WAIT_MS` default 20 min; `fal-video` usa `runFalQueueJob`; cola `reel-generation` + `GET /generations/reel/:id`; polling UI 25 min.
+
+**Criterio:** ✅ tests; ⏳ redeploy API+web y regenerar Reel/Avatar.
 
 ---
 

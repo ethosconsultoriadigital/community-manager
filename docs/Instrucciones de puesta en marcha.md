@@ -493,12 +493,13 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 ### Prueba manual (Reel IA)
 
 1. Migración `schema_generation_kind_video.sql` aplicada
-2. Composer → **Reel (video)** → brief (± foto como keyframe 1.ª escena) → **Generar Reel y enviar a aprobación**
-3. Pipeline: guion (LLM) → keyframe por escena (imagen) → i2v (fal) → concat 9:16 + subtítulos + música propia (ffmpeg)
-4. En Composer elige duración (~10/15/20 s) y opcionalmente desactiva subtítulos/música
-5. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
-6. `REEL_MULTI_SCENE=false` vuelve al modo de 1 clip (+ keyframe auto si no hay foto)
-7. La música es generada en el servidor (sin tracks con derechos ajenos)
+2. Composer → **Reel (video)** → brief (± foto como keyframe 1.ª escena) → **Generar Reel**
+3. Encola job BullMQ; el front hace polling a `GET /generations/reel/:id` (varios minutos; no cuelga el HTTP de Render)
+4. Pipeline: guion (LLM) → keyframe por escena → i2v (fal) → concat 9:16 + subtítulos + música
+5. Espera máxima por clip fal: `FAL_QUEUE_MAX_WAIT_MS` (default 20 min). Antes cortaba a ~4 min con «tardó demasiado»
+6. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
+7. `REEL_MULTI_SCENE=false` vuelve al modo de 1 clip; menos escenas = más rápido
+8. Requiere Redis (`REDIS_URL`) en la API
 
 ### Prueba manual (Avatar / personaje)
 

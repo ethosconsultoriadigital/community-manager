@@ -13,6 +13,9 @@ import { PublishQueueService } from './publish-queue.service';
 import { PublishProcessor } from './publish.processor';
 import { RADAR_SYNC_QUEUE } from './radar-sync.constants';
 import { RadarSyncProcessor } from './radar-sync.processor';
+import { ReelGenerationQueueService } from './reel-generation-queue.service';
+import { REEL_GENERATION_QUEUE } from './reel-generation.constants';
+import { ReelGenerationProcessor } from './reel-generation.processor';
 import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.processor';
 
 @Module({
@@ -30,6 +33,7 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
     BullModule.registerQueue({ name: PUBLISH_QUEUE }),
     BullModule.registerQueue({ name: RADAR_SYNC_QUEUE }),
     BullModule.registerQueue({ name: AVATAR_GENERATION_QUEUE }),
+    BullModule.registerQueue({ name: REEL_GENERATION_QUEUE }),
   ],
   providers: [
     TokenRefreshProcessor,
@@ -39,8 +43,14 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
     RadarSyncProcessor,
     AvatarGenerationQueueService,
     AvatarGenerationProcessor,
+    ReelGenerationQueueService,
+    ReelGenerationProcessor,
   ],
-  exports: [PublishQueueService, AvatarGenerationQueueService],
+  exports: [
+    PublishQueueService,
+    AvatarGenerationQueueService,
+    ReelGenerationQueueService,
+  ],
 })
 export class JobsModule implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
