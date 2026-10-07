@@ -178,6 +178,19 @@ export type GenerateAvatarFromBriefResult = {
   videoModel?: string | null;
 };
 
+/** Respuesta 202 al encolar avatar (BullMQ). */
+export type AvatarJobStartResult = {
+  generationId: string;
+  status: 'pending' | 'processing';
+};
+
+export type AvatarJobStatusResult = {
+  generationId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error?: string;
+  result?: GenerateAvatarFromBriefResult;
+};
+
 export type GenerateReelFromBriefResult = {
   post: Post;
   posts?: Post[];

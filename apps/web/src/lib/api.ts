@@ -1,3 +1,5 @@
+import type { AvatarJobStatusResult, GenerateAvatarFromBriefResult } from './types';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 export class ApiError extends Error {
@@ -90,6 +92,36 @@ export async function apiFetch<T>(
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/** Polling de job de avatar (BullMQ). Timeout por defecto ~12 min. */
+export async function pollAvatarJob(
+  generationId: string,
+  options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },
+): Promise<GenerateAvatarFromBriefResult> {
+  const intervalMs = options?.intervalMs ?? 3000;
+  const timeoutMs = options?.timeoutMs ?? 12 * 60 * 1000;
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    const status = await apiFetch<AvatarJobStatusResult>(
+      `/generations/avatar/${generationId}`,
+      {},
+      options?.token,
+    );
+    if (status.status === 'completed' && status.result) {
+      return status.result;
+    }
+    if (status.status === 'failed') {
+      throw new ApiError(status.error ?? 'Error al generar el avatar', 500);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+
+  throw new ApiError(
+    'El avatar sigue generándose y superó el tiempo de espera. Revisa Aprobaciones en unos minutos.',
+    408,
+  );
 }
 
 export async function apiUploadMedia<T>(

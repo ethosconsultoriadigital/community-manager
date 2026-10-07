@@ -2,7 +2,11 @@ import {
   Body,
   Controller,
   Post,
+  Get,
+  Param,
+  HttpCode,
   BadRequestException,
+  NotFoundException,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -21,6 +25,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
+import { AvatarGenerationQueueService } from '../jobs/avatar-generation-queue.service';
 
 class GenerateFromBriefDto {
   clientId!: string;
@@ -89,6 +94,7 @@ export class GenerationsController {
     private readonly generation: ContentGenerationService,
     private readonly referenceMaterial: ReferenceMaterialService,
     private readonly clientAccess: ClientAccessService,
+    private readonly avatarQueue: AvatarGenerationQueueService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
@@ -159,7 +165,12 @@ export class GenerationsController {
     }
   }
 
+  /**
+   * Arranca avatar en cola BullMQ (respuesta rápida).
+   * Polling: GET /generations/avatar/:generationId
+   */
   @Post('from-brief-avatar')
+  @HttpCode(202)
   @UseGuards(RolesGuard)
   @Roles('manager', 'admin', 'owner')
   async generateAvatarFromBrief(
@@ -168,10 +179,33 @@ export class GenerationsController {
   ) {
     await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
-      return await this.generation.generateAvatarFromBrief(user.agencyId, user.id, body);
+      const started = await this.generation.startAvatarFromBrief(
+        user.agencyId,
+        user.id,
+        body,
+      );
+      await this.avatarQueue.enqueue(user.agencyId, started.generationId);
+      return started;
     } catch (error) {
       if (error instanceof PostsValidationError) {
         throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Get('avatar/:generationId')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner', 'viewer')
+  async getAvatarGeneration(
+    @CurrentUser() user: AuthUser,
+    @Param('generationId') generationId: string,
+  ) {
+    try {
+      return await this.generation.getAvatarJobStatus(user.agencyId, generationId);
+    } catch (error) {
+      if (error instanceof PostsValidationError) {
+        throw new NotFoundException(error.message);
       }
       throw error;
     }

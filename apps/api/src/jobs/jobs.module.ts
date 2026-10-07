@@ -1,8 +1,12 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AiModule } from '../ai/ai.module';
 import { ContentSourcesModule } from '../content-sources/content-sources.module';
 import { PlatformsModule } from '../platforms/platforms.module';
+import { AvatarGenerationQueueService } from './avatar-generation-queue.service';
+import { AVATAR_GENERATION_QUEUE } from './avatar-generation.constants';
+import { AvatarGenerationProcessor } from './avatar-generation.processor';
 import { PUBLISH_QUEUE } from './publish.constants';
 import { PublishPostService } from './publish-post.service';
 import { PublishQueueService } from './publish-queue.service';
@@ -15,6 +19,7 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
   imports: [
     PlatformsModule,
     ContentSourcesModule,
+    AiModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -24,6 +29,7 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
     BullModule.registerQueue({ name: TOKEN_REFRESH_QUEUE }),
     BullModule.registerQueue({ name: PUBLISH_QUEUE }),
     BullModule.registerQueue({ name: RADAR_SYNC_QUEUE }),
+    BullModule.registerQueue({ name: AVATAR_GENERATION_QUEUE }),
   ],
   providers: [
     TokenRefreshProcessor,
@@ -31,8 +37,10 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
     PublishPostService,
     PublishQueueService,
     RadarSyncProcessor,
+    AvatarGenerationQueueService,
+    AvatarGenerationProcessor,
   ],
-  exports: [PublishQueueService],
+  exports: [PublishQueueService, AvatarGenerationQueueService],
 })
 export class JobsModule implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}

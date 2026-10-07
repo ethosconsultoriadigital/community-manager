@@ -504,9 +504,10 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 
 1. Migración `schema_generation_kind_avatar_video.sql` aplicada (`pnpm migrate`)
 2. Composer → IA → **Avatar** → subir imagen del personaje (estilizado, no foto realista)
-3. Brief + caption + destinos → **Generar avatar**
-4. Sin `ELEVENLABS_API_KEY` / `FAL_KEY` usa mocks; con claves reales gasta créditos TTS + lip-sync
-5. Opcional: `ELEVENLABS_VOICE_ID`, `FAL_LIPSYNC_MODEL` (default `fal-ai/sadtalker`; imagen+audio)
+3. Brief + caption + destinos → **Generar avatar** (encola job BullMQ; el front hace polling a `GET /generations/avatar/:id`)
+4. Requiere Redis (`REDIS_URL`) en la API; la petición HTTP ya no espera el vídeo completo (evita timeout de Render)
+5. Sin `ELEVENLABS_API_KEY` / `FAL_KEY` usa mocks; con claves reales gasta créditos TTS + lip-sync
+6. Opcional: `ELEVENLABS_VOICE_ID`, `FAL_LIPSYNC_MODEL` (default `fal-ai/sadtalker`; imagen+audio)
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 

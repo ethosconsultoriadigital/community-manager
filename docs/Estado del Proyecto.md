@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-07 (fix avatar: SadTalker + mensajes de error)
+**Última actualización:** 2026-10-07 (Avatar async BullMQ + polling)
+
+---
+
+## 2026-10-07 — Avatar async (BullMQ + polling) ✅
+
+**Problema:** `POST /generations/from-brief-avatar` síncrono superaba el timeout de Render → UI «No se pudo conectar».
+
+**Cambio:** cola `avatar-generation`; POST devuelve `202` + `generationId`; `GET /generations/avatar/:id`; Composer hace polling. Worker con `lockDuration` 15 min.
+
+**Criterio:** ✅ tests; ⏳ redeploy API+web y regenerar avatar.
 
 ---
 

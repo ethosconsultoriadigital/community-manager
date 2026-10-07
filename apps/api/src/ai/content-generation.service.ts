@@ -104,6 +104,22 @@ export type GenerateAvatarFromBriefResult = {
   videoModel: string | null;
 };
 
+export type AvatarJobStartResult = {
+  generationId: string;
+  status: 'pending' | 'processing';
+};
+
+export type AvatarJobStatusResult = {
+  generationId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error?: string;
+  result?: GenerateAvatarFromBriefResult;
+};
+
+type AvatarJobPayload = GenerateAvatarFromBriefInput & {
+  userId: string | null;
+};
+
 @Injectable()
 export class ContentGenerationService {
   private readonly logger = new Logger(ContentGenerationService.name);
@@ -469,16 +485,23 @@ export class ContentGenerationService {
     };
   }
 
-  async generateAvatarFromBrief(
+  /**
+   * Encola avatar: valida, crea generation y guarda el payload.
+   * El worker llama a processAvatarJob; el cliente hace polling con getAvatarJobStatus.
+   */
+  async startAvatarFromBrief(
     agencyId: string,
     userId: string | null,
     input: GenerateAvatarFromBriefInput,
-  ): Promise<GenerateAvatarFromBriefResult> {
+  ): Promise<AvatarJobStartResult> {
     if (!input.brief?.trim()) {
       throw new PostsValidationError('El brief es obligatorio');
     }
     if (!input.caption?.trim()) {
       throw new PostsValidationError('El caption es obligatorio');
+    }
+    if (![...new Set(input.socialAccountIds)].length) {
+      throw new PostsValidationError('Debe indicar al menos un destino');
     }
 
     await this.assertSocialAccountsActive(
@@ -492,8 +515,32 @@ export class ContentGenerationService {
       prompt: input.brief,
       model: 'pending-avatar',
     });
-    await this.generations.updateStatus(agencyId, videoGen.id, 'processing');
 
+    const job: AvatarJobPayload = { ...input, userId };
+    await this.generations.updateStatus(agencyId, videoGen.id, 'processing', {
+      output: { job },
+    });
+
+    return { generationId: videoGen.id, status: 'processing' };
+  }
+
+  async processAvatarJob(agencyId: string, generationId: string): Promise<void> {
+    const gen = await this.generations.findById(agencyId, generationId);
+    if (!gen || gen.kind !== 'avatar_video') {
+      throw new PostsValidationError('Generación de avatar no encontrada');
+    }
+    if (gen.status === 'completed') return;
+
+    const output = (gen.output ?? {}) as { job?: AvatarJobPayload; error?: string };
+    const input = output.job;
+    if (!input) {
+      await this.generations.updateStatus(agencyId, generationId, 'failed', {
+        output: { error: 'Falta el payload del job de avatar' },
+      });
+      throw new PostsValidationError('Falta el payload del job de avatar');
+    }
+
+    const userId = input.userId ?? null;
     let generated;
     try {
       generated = await this.avatarPipeline.generate({
@@ -509,32 +556,16 @@ export class ContentGenerationService {
         withMusic: input.withMusic,
         withSubtitles: input.withSubtitles,
       });
-      await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
-        output: {
-          videoUrl: generated.url,
-          ttsProvider: generated.ttsProvider,
-          lipsyncProvider: generated.lipsyncProvider,
-          width: generated.width,
-          height: generated.height,
-          musicTrackId: generated.musicTrackId,
-          burnedSubtitles: generated.burnedSubtitles,
-          durationSeconds: generated.durationSeconds,
-          spokenTextPreview: generated.spokenTextPreview,
-        },
-        model: generated.model,
-      });
     } catch (error) {
-      await this.generations.updateStatus(agencyId, videoGen.id, 'failed', {
-        output: { error: error instanceof Error ? error.message : 'Error desconocido' },
+      await this.generations.updateStatus(agencyId, generationId, 'failed', {
+        output: {
+          error: error instanceof Error ? error.message : 'Error desconocido',
+        },
       });
       throw error;
     }
 
     const uniqueIds = [...new Set(input.socialAccountIds)];
-    if (!uniqueIds.length) {
-      throw new PostsValidationError('Debe indicar al menos un destino');
-    }
-
     const createdPosts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[] =
       [];
     let firstMediaId: string | null = null;
@@ -573,10 +604,13 @@ export class ContentGenerationService {
 
     const primary = createdPosts[0];
     if (!primary) {
+      await this.generations.updateStatus(agencyId, generationId, 'failed', {
+        output: { error: 'No se pudo crear el post' },
+      });
       throw new PostsValidationError('No se pudo crear el post');
     }
 
-    await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
+    await this.generations.updateStatus(agencyId, generationId, 'completed', {
       output: {
         videoUrl: generated.url,
         ttsProvider: generated.ttsProvider,
@@ -587,27 +621,93 @@ export class ContentGenerationService {
         burnedSubtitles: generated.burnedSubtitles,
         durationSeconds: generated.durationSeconds,
         spokenTextPreview: generated.spokenTextPreview,
+        usedMock: generated.usedMock,
         postIds: createdPosts.map((p) => p.id),
       },
       mediaId: firstMediaId ?? undefined,
       postId: primary.id,
       model: generated.model,
     });
-    await this.generations.linkPost(agencyId, videoGen.id, primary.id);
+    await this.generations.linkPost(agencyId, generationId, primary.id);
+  }
+
+  async getAvatarJobStatus(
+    agencyId: string,
+    generationId: string,
+  ): Promise<AvatarJobStatusResult> {
+    const gen = await this.generations.findById(agencyId, generationId);
+    if (!gen || gen.kind !== 'avatar_video') {
+      throw new PostsValidationError('Generación de avatar no encontrada');
+    }
+
+    if (gen.status === 'pending' || gen.status === 'processing') {
+      return { generationId: gen.id, status: gen.status };
+    }
+
+    const output = (gen.output ?? {}) as {
+      error?: string;
+      usedMock?: boolean;
+      ttsProvider?: GenerateAvatarFromBriefResult['ttsProvider'];
+      lipsyncProvider?: GenerateAvatarFromBriefResult['lipsyncProvider'];
+      postIds?: string[];
+    };
+
+    if (gen.status === 'failed') {
+      return {
+        generationId: gen.id,
+        status: 'failed',
+        error: output.error ?? 'Error al generar el avatar',
+      };
+    }
+
+    const postIds = output.postIds ?? (gen.post_id ? [gen.post_id] : []);
+    const createdPosts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[] =
+      [];
+    for (const postId of postIds) {
+      const post = await this.posts.findById(agencyId, postId);
+      if (post) createdPosts.push(post);
+    }
+    const primary = createdPosts[0];
+    if (!primary) {
+      return {
+        generationId: gen.id,
+        status: 'failed',
+        error: 'Avatar completado pero sin posts asociados',
+      };
+    }
 
     const postGenerations = await this.generations.findByPost(agencyId, primary.id);
     const postMedia = await this.mediaAssets.findByPost(agencyId, primary.id);
 
     return {
-      post: primary,
-      posts: createdPosts,
-      media: postMedia,
-      generations: postGenerations,
-      usedMock: generated.usedMock,
-      ttsProvider: generated.ttsProvider,
-      lipsyncProvider: generated.lipsyncProvider,
-      videoModel: generated.model,
+      generationId: gen.id,
+      status: 'completed',
+      result: {
+        post: primary,
+        posts: createdPosts,
+        media: postMedia,
+        generations: postGenerations,
+        usedMock: Boolean(output.usedMock),
+        ttsProvider: output.ttsProvider ?? 'unknown',
+        lipsyncProvider: output.lipsyncProvider ?? 'unknown',
+        videoModel: gen.model,
+      },
     };
+  }
+
+  /** Atajo síncrono (tests / local). En producción usar start + cola + polling. */
+  async generateAvatarFromBrief(
+    agencyId: string,
+    userId: string | null,
+    input: GenerateAvatarFromBriefInput,
+  ): Promise<GenerateAvatarFromBriefResult> {
+    const started = await this.startAvatarFromBrief(agencyId, userId, input);
+    await this.processAvatarJob(agencyId, started.generationId);
+    const status = await this.getAvatarJobStatus(agencyId, started.generationId);
+    if (status.status !== 'completed' || !status.result) {
+      throw new PostsValidationError(status.error ?? 'Error al generar el avatar');
+    }
+    return status.result;
   }
 
   private async assertSocialAccountsActive(

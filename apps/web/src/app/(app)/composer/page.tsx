@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   ApiError,
   apiFetch,
+  pollAvatarJob,
   apiUploadClientCharacter,
   apiUploadClientLogo,
   apiUploadMedia,
@@ -17,7 +18,7 @@ import { LibraryPicker } from '@/components/LibraryPicker';
 import { PageHeader, SectionHeading } from '@/components/PageTypography';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
-  GenerateAvatarFromBriefResult,
+  AvatarJobStartResult,
   GenerateFromBriefResult,
   GenerateReelFromBriefResult,
   LibraryItem,
@@ -293,25 +294,28 @@ export default function ComposerPage() {
     setMessage(null);
     setGeneratingAvatar(true);
     try {
-      const result = await apiFetch<GenerateAvatarFromBriefResult>(
-        '/generations/from-brief-avatar',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            clientId,
-            brief: aiBrief.trim(),
-            caption: caption.trim(),
-            hashtags: parseHashtags(),
-            socialAccountIds: selectedAccounts,
-            characterImageUrl,
-            targetSeconds: avatarTargetSeconds,
-            withMusic: avatarWithMusic,
-            withSubtitles: avatarWithSubtitles,
-            ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
-            ...placePayload(),
-          }),
-        },
+      const started = await apiFetch<AvatarJobStartResult>('/generations/from-brief-avatar', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          brief: aiBrief.trim(),
+          caption: caption.trim(),
+          hashtags: parseHashtags(),
+          socialAccountIds: selectedAccounts,
+          characterImageUrl,
+          targetSeconds: avatarTargetSeconds,
+          withMusic: avatarWithMusic,
+          withSubtitles: avatarWithSubtitles,
+          ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
+          ...placePayload(),
+        }),
+      });
+
+      setMessage(
+        `Avatar en cola (${started.generationId.slice(0, 8)}…). Puede tardar varios minutos…`,
       );
+
+      const result = await pollAvatarJob(started.generationId);
 
       const video = result.media.find((m) => m.type === 'video');
       if (video?.storage_url) {
