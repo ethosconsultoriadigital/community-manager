@@ -11,11 +11,13 @@ import { MockVideoProvider } from './mocks/mock-video.provider';
 import { OpenAiImageProvider } from './openai-image.provider';
 import { OpenAiLlmProvider } from './openai-llm.provider';
 import { ReferenceMaterialService } from './reference-material.service';
+import { CompositionService } from './composition/composition.service';
 
 @Module({
   imports: [MediaModule],
   providers: [
     ContentGenerationService,
+    CompositionService,
     ReferenceMaterialService,
     MockLlmProvider,
     OpenAiLlmProvider,

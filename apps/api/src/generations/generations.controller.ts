@@ -32,6 +32,11 @@ class GenerateFromBriefDto {
   videoFormat?: 'feed' | 'reel' | null;
   placeId?: string | null;
   placeName?: string | null;
+  /** Logo de marca (URL). No se envía a OpenAI; solo composición sharp. */
+  composeLogoUrl?: string;
+  composeWithBrand?: boolean;
+  layoutKey?: string;
+  composeFields?: Record<string, string>;
 }
 
 class GenerateReelFromBriefDto {

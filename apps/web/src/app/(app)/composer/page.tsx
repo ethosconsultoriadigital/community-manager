@@ -2,7 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ApiError, apiFetch, apiUploadMedia, apiUploadReference, apiUploadStandaloneImage } from '@/lib/api';
+import {
+  ApiError,
+  apiFetch,
+  apiUploadClientLogo,
+  apiUploadMedia,
+  apiUploadReference,
+  apiUploadStandaloneImage,
+} from '@/lib/api';
 import { visualPresetChips } from '@/lib/platform-visual-hints';
 import { ClientScopeField } from '@/components/ClientScopeField';
 import { LibraryPicker } from '@/components/LibraryPicker';
@@ -24,6 +31,8 @@ const ACCEPT_MEDIA =
 const ACCEPT_REFERENCE =
   'image/jpeg,image/png,image/webp,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx';
 
+const ACCEPT_BRAND_LOGO = 'image/png,image/jpeg,image/webp,image/gif';
+
 const ACCEPT_REEL_STILL = 'image/jpeg,image/png,image/webp,image/gif';
 
 type MediaMode = 'ai' | 'upload' | 'reel';
@@ -38,6 +47,7 @@ export default function ComposerPage() {
     showClientSelector,
     loading: clientsLoading,
     error: clientsError,
+    reloadClients,
   } = useAssignedClients();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [caption, setCaption] = useState('');
@@ -46,6 +56,9 @@ export default function ComposerPage() {
   const [referenceText, setReferenceText] = useState('');
   const [referenceFileName, setReferenceFileName] = useState<string | null>(null);
   const [parsingReference, setParsingReference] = useState(false);
+  const [composeLogoUrl, setComposeLogoUrl] = useState<string | null>(null);
+  const [logoFileName, setLogoFileName] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [aiPreviewUrl, setAiPreviewUrl] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -87,6 +100,16 @@ export default function ComposerPage() {
   useEffect(() => {
     if (clientsError) setError(clientsError);
   }, [clientsError]);
+
+  useEffect(() => {
+    const brand = selectedClient?.brand;
+    const logoUrl =
+      brand && typeof brand.logoUrl === 'string' && brand.logoUrl.trim()
+        ? brand.logoUrl.trim()
+        : null;
+    setComposeLogoUrl(logoUrl);
+    if (!logoUrl) setLogoFileName(null);
+  }, [selectedClient?.id, selectedClient?.brand]);
 
   const loadPostIntoForm = useCallback(async (postId: string) => {
     const post = await apiFetch<Post>(`/posts/${postId}`);
@@ -397,6 +420,35 @@ export default function ComposerPage() {
     }
   }
 
+  async function handleBrandLogoFile(file: File | null) {
+    if (!file) {
+      setComposeLogoUrl(null);
+      setLogoFileName(null);
+      return;
+    }
+    if (!clientId) {
+      setError('Selecciona un cliente antes de adjuntar el logo');
+      return;
+    }
+    setUploadingLogo(true);
+    setError(null);
+    try {
+      const result = await apiUploadClientLogo(clientId, file);
+      setComposeLogoUrl(result.logoUrl);
+      setLogoFileName(file.name);
+      setMessage(
+        'Logo de marca guardado. Se pegará intacto sobre el fondo (no se envía a la IA).',
+      );
+      await reloadClients().catch(() => undefined);
+    } catch (err) {
+      setComposeLogoUrl(null);
+      setLogoFileName(null);
+      setError(err instanceof ApiError ? err.message : 'No se pudo subir el logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
   const selectedPlatforms = useMemo(
     () =>
       accounts
@@ -473,6 +525,13 @@ export default function ComposerPage() {
           hashtags: parseHashtags(),
           socialAccountIds: selectedAccounts,
           ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
+          ...(composeLogoUrl
+            ? {
+                composeLogoUrl,
+                composeWithBrand: true,
+                composeFields: { title: caption.trim().slice(0, 120) },
+              }
+            : {}),
           videoFormat: mediaMode === 'reel' ? 'reel' : 'feed',
           ...placePayload(),
         }),
@@ -965,8 +1024,8 @@ export default function ComposerPage() {
               <div>
                 <h3 className="text-sm font-medium text-brand">Foto con IA</h3>
                 <p className="text-xs text-muted">
-                  Describe la escena. El texto de publicación también ancla el tema. Opcional:
-                  referencia (imagen, PDF o Word).
+                  Describe la escena (solo fondo). Referencia = inspiración para la IA. Logo de
+                  marca = se pega intacto por código, nunca a la IA.
                 </p>
               </div>
               <textarea
@@ -998,11 +1057,39 @@ export default function ComposerPage() {
                   <p className="mt-1 text-xs text-brand">Procesando referencia…</p>
                 )}
               </div>
+              <div>
+                <label htmlFor="brand-logo" className="mb-1 block text-xs text-muted">
+                  Adjuntar logo de marca (opcional)
+                </label>
+                <input
+                  id="brand-logo"
+                  type="file"
+                  accept={ACCEPT_BRAND_LOGO}
+                  disabled={uploadingLogo || generatingAi || !clientId}
+                  onChange={(e) => void handleBrandLogoFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-xs text-muted file:mr-2 file:rounded file:border-0 file:bg-slate-700 file:px-2 file:py-1 file:text-white"
+                />
+                {logoFileName && composeLogoUrl && (
+                  <p className="mt-1 text-xs text-muted">
+                    Logo: {logoFileName} (composición por código)
+                  </p>
+                )}
+                {!logoFileName && composeLogoUrl && (
+                  <p className="mt-1 text-xs text-muted">Logo de marca listo para componer</p>
+                )}
+                {uploadingLogo && (
+                  <p className="mt-1 text-xs text-brand">Subiendo logo…</p>
+                )}
+              </div>
               <button
                 type="button"
                 title="Genera la imagen y envía el post a aprobación (uno por red)"
                 disabled={
-                  generatingAi || submitting || parsingReference || selectedAccounts.length === 0
+                  generatingAi ||
+                  submitting ||
+                  parsingReference ||
+                  uploadingLogo ||
+                  selectedAccounts.length === 0
                 }
                 onClick={handleGenerateWithAi}
                 className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"

@@ -17,10 +17,11 @@ export function buildImagePrompt(input: {
   const presets = input.platformPresets ?? [];
 
   const parts = [
-    'Create one social media visual creative.',
+    'Create one social media visual creative background.',
     'Follow the visual brief closely. Do not invent a different topic or brand.',
-    'Prefer a clean, realistic or polished marketing look. Avoid watermarks and logos unless requested.',
-    'Do not overlay long paragraphs of text; short headline text only if the brief asks for it.',
+    'Prefer a clean, realistic or polished marketing look.',
+    'Do NOT paint any logos, watermarks, brand marks, or wordmarks. Logo will be added later in code.',
+    'Do NOT overlay marketing text, headlines, prices, or CTAs. Leave space for later composition.',
     `Visual brief: ${brief}`,
   ];
 

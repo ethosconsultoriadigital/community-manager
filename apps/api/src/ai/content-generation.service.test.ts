@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ContentGenerationService } from './content-generation.service';
 
+function createCompositionMocks() {
+  const clients = {
+    findById: vi.fn().mockResolvedValue({ id: 'client-1', brand: {} }),
+  };
+  const mediaStorage = { save: vi.fn(), readBytesFromUrl: vi.fn() };
+  const composition = { compose: vi.fn() };
+  return { clients, mediaStorage, composition };
+}
+
 function createImageMocks() {
   const posts = {
     create: vi.fn().mockResolvedValue({
@@ -49,13 +58,32 @@ function createImageMocks() {
     }),
   };
   const video = { generateVideo: vi.fn() };
-  return { posts, generations, mediaAssets, approvals, socialAccounts, image, video };
+  return {
+    posts,
+    generations,
+    mediaAssets,
+    approvals,
+    socialAccounts,
+    image,
+    video,
+    ...createCompositionMocks(),
+  };
 }
 
 describe('ContentGenerationService', () => {
   it('genera imagen y post pending_approval con caption del usuario (sin LLM mock)', async () => {
-    const { posts, generations, mediaAssets, approvals, socialAccounts, image, video } =
-      createImageMocks();
+    const {
+      posts,
+      generations,
+      mediaAssets,
+      approvals,
+      socialAccounts,
+      image,
+      video,
+      clients,
+      mediaStorage,
+      composition,
+    } = createImageMocks();
 
     const service = new ContentGenerationService(
       posts as never,
@@ -63,6 +91,9 @@ describe('ContentGenerationService', () => {
       mediaAssets as never,
       approvals as never,
       socialAccounts as never,
+      clients as never,
+      mediaStorage as never,
+      composition as never,
       image as never,
       video as never,
     );
@@ -113,6 +144,81 @@ describe('ContentGenerationService', () => {
     expect(result.usedMock).toBe(false);
     expect(result.imageProvider).toBe('openai');
     expect(video.generateVideo).not.toHaveBeenCalled();
+    expect(composition.compose).not.toHaveBeenCalled();
+  });
+
+  it('compone logo por código tras generar fondo (sin enviar logo a ImageProvider)', async () => {
+    const {
+      posts,
+      generations,
+      mediaAssets,
+      approvals,
+      socialAccounts,
+      image,
+      video,
+      clients,
+      mediaStorage,
+      composition,
+    } = createImageMocks();
+
+    clients.findById.mockResolvedValue({
+      id: 'client-1',
+      brand: { logoUrl: 'https://storage.local/logo.png' },
+    });
+    composition.compose.mockResolvedValue({
+      buffer: Buffer.from('png'),
+      width: 1080,
+      height: 1350,
+    });
+    mediaStorage.save.mockResolvedValue({
+      storageUrl: 'https://storage.local/composed.png',
+      storageKey: 'agency/composed.png',
+    });
+
+    const service = new ContentGenerationService(
+      posts as never,
+      generations as never,
+      mediaAssets as never,
+      approvals as never,
+      socialAccounts as never,
+      clients as never,
+      mediaStorage as never,
+      composition as never,
+      image as never,
+      video as never,
+    );
+
+    await service.generateFromBrief('agency-1', 'user-1', {
+      clientId: 'client-1',
+      brief: 'Fondo de café',
+      caption: 'Promo 2x1',
+      socialAccountIds: ['sa1'],
+      composeLogoUrl: 'https://storage.local/logo.png',
+      composeFields: { title: 'Promo 2x1' },
+    });
+
+    expect(image.generateImage).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        composeLogoUrl: expect.anything(),
+        logoUrl: expect.anything(),
+      }),
+    );
+    expect(composition.compose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        background: 'https://storage.local/ai.png',
+        logoUrl: 'https://storage.local/logo.png',
+        fields: expect.objectContaining({ title: 'Promo 2x1' }),
+      }),
+    );
+    expect(mediaAssets.create).toHaveBeenCalledWith(
+      'agency-1',
+      expect.objectContaining({
+        storageUrl: 'https://storage.local/composed.png',
+        width: 1080,
+        height: 1350,
+        source: 'ai_generated',
+      }),
+    );
   });
 
   it('crea un post por cada cuenta destino', async () => {
@@ -161,6 +267,7 @@ describe('ContentGenerationService', () => {
       }),
     };
     const video = { generateVideo: vi.fn() };
+    const { clients, mediaStorage, composition } = createCompositionMocks();
 
     const service = new ContentGenerationService(
       posts as never,
@@ -168,6 +275,9 @@ describe('ContentGenerationService', () => {
       mediaAssets as never,
       approvals as never,
       socialAccounts as never,
+      clients as never,
+      mediaStorage as never,
+      composition as never,
       image as never,
       video as never,
     );
@@ -228,6 +338,7 @@ describe('ContentGenerationService', () => {
         provider: 'fal',
       }),
     };
+    const { clients, mediaStorage, composition } = createCompositionMocks();
 
     const service = new ContentGenerationService(
       posts as never,
@@ -235,6 +346,9 @@ describe('ContentGenerationService', () => {
       mediaAssets as never,
       approvals as never,
       socialAccounts as never,
+      clients as never,
+      mediaStorage as never,
+      composition as never,
       image as never,
       video as never,
     );

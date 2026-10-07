@@ -18,6 +18,8 @@ export type Client = {
   id: string;
   name: string;
   is_active: boolean;
+  /** Identidad de marca (logoUrl, layouts, fonts). */
+  brand?: Record<string, unknown> | null;
 };
 
 export type SocialAccount = {

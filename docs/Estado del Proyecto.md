@@ -3,7 +3,23 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-09-30 (SEO: robots + sitemap)
+**Última actualización:** 2026-10-07 (composición logo + texto con sharp)
+
+---
+
+## 2026-10-07 — Composición de marca (logo + texto sobre fondo IA) ✅
+
+**Problema:** subir el logo como “referencia” hacía que la IA lo describiera y lo repintara deformado.
+
+**Solución:**
+- OpenAI genera **solo el fondo** (prompt actualizado: sin logos ni tipografía de marketing).
+- Nuevo `CompositionService` (sharp): pega el logo intacto (`fit: inside`, `withoutEnlargement`) + texto SVG según layout en `clients.brand`.
+- UI Composer: campo aparte **“Adjuntar logo de marca”** → `POST /clients/:id/logo` (no pasa por `parse-reference`).
+- La referencia existente se conserva para estilo/inspiración.
+- Sin dependencia nueva (sharp ya estaba); sin satori por ahora.
+- `media_assets.source` sigue `ai_generated`; generation.output incluye `composed: true`.
+
+**Criterio:** ✅ tests composición + pipeline; ⏳ probar en UI con logo real de un cliente.
 
 ---
 

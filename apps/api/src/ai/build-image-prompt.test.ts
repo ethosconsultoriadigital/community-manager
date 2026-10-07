@@ -13,6 +13,8 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('Promo 2x1 en lattes esta semana');
     expect(prompt).toContain('#cafe');
     expect(prompt).toMatch(/social media visual/i);
+    expect(prompt).toMatch(/Do NOT paint any logos/i);
+    expect(prompt).toMatch(/Do NOT overlay marketing text/i);
   });
 
   it('funciona solo con brief', () => {

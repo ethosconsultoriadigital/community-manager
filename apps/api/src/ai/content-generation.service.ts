@@ -1,12 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   ApprovalsRepository,
+  ClientsRepository,
   GenerationsRepository,
   MediaAssetsRepository,
   PostsRepository,
   PostsValidationError,
   SocialAccountsRepository,
 } from '@cm/db';
+import { MediaStorageService } from '../media/media-storage.service';
 import {
   imageSizeForPresets,
   presetsForPlatforms,
@@ -14,6 +16,8 @@ import {
 import { IMAGE_PROVIDER, VIDEO_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
 import type { VideoProvider } from './interfaces/video-provider.interface';
+import { CompositionService } from './composition/composition.service';
+import { DEFAULT_LAYOUT_KEY, parseClientBrand } from './composition/brand-layout';
 
 export type GenerateFromBriefInput = {
   clientId: string;
@@ -25,6 +29,15 @@ export type GenerateFromBriefInput = {
   videoFormat?: 'feed' | 'reel' | null;
   placeId?: string | null;
   placeName?: string | null;
+  /**
+   * URL del logo de marca (activo). Nunca se envía a OpenAI; solo a CompositionService.
+   * Si se omite, se usa clients.brand.logoUrl cuando composeWithBrand es true.
+   */
+  composeLogoUrl?: string;
+  /** Si true, compone logo/texto de marca sobre el fondo generado. */
+  composeWithBrand?: boolean;
+  layoutKey?: string;
+  composeFields?: Record<string, string>;
 };
 
 export type GenerateReelFromBriefInput = GenerateFromBriefInput & {
@@ -57,12 +70,17 @@ export type GenerateReelFromBriefResult = {
 
 @Injectable()
 export class ContentGenerationService {
+  private readonly logger = new Logger(ContentGenerationService.name);
+
   constructor(
     private readonly posts: PostsRepository,
     private readonly generations: GenerationsRepository,
     private readonly mediaAssets: MediaAssetsRepository,
     private readonly approvals: ApprovalsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
+    private readonly clients: ClientsRepository,
+    private readonly mediaStorage: MediaStorageService,
+    private readonly composition: CompositionService,
     @Inject(IMAGE_PROVIDER) private readonly image: ImageProvider,
     @Inject(VIDEO_PROVIDER) private readonly video: VideoProvider,
   ) {}
@@ -100,6 +118,7 @@ export class ContentGenerationService {
     await this.generations.updateStatus(agencyId, imageGen.id, 'processing');
 
     let generatedImage;
+    let composed = false;
     try {
       generatedImage = await this.image.generateImage({
         brief: input.brief,
@@ -110,12 +129,24 @@ export class ContentGenerationService {
         imageSize,
         agencyId,
       });
+
+      const composedImage = await this.maybeComposeBrand(
+        agencyId,
+        input,
+        generatedImage,
+      );
+      if (composedImage) {
+        generatedImage = composedImage;
+        composed = true;
+      }
+
       await this.generations.updateStatus(agencyId, imageGen.id, 'completed', {
         output: {
           imageUrl: generatedImage.url,
           provider: generatedImage.provider ?? 'unknown',
           width: generatedImage.width,
           height: generatedImage.height,
+          composed,
         },
         model: generatedImage.model ?? generatedImage.provider ?? 'image',
       });
@@ -178,6 +209,7 @@ export class ContentGenerationService {
         provider: generatedImage.provider ?? 'unknown',
         width: generatedImage.width,
         height: generatedImage.height,
+        composed,
         postIds: createdPosts.map((p) => p.id),
       },
       mediaId: firstMediaId ?? undefined,
@@ -197,6 +229,62 @@ export class ContentGenerationService {
       usedMock: generatedImage.provider === 'mock',
       imageProvider: generatedImage.provider ?? 'unknown',
       imageModel: generatedImage.model ?? null,
+    };
+  }
+
+  /**
+   * Post-proceso: logo/texto por código. Solo si hay logo (request o brand).
+   * El ImageProvider no recibe el logo.
+   */
+  private async maybeComposeBrand(
+    agencyId: string,
+    input: GenerateFromBriefInput,
+    generatedImage: {
+      url: string;
+      width: number;
+      height: number;
+      model?: string;
+      provider?: 'openai' | 'mock';
+    },
+  ) {
+    const client = await this.clients.findById(agencyId, input.clientId);
+    const brand = parseClientBrand(client?.brand);
+    const logoUrl =
+      input.composeLogoUrl?.trim() ||
+      (input.composeWithBrand ? brand.logoUrl : undefined) ||
+      undefined;
+
+    if (!logoUrl) return null;
+
+    const fields: Record<string, string> = {
+      ...(input.composeFields ?? {}),
+    };
+    if (!fields.title?.trim()) {
+      fields.title = input.caption.trim().slice(0, 120);
+    }
+
+    const composed = await this.composition.compose({
+      background: generatedImage.url,
+      agencyId,
+      clientId: input.clientId,
+      layoutKey: input.layoutKey?.trim() || DEFAULT_LAYOUT_KEY,
+      fields,
+      logoUrl,
+    });
+    const stored = await this.mediaStorage.save({
+      agencyId,
+      buffer: composed.buffer,
+      extension: 'png',
+      contentType: 'image/png',
+    });
+    this.logger.log(
+      `Imagen compuesta con logo de marca (${composed.width}x${composed.height})`,
+    );
+    return {
+      ...generatedImage,
+      url: stored.storageUrl,
+      width: composed.width,
+      height: composed.height,
     };
   }
 
