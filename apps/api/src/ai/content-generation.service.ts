@@ -13,11 +13,12 @@ import {
   imageSizeForPresets,
   presetsForPlatforms,
 } from './platform-visual-presets';
-import { IMAGE_PROVIDER, VIDEO_PROVIDER } from './ai.tokens';
+import { IMAGE_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
-import type { VideoProvider } from './interfaces/video-provider.interface';
 import { CompositionService } from './composition/composition.service';
 import { DEFAULT_LAYOUT_KEY, parseClientBrand } from './composition/brand-layout';
+import { ReelPipelineService } from './reel-pipeline.service';
+import { AvatarPipelineService } from './avatar-pipeline.service';
 
 export type GenerateFromBriefInput = {
   clientId: string;
@@ -41,8 +42,15 @@ export type GenerateFromBriefInput = {
 };
 
 export type GenerateReelFromBriefInput = GenerateFromBriefInput & {
-  /** URL pública de foto de referencia (image-to-video). */
+  /** URL pública de foto de referencia (image-to-video / keyframe escena 1). */
   referenceImageUrl?: string;
+  /** Escenas del Reel multi-clip (2–4). */
+  sceneCount?: number;
+  /** Duración objetivo (s); se traduce en nº de escenas si no hay sceneCount. */
+  targetDurationSeconds?: number;
+  musicTrackId?: string;
+  withMusic?: boolean;
+  withSubtitles?: boolean;
 };
 
 export type GenerateFromBriefResult = {
@@ -68,6 +76,34 @@ export type GenerateReelFromBriefResult = {
   videoModel: string | null;
 };
 
+export type GenerateAvatarFromBriefInput = {
+  clientId: string;
+  brief: string;
+  caption: string;
+  hashtags?: string[];
+  socialAccountIds: string[];
+  referenceText?: string;
+  characterImageUrl?: string;
+  voiceId?: string;
+  targetSeconds?: number;
+  musicTrackId?: string;
+  withMusic?: boolean;
+  withSubtitles?: boolean;
+  placeId?: string | null;
+  placeName?: string | null;
+};
+
+export type GenerateAvatarFromBriefResult = {
+  post: Awaited<ReturnType<PostsRepository['findById']>>;
+  posts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[];
+  media: Awaited<ReturnType<MediaAssetsRepository['findByPost']>>;
+  generations: Awaited<ReturnType<GenerationsRepository['findByPost']>>;
+  usedMock: boolean;
+  ttsProvider: 'elevenlabs' | 'mock' | 'unknown';
+  lipsyncProvider: 'fal' | 'mock' | 'unknown';
+  videoModel: string | null;
+};
+
 @Injectable()
 export class ContentGenerationService {
   private readonly logger = new Logger(ContentGenerationService.name);
@@ -81,8 +117,9 @@ export class ContentGenerationService {
     private readonly clients: ClientsRepository,
     private readonly mediaStorage: MediaStorageService,
     private readonly composition: CompositionService,
+    private readonly reelPipeline: ReelPipelineService,
+    private readonly avatarPipeline: AvatarPipelineService,
     @Inject(IMAGE_PROVIDER) private readonly image: ImageProvider,
-    @Inject(VIDEO_PROVIDER) private readonly video: VideoProvider,
   ) {}
 
   async generateFromBrief(
@@ -315,13 +352,18 @@ export class ContentGenerationService {
 
     let generatedVideo;
     try {
-      generatedVideo = await this.video.generateVideo({
-        prompt: input.brief.trim(),
+      generatedVideo = await this.reelPipeline.generate({
+        agencyId,
+        brief: input.brief.trim(),
         caption: input.caption,
         hashtags: input.hashtags,
         referenceText: input.referenceText,
         referenceImageUrl: input.referenceImageUrl,
-        agencyId,
+        sceneCount: input.sceneCount,
+        targetDurationSeconds: input.targetDurationSeconds,
+        musicTrackId: input.musicTrackId,
+        withMusic: input.withMusic,
+        withSubtitles: input.withSubtitles,
       });
       await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
         output: {
@@ -329,6 +371,13 @@ export class ContentGenerationService {
           provider: generatedVideo.provider ?? 'unknown',
           width: generatedVideo.width,
           height: generatedVideo.height,
+          multiScene: generatedVideo.multiScene,
+          sceneCount: generatedVideo.sceneCount,
+          musicSuggestion: generatedVideo.musicSuggestion,
+          musicTrackId: generatedVideo.musicTrackId,
+          burnedSubtitles: generatedVideo.burnedSubtitles,
+          durationSeconds: generatedVideo.durationSeconds,
+          sceneModels: generatedVideo.sceneModels,
         },
         model: generatedVideo.model ?? generatedVideo.provider ?? 'video',
       });
@@ -391,6 +440,13 @@ export class ContentGenerationService {
         provider: generatedVideo.provider ?? 'unknown',
         width: generatedVideo.width,
         height: generatedVideo.height,
+        multiScene: generatedVideo.multiScene,
+        sceneCount: generatedVideo.sceneCount,
+        musicSuggestion: generatedVideo.musicSuggestion,
+        musicTrackId: generatedVideo.musicTrackId,
+        burnedSubtitles: generatedVideo.burnedSubtitles,
+        durationSeconds: generatedVideo.durationSeconds,
+        sceneModels: generatedVideo.sceneModels,
         postIds: createdPosts.map((p) => p.id),
       },
       mediaId: firstMediaId ?? undefined,
@@ -407,9 +463,150 @@ export class ContentGenerationService {
       posts: createdPosts,
       media: postMedia,
       generations: postGenerations,
-      usedMock: generatedVideo.provider === 'mock',
+      usedMock: generatedVideo.usedMock,
       videoProvider: generatedVideo.provider ?? 'unknown',
       videoModel: generatedVideo.model ?? null,
+    };
+  }
+
+  async generateAvatarFromBrief(
+    agencyId: string,
+    userId: string | null,
+    input: GenerateAvatarFromBriefInput,
+  ): Promise<GenerateAvatarFromBriefResult> {
+    if (!input.brief?.trim()) {
+      throw new PostsValidationError('El brief es obligatorio');
+    }
+    if (!input.caption?.trim()) {
+      throw new PostsValidationError('El caption es obligatorio');
+    }
+
+    await this.assertSocialAccountsActive(
+      agencyId,
+      input.clientId,
+      input.socialAccountIds,
+    );
+
+    const videoGen = await this.generations.create(agencyId, {
+      kind: 'avatar_video',
+      prompt: input.brief,
+      model: 'pending-avatar',
+    });
+    await this.generations.updateStatus(agencyId, videoGen.id, 'processing');
+
+    let generated;
+    try {
+      generated = await this.avatarPipeline.generate({
+        agencyId,
+        clientId: input.clientId,
+        brief: input.brief.trim(),
+        caption: input.caption,
+        referenceText: input.referenceText,
+        characterImageUrl: input.characterImageUrl,
+        voiceId: input.voiceId,
+        targetSeconds: input.targetSeconds,
+        musicTrackId: input.musicTrackId,
+        withMusic: input.withMusic,
+        withSubtitles: input.withSubtitles,
+      });
+      await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
+        output: {
+          videoUrl: generated.url,
+          ttsProvider: generated.ttsProvider,
+          lipsyncProvider: generated.lipsyncProvider,
+          width: generated.width,
+          height: generated.height,
+          musicTrackId: generated.musicTrackId,
+          burnedSubtitles: generated.burnedSubtitles,
+          durationSeconds: generated.durationSeconds,
+          spokenTextPreview: generated.spokenTextPreview,
+        },
+        model: generated.model,
+      });
+    } catch (error) {
+      await this.generations.updateStatus(agencyId, videoGen.id, 'failed', {
+        output: { error: error instanceof Error ? error.message : 'Error desconocido' },
+      });
+      throw error;
+    }
+
+    const uniqueIds = [...new Set(input.socialAccountIds)];
+    if (!uniqueIds.length) {
+      throw new PostsValidationError('Debe indicar al menos un destino');
+    }
+
+    const createdPosts: NonNullable<Awaited<ReturnType<PostsRepository['findById']>>>[] =
+      [];
+    let firstMediaId: string | null = null;
+
+    for (const accountId of uniqueIds) {
+      const post = await this.posts.create(
+        agencyId,
+        userId,
+        {
+          clientId: input.clientId,
+          caption: input.caption.trim(),
+          hashtags: input.hashtags ?? [],
+          socialAccountIds: [accountId],
+          videoFormat: 'reel',
+          placeId: input.placeId ?? null,
+          placeName: input.placeName ?? null,
+        },
+        'pending_approval',
+      );
+
+      await this.approvals.createPending(post.id);
+
+      const media = await this.mediaAssets.create(agencyId, {
+        postId: post.id,
+        type: 'video',
+        source: 'ai_generated',
+        storageUrl: generated.url,
+        width: generated.width,
+        height: generated.height,
+      });
+      if (!firstMediaId) firstMediaId = media.id;
+
+      const fullPost = await this.posts.findById(agencyId, post.id);
+      if (fullPost) createdPosts.push(fullPost);
+    }
+
+    const primary = createdPosts[0];
+    if (!primary) {
+      throw new PostsValidationError('No se pudo crear el post');
+    }
+
+    await this.generations.updateStatus(agencyId, videoGen.id, 'completed', {
+      output: {
+        videoUrl: generated.url,
+        ttsProvider: generated.ttsProvider,
+        lipsyncProvider: generated.lipsyncProvider,
+        width: generated.width,
+        height: generated.height,
+        musicTrackId: generated.musicTrackId,
+        burnedSubtitles: generated.burnedSubtitles,
+        durationSeconds: generated.durationSeconds,
+        spokenTextPreview: generated.spokenTextPreview,
+        postIds: createdPosts.map((p) => p.id),
+      },
+      mediaId: firstMediaId ?? undefined,
+      postId: primary.id,
+      model: generated.model,
+    });
+    await this.generations.linkPost(agencyId, videoGen.id, primary.id);
+
+    const postGenerations = await this.generations.findByPost(agencyId, primary.id);
+    const postMedia = await this.mediaAssets.findByPost(agencyId, primary.id);
+
+    return {
+      post: primary,
+      posts: createdPosts,
+      media: postMedia,
+      generations: postGenerations,
+      usedMock: generated.usedMock,
+      ttsProvider: generated.ttsProvider,
+      lipsyncProvider: generated.lipsyncProvider,
+      videoModel: generated.model,
     };
   }
 

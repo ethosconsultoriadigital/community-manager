@@ -12,6 +12,10 @@ import type {
 import type {
   GenerateCopyInput,
   GenerateCopyResult,
+  GenerateAvatarScriptInput,
+  GenerateAvatarScriptResult,
+  GenerateReelScriptInput,
+  GenerateReelScriptResult,
   GenerateReportNarrativeInput,
   GenerateReportNarrativeResult,
   LlmProvider,
@@ -43,6 +47,43 @@ export class MockLlmProvider implements LlmProvider {
         '[Mock] Facebook e Instagram muestran engagement concentrado en los top posts del periodo.',
       recommendations:
         '[Mock] Mantener frecuencia de publicación, replicar formatos con mayor engagement y revisar horarios de publicación.',
+    };
+  }
+
+  async generateReelScript(
+    input: GenerateReelScriptInput,
+  ): Promise<GenerateReelScriptResult> {
+    const n = Math.min(4, Math.max(2, Math.round(input.sceneCount) || 2));
+    const topic = input.brief.trim() || 'producto';
+    return {
+      scenes: Array.from({ length: n }, (_, i) => ({
+        id: String(i + 1),
+        visualPrompt: `[Mock] Keyframe vertical 9:16 de ${topic}, escena ${i + 1}, sin logos ni texto`,
+        motionPrompt: `[Mock] Slow push-in cinematic motion, scene ${i + 1}: ${topic}`,
+        subtitle: i === 0 ? topic.slice(0, 40) : '',
+        durationHintSeconds: 5,
+      })),
+      musicSuggestion: 'upbeat light',
+      usedMock: true,
+    };
+  }
+
+  async generateAvatarScript(
+    input: GenerateAvatarScriptInput,
+  ): Promise<GenerateAvatarScriptResult> {
+    const topic = input.brief.trim() || 'nuestro producto';
+    const spokenText = `¡Hola! Soy el personaje de la marca. Hoy te cuento sobre ${topic}. ${
+      input.caption?.trim() ? `${input.caption.trim()}. ` : ''
+    }Síguenos para más novedades.`;
+    return {
+      spokenText,
+      subtitleLines: [
+        '¡Hola!',
+        `Sobre ${topic.slice(0, 40)}`,
+        'Síguenos para más',
+      ],
+      musicSuggestion: 'upbeat light',
+      usedMock: true,
     };
   }
 }

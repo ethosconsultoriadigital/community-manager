@@ -38,6 +38,10 @@ export type BrandLayout = {
 
 export type ClientBrandConfig = {
   logoUrl?: string;
+  /** Imagen del personaje estilizado (avatar / “robocito”). */
+  characterImageUrl?: string;
+  /** Voice ID de ElevenLabs (opcional). */
+  ttsVoiceId?: string;
   fonts?: Record<string, string>;
   layouts: Record<string, BrandLayout>;
 };
@@ -146,6 +150,14 @@ export function parseClientBrand(brand: unknown): ClientBrandConfig {
     typeof root.logoUrl === 'string' && root.logoUrl.trim()
       ? root.logoUrl.trim()
       : undefined;
+  const characterImageUrl =
+    typeof root.characterImageUrl === 'string' && root.characterImageUrl.trim()
+      ? root.characterImageUrl.trim()
+      : undefined;
+  const ttsVoiceId =
+    typeof root.ttsVoiceId === 'string' && root.ttsVoiceId.trim()
+      ? root.ttsVoiceId.trim()
+      : undefined;
 
   const fonts =
     isRecord(root.fonts)
@@ -169,7 +181,7 @@ export function parseClientBrand(brand: unknown): ClientBrandConfig {
     };
   }
 
-  return { logoUrl, fonts, layouts };
+  return { logoUrl, characterImageUrl, ttsVoiceId, fonts, layouts };
 }
 
 export function resolveLayout(

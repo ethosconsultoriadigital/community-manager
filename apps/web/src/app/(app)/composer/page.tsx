@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   ApiError,
   apiFetch,
+  apiUploadClientCharacter,
   apiUploadClientLogo,
   apiUploadMedia,
   apiUploadReference,
@@ -16,6 +17,7 @@ import { LibraryPicker } from '@/components/LibraryPicker';
 import { PageHeader, SectionHeading } from '@/components/PageTypography';
 import { useAssignedClients } from '@/lib/use-assigned-clients';
 import type {
+  GenerateAvatarFromBriefResult,
   GenerateFromBriefResult,
   GenerateReelFromBriefResult,
   LibraryItem,
@@ -35,7 +37,9 @@ const ACCEPT_BRAND_LOGO = 'image/png,image/jpeg,image/webp,image/gif';
 
 const ACCEPT_REEL_STILL = 'image/jpeg,image/png,image/webp,image/gif';
 
-type MediaMode = 'ai' | 'upload' | 'reel';
+const ACCEPT_CHARACTER = 'image/png,image/jpeg,image/webp,image/gif';
+
+type MediaMode = 'ai' | 'upload' | 'reel' | 'avatar';
 
 export default function ComposerPage() {
   const searchParams = useSearchParams();
@@ -72,6 +76,17 @@ export default function ComposerPage() {
   const [reelStillFile, setReelStillFile] = useState<File | null>(null);
   const [reelStillPreview, setReelStillPreview] = useState<string | null>(null);
   const [reelPreviewUrl, setReelPreviewUrl] = useState<string | null>(null);
+  /** Duración objetivo del Reel IA (~5s por escena). */
+  const [reelTargetDuration, setReelTargetDuration] = useState<10 | 15 | 20>(15);
+  const [reelWithMusic, setReelWithMusic] = useState(true);
+  const [reelWithSubtitles, setReelWithSubtitles] = useState(true);
+  const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(null);
+  const [characterFileName, setCharacterFileName] = useState<string | null>(null);
+  const [uploadingCharacter, setUploadingCharacter] = useState(false);
+  const [avatarTargetSeconds, setAvatarTargetSeconds] = useState(20);
+  const [avatarWithMusic, setAvatarWithMusic] = useState(true);
+  const [avatarWithSubtitles, setAvatarWithSubtitles] = useState(true);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [publishAsReel, setPublishAsReel] = useState(false);
   const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(false);
@@ -109,6 +124,12 @@ export default function ComposerPage() {
         : null;
     setComposeLogoUrl(logoUrl);
     if (!logoUrl) setLogoFileName(null);
+    const charUrl =
+      brand && typeof brand.characterImageUrl === 'string' && brand.characterImageUrl.trim()
+        ? brand.characterImageUrl.trim()
+        : null;
+    setCharacterImageUrl(charUrl);
+    if (!charUrl) setCharacterFileName(null);
   }, [selectedClient?.id, selectedClient?.brand]);
 
   const loadPostIntoForm = useCallback(async (postId: string) => {
@@ -209,10 +230,10 @@ export default function ComposerPage() {
     if (mode === 'ai') {
       handleMediaChange(null);
       setPublishAsReel(false);
-    } else if (mode === 'reel') {
+    } else if (mode === 'reel' || mode === 'avatar') {
       setAiPreviewUrl(null);
       setPublishAsReel(true);
-      if (mediaFile && !mediaFile.type.startsWith('video/')) {
+      if (mode === 'reel' && mediaFile && !mediaFile.type.startsWith('video/')) {
         handleMediaChange(null);
       }
     } else {
@@ -220,6 +241,98 @@ export default function ComposerPage() {
       if (!mediaFile?.type.startsWith('video/')) {
         setPublishAsReel(false);
       }
+    }
+  }
+
+  async function handleCharacterFile(file: File | null) {
+    if (!file) {
+      setCharacterImageUrl(null);
+      setCharacterFileName(null);
+      return;
+    }
+    if (!clientId) {
+      setError('Selecciona un cliente antes de adjuntar el personaje');
+      return;
+    }
+    setUploadingCharacter(true);
+    setError(null);
+    try {
+      const result = await apiUploadClientCharacter(clientId, file);
+      setCharacterImageUrl(result.characterImageUrl);
+      setCharacterFileName(file.name);
+      setMessage('Personaje de marca guardado. Se usará para el avatar con lip-sync.');
+      await reloadClients().catch(() => undefined);
+    } catch (err) {
+      setCharacterImageUrl(null);
+      setCharacterFileName(null);
+      setError(err instanceof ApiError ? err.message : 'No se pudo subir el personaje');
+    } finally {
+      setUploadingCharacter(false);
+    }
+  }
+
+  async function handleGenerateAvatar() {
+    if (!aiBrief.trim()) {
+      setError('Escribe un brief para el guion del personaje');
+      return;
+    }
+    if (!caption.trim()) {
+      setError('Escribe el texto de publicación del post antes de generar');
+      return;
+    }
+    if (selectedAccounts.length === 0) {
+      setError('Selecciona al menos un destino');
+      return;
+    }
+    if (!characterImageUrl) {
+      setError('Adjunta la imagen del personaje de marca');
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    setGeneratingAvatar(true);
+    try {
+      const result = await apiFetch<GenerateAvatarFromBriefResult>(
+        '/generations/from-brief-avatar',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientId,
+            brief: aiBrief.trim(),
+            caption: caption.trim(),
+            hashtags: parseHashtags(),
+            socialAccountIds: selectedAccounts,
+            characterImageUrl,
+            targetSeconds: avatarTargetSeconds,
+            withMusic: avatarWithMusic,
+            withSubtitles: avatarWithSubtitles,
+            ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
+            ...placePayload(),
+          }),
+        },
+      );
+
+      const video = result.media.find((m) => m.type === 'video');
+      if (video?.storage_url) {
+        setReelPreviewUrl(video.storage_url);
+        handleMediaChange(null);
+      }
+
+      const createdCount = result.posts?.length ?? 1;
+      const firstId = result.post.id;
+      setMessage(
+        result.usedMock
+          ? `Avatar de prueba enviado a aprobación (${firstId.slice(0, 8)}…). Configura ELEVENLABS_API_KEY y FAL_KEY para producción.`
+          : createdCount > 1
+            ? `Avatar generado: ${createdCount} posts a aprobación.`
+            : `Avatar generado (${result.videoModel ?? 'tts+lipsync'}) → aprobación (${firstId.slice(0, 8)}…)`,
+      );
+      clearForm();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Error al generar el avatar');
+    } finally {
+      setGeneratingAvatar(false);
     }
   }
 
@@ -387,7 +500,9 @@ export default function ComposerPage() {
 
   function videoFormatPayload(): 'feed' | 'reel' | null {
     if (!hasVideoAttachment()) return null;
-    return publishAsReel || mediaMode === 'reel' ? 'reel' : 'feed';
+    return publishAsReel || mediaMode === 'reel' || mediaMode === 'avatar'
+      ? 'reel'
+      : 'feed';
   }
 
   function parseHashtags(): string[] {
@@ -603,6 +718,9 @@ export default function ComposerPage() {
             caption: caption.trim(),
             hashtags: parseHashtags(),
             socialAccountIds: selectedAccounts,
+            targetDurationSeconds: reelTargetDuration,
+            withMusic: reelWithMusic,
+            withSubtitles: reelWithSubtitles,
             ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
             ...(referenceImageUrl ? { referenceImageUrl } : {}),
             ...placePayload(),
@@ -787,7 +905,8 @@ export default function ComposerPage() {
     return <p className="text-muted">Cargando composer…</p>;
   }
 
-  const aiSourceActive = mediaMode === 'ai' || mediaMode === 'reel';
+  const aiSourceActive =
+    mediaMode === 'ai' || mediaMode === 'reel' || mediaMode === 'avatar';
   const btnSecondary =
     'rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs text-ink hover:bg-canvas disabled:opacity-50';
   const inputClass =
@@ -961,7 +1080,11 @@ export default function ComposerPage() {
             <button
               type="button"
               title="Generar foto o Reel con inteligencia artificial"
-              onClick={() => selectMediaMode(mediaMode === 'reel' ? 'reel' : 'ai')}
+              onClick={() =>
+                selectMediaMode(
+                  mediaMode === 'reel' || mediaMode === 'avatar' ? mediaMode : 'ai',
+                )
+              }
               className={`rounded-md px-3 py-2 text-sm ${
                 aiSourceActive
                   ? 'bg-brand text-white'
@@ -1009,6 +1132,18 @@ export default function ComposerPage() {
                 }`}
               >
                 Video / Reel
+              </button>
+              <button
+                type="button"
+                title="Personaje estilizado que habla (TTS + lip-sync)"
+                onClick={() => selectMediaMode('avatar')}
+                className={`rounded-md px-3 py-1.5 text-xs ${
+                  mediaMode === 'avatar'
+                    ? 'bg-brand/90 text-white'
+                    : 'border border-line-strong text-muted hover:bg-canvas'
+                }`}
+              >
+                Avatar
               </button>
             </div>
           )}
@@ -1116,8 +1251,8 @@ export default function ComposerPage() {
                 <div>
                   <h3 className="text-sm font-medium text-brand">Video / Reel con IA</h3>
                   <p className="text-xs text-muted">
-                    Describe el video. Opcionalmente adjunta una foto para animarla. Requiere saldo
-                    en fal.ai para video real.
+                    Reel 9:16 multi-escena con subtítulos y música propia (licenciada). Opcional:
+                    foto como keyframe de la 1.ª escena. Requiere saldo en fal.ai.
                   </p>
                 </div>
                 <textarea
@@ -1127,6 +1262,44 @@ export default function ComposerPage() {
                   className={inputClass}
                   placeholder="Ej: cámara lenta acercándose a un latte con vapor…"
                 />
+                <div>
+                  <label htmlFor="reel-duration" className="mb-1 block text-xs text-muted">
+                    Duración aproximada
+                  </label>
+                  <select
+                    id="reel-duration"
+                    value={reelTargetDuration}
+                    disabled={generatingReel || submitting}
+                    onChange={(e) =>
+                      setReelTargetDuration(Number(e.target.value) as 10 | 15 | 20)
+                    }
+                    className={inputClass}
+                  >
+                    <option value={10}>Corto (~10 s, 2 escenas)</option>
+                    <option value={15}>Medio (~15 s, 3 escenas)</option>
+                    <option value={20}>Largo (~20 s, 4 escenas)</option>
+                  </select>
+                </div>
+                <div className="flex flex-wrap gap-4 text-xs text-muted">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reelWithSubtitles}
+                      disabled={generatingReel || submitting}
+                      onChange={(e) => setReelWithSubtitles(e.target.checked)}
+                    />
+                    Subtítulos
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={reelWithMusic}
+                      disabled={generatingReel || submitting}
+                      onChange={(e) => setReelWithMusic(e.target.checked)}
+                    />
+                    Música de fondo
+                  </label>
+                </div>
                 <div>
                   <label htmlFor="reel-still" className="mb-1 block text-xs text-muted">
                     Foto de referencia (opcional)
@@ -1188,6 +1361,113 @@ export default function ComposerPage() {
                   Videos hasta 50 MB (MP4, MOV, WebM). Se publicará como Reel en Instagram.
                 </p>
               </div>
+            </div>
+          )}
+
+          {mediaMode === 'avatar' && (
+            <div className="space-y-3 rounded-lg border border-brand/30 bg-brand/5 p-4">
+              <div>
+                <h3 className="text-sm font-medium text-brand">Avatar / personaje</h3>
+                <p className="text-xs text-muted">
+                  Personaje estilizado que habla un guion (TTS + lip-sync). No es un presentador
+                  humano. Requiere imagen del personaje y, en prod, ELEVENLABS + FAL.
+                </p>
+              </div>
+              <textarea
+                rows={3}
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                className={inputClass}
+                placeholder="Ej: presenta la promo 2x1 de lattes de forma amigable…"
+              />
+              <div>
+                <label htmlFor="avatar-character" className="mb-1 block text-xs text-muted">
+                  Imagen del personaje (obligatoria)
+                </label>
+                <input
+                  id="avatar-character"
+                  type="file"
+                  accept={ACCEPT_CHARACTER}
+                  disabled={uploadingCharacter || generatingAvatar || !clientId}
+                  onChange={(e) => void handleCharacterFile(e.target.files?.[0] ?? null)}
+                  className="block w-full text-xs text-muted file:mr-2 file:rounded file:border-0 file:bg-slate-700 file:px-2 file:py-1 file:text-white"
+                />
+                {characterImageUrl && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <img
+                      src={characterImageUrl}
+                      alt="Personaje"
+                      className="max-h-24 rounded object-contain"
+                    />
+                    <p className="text-xs text-muted">
+                      {characterFileName ?? 'Personaje de marca listo'}
+                    </p>
+                  </div>
+                )}
+                {uploadingCharacter && (
+                  <p className="mt-1 text-xs text-brand">Subiendo personaje…</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="avatar-duration" className="mb-1 block text-xs text-muted">
+                  Duración del monólogo (~)
+                </label>
+                <select
+                  id="avatar-duration"
+                  value={avatarTargetSeconds}
+                  disabled={generatingAvatar || submitting}
+                  onChange={(e) => setAvatarTargetSeconds(Number(e.target.value))}
+                  className={inputClass}
+                >
+                  <option value={15}>~15 s</option>
+                  <option value={20}>~20 s</option>
+                  <option value={30}>~30 s</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs text-muted">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={avatarWithSubtitles}
+                    disabled={generatingAvatar || submitting}
+                    onChange={(e) => setAvatarWithSubtitles(e.target.checked)}
+                  />
+                  Subtítulos
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={avatarWithMusic}
+                    disabled={generatingAvatar || submitting}
+                    onChange={(e) => setAvatarWithMusic(e.target.checked)}
+                  />
+                  Música de fondo (baja)
+                </label>
+              </div>
+              <button
+                type="button"
+                title="Genera el video del personaje y lo envía a aprobación"
+                disabled={
+                  generatingAvatar ||
+                  uploadingCharacter ||
+                  submitting ||
+                  selectedAccounts.length === 0 ||
+                  !characterImageUrl
+                }
+                onClick={() => void handleGenerateAvatar()}
+                className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+              >
+                {generatingAvatar
+                  ? 'Generando avatar (puede tardar varios minutos)…'
+                  : 'Generar avatar y enviar a aprobación'}
+              </button>
+              {reelPreviewUrl && mediaMode === 'avatar' && (
+                <video
+                  src={reelPreviewUrl}
+                  controls
+                  className="max-h-48 w-full rounded object-contain"
+                />
+              )}
             </div>
           )}
 

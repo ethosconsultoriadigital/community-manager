@@ -169,6 +169,68 @@ export class ClientsController {
     };
   }
 
+  /**
+   * Imagen del personaje estilizado (avatar). No se regenera cada vez; no va a OpenAI como logo.
+   * Se usa en lip-sync (Fase C).
+   */
+  @Post(':id/character')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 8 * 1024 * 1024 },
+    }),
+  )
+  async uploadCharacter(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    await this.clientAccess.assertClientAccess(user, id);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No se recibió ningún archivo de personaje');
+    }
+    const mime = (file.mimetype || '').toLowerCase();
+    if (!LOGO_MIMES.has(mime)) {
+      throw new BadRequestException('El personaje debe ser PNG, JPEG, WebP o GIF');
+    }
+
+    const client = await this.clients.findById(user.agencyId, id);
+    if (!client) throw new NotFoundException('Cliente no encontrado');
+
+    const ext =
+      mime === 'image/png'
+        ? 'png'
+        : mime === 'image/webp'
+          ? 'webp'
+          : mime === 'image/gif'
+            ? 'gif'
+            : 'jpg';
+
+    const stored = await this.mediaStorage.save({
+      agencyId: user.agencyId,
+      buffer: file.buffer,
+      extension: ext,
+      contentType: mime,
+    });
+
+    const nextBrand: Record<string, unknown> = {
+      ...(typeof client.brand === 'object' && client.brand && !Array.isArray(client.brand)
+        ? (client.brand as Record<string, unknown>)
+        : {}),
+      characterImageUrl: stored.storageUrl,
+    };
+
+    const updated = await this.clients.update(user.agencyId, id, { brand: nextBrand });
+    if (!updated) throw new NotFoundException('Cliente no encontrado');
+
+    return {
+      characterImageUrl: stored.storageUrl,
+      brand: updated.brand,
+    };
+  }
+
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles('owner', 'admin')

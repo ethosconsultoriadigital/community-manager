@@ -48,6 +48,30 @@ class GenerateReelFromBriefDto {
   referenceText?: string;
   /** URL pública de foto para image-to-video (biblioteca o /media/upload). */
   referenceImageUrl?: string;
+  /** Escenas multi-clip (2–4). Por defecto REEL_SCENE_COUNT o 2. */
+  sceneCount?: number;
+  /** Duración objetivo en segundos (~10 / 15 / 20). */
+  targetDurationSeconds?: number;
+  musicTrackId?: string;
+  withMusic?: boolean;
+  withSubtitles?: boolean;
+  placeId?: string | null;
+  placeName?: string | null;
+}
+
+class GenerateAvatarFromBriefDto {
+  clientId!: string;
+  brief!: string;
+  caption!: string;
+  hashtags?: string[];
+  socialAccountIds!: string[];
+  referenceText?: string;
+  characterImageUrl?: string;
+  voiceId?: string;
+  targetSeconds?: number;
+  musicTrackId?: string;
+  withMusic?: boolean;
+  withSubtitles?: boolean;
   placeId?: string | null;
   placeName?: string | null;
 }
@@ -127,6 +151,24 @@ export class GenerationsController {
     await this.clientAccess.assertClientAccess(user, body.clientId);
     try {
       return await this.generation.generateReelFromBrief(user.agencyId, user.id, body);
+    } catch (error) {
+      if (error instanceof PostsValidationError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post('from-brief-avatar')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async generateAvatarFromBrief(
+    @CurrentUser() user: AuthUser,
+    @Body() body: GenerateAvatarFromBriefDto,
+  ) {
+    await this.clientAccess.assertClientAccess(user, body.clientId);
+    try {
+      return await this.generation.generateAvatarFromBrief(user.agencyId, user.id, body);
     } catch (error) {
       if (error instanceof PostsValidationError) {
         throw new BadRequestException(error.message);

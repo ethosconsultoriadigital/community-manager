@@ -168,6 +168,16 @@ export type GenerateFromBriefResult = {
   imageModel?: string | null;
 };
 
+export type GenerateAvatarFromBriefResult = {
+  post: Post;
+  posts: Post[];
+  media: MediaAsset[];
+  usedMock: boolean;
+  ttsProvider?: 'elevenlabs' | 'mock' | 'unknown';
+  lipsyncProvider?: 'fal' | 'mock' | 'unknown';
+  videoModel?: string | null;
+};
+
 export type GenerateReelFromBriefResult = {
   post: Post;
   posts?: Post[];

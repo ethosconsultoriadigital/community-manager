@@ -3,7 +3,49 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-07 (logo composición: top-left más grande)
+**Última actualización:** 2026-10-07 (Reel Fase C: avatar TTS + lip-sync)
+
+---
+
+## 2026-10-07 — Reel Fase C: avatar / personaje (TTS + lip-sync) ✅
+
+**Implementado:**
+- Migración `schema_generation_kind_avatar_video.sql` (`generation_kind` += `avatar_video`).
+- `TtsProvider` (ElevenLabs / mock) + `LipSyncProvider` (fal LivePortrait configurable / mock).
+- `AvatarPipelineService`: guion → TTS → lip-sync → composición 9:16 (subs + música).
+- `POST /clients/:id/character` + Composer modo **Avatar**.
+- `POST /generations/from-brief-avatar` → `pending_approval`.
+- Sin SDKs nuevos (fetch + ffmpeg-static ya presente).
+
+**Operativo:** `pnpm migrate` (Neon/local) + vars opcionales `ELEVENLABS_*` / `FAL_LIPSYNC_MODEL` + redeploy. Lip-sync marcado experimental.
+
+**Criterio:** ✅ tests pipeline; ⏳ prueba real con créditos ElevenLabs + fal.
+
+---
+
+## 2026-10-07 — Reel Fase B: subtítulos + música licenciada + duración UI ✅
+
+**Implementado:**
+- `VideoCompositionService`: quema SRT (libass) + cama musical **propia** (sine beds vía ffmpeg lavfi; sin audio de terceros).
+- Catálogo `licensed-music` (`upbeat-light`, `calm-ambient`, `bright-pop`) según `musicSuggestion` del guion.
+- Composer: duración ~10/15/20 s, toggles subtítulos/música.
+- API: `targetDurationSeconds`, `withMusic`, `withSubtitles`, `musicTrackId`.
+
+**Criterio:** ✅ tests composición con audio + SRT; ⏳ redeploy API+web.
+
+---
+
+## 2026-10-07 — Reel Fase A: multi-escena (guion → keyframe → i2v → concat) ✅
+
+**Implementado:**
+- `ScriptService` + `LlmProvider.generateReelScript` (OpenAI / mock).
+- `ReelPipelineService`: N escenas (default 2), keyframe con `ImageProvider`, video i2v vía fal (Minimax configurable), `VideoCompositionService` (ffmpeg-static) une y normaliza 9:16.
+- `REEL_MULTI_SCENE` / `REEL_SCENE_COUNT` en `.env`. Foto opcional = keyframe escena 1.
+- Dependencia `ffmpeg-static` (pnpm `onlyBuiltDependencies`). Sin subtítulos/música (Fase B) ni avatar (Fase C).
+
+**Operativo:** redeploy API (y web por texto UI). En Render debe correr el postinstall de `ffmpeg-static`. Sin migración SQL.
+
+**Criterio:** ✅ tests composición + script + pipeline; ⏳ prueba real con `FAL_KEY` + créditos.
 
 ---
 

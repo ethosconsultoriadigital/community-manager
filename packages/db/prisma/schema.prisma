@@ -339,6 +339,7 @@ enum generation_kind {
   copy
   image
   video
+  avatar_video
 }
 
 enum generation_status {

@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import type {
   GenerateCopyInput,
   GenerateCopyResult,
+  GenerateAvatarScriptInput,
+  GenerateAvatarScriptResult,
+  GenerateReelScriptInput,
+  GenerateReelScriptResult,
   GenerateReportNarrativeInput,
   GenerateReportNarrativeResult,
   LlmProvider,
@@ -37,6 +41,73 @@ export class OpenAiLlmProvider implements LlmProvider {
       };
     } catch {
       return { caption: raw.slice(0, 500), hashtags: [] };
+    }
+  }
+
+  async generateReelScript(
+    input: GenerateReelScriptInput,
+  ): Promise<GenerateReelScriptResult> {
+    const n = Math.min(4, Math.max(2, Math.round(input.sceneCount) || 2));
+    const prompt = [
+      'Eres guionista de Reels verticales 9:16 para redes sociales.',
+      `Tema / brief: ${input.brief}`,
+      input.caption ? `Caption del post: ${input.caption}` : '',
+      input.referenceText
+        ? `Material de referencia (resumir en escenas, NO inventar logos): ${input.referenceText.slice(0, 2000)}`
+        : '',
+      `Genera exactamente ${n} escenas cortas (~5s cada una).`,
+      'Cada escena necesita: visualPrompt (keyframe fotográfico sin texto ni logos), motionPrompt (movimiento de cámara/sujeto para image-to-video), subtitle (frase corta opcional), durationHintSeconds (4-8).',
+      'Responde JSON estricto:',
+      '{"scenes":[{"id":"1","visualPrompt":"...","motionPrompt":"...","subtitle":"...","durationHintSeconds":5}],"musicSuggestion":"estilo musical breve"}',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const raw = await this.chat(prompt, 'gpt-4o-mini');
+    try {
+      const parsed = JSON.parse(raw) as GenerateReelScriptResult;
+      return {
+        scenes: Array.isArray(parsed.scenes) ? parsed.scenes : [],
+        musicSuggestion: parsed.musicSuggestion,
+      };
+    } catch {
+      this.logger.warn('generateReelScript: JSON inválido, escenas vacías');
+      return { scenes: [] };
+    }
+  }
+
+  async generateAvatarScript(
+    input: GenerateAvatarScriptInput,
+  ): Promise<GenerateAvatarScriptResult> {
+    const seconds = Math.min(45, Math.max(12, Math.round(input.targetSeconds ?? 20)));
+    const prompt = [
+      'Eres guionista de un personaje estilizado (robot/mascota) que habla a cámara en un Reel vertical.',
+      'NO es un presentador humano realista. Tono cercano, claro, en español.',
+      `Tema / brief: ${input.brief}`,
+      input.caption ? `Caption del post: ${input.caption}` : '',
+      input.referenceText
+        ? `Material de referencia (resumir, no citar logos): ${input.referenceText.slice(0, 1500)}`
+        : '',
+      `El monólogo debe durar ~${seconds} segundos al hablar (~2.5 palabras/segundo).`,
+      'Responde JSON estricto:',
+      '{"spokenText":"monólogo completo para TTS","subtitleLines":["frase1","frase2"],"musicSuggestion":"estilo breve"}',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const raw = await this.chat(prompt, 'gpt-4o-mini');
+    try {
+      const parsed = JSON.parse(raw) as GenerateAvatarScriptResult;
+      return {
+        spokenText: (parsed.spokenText ?? '').trim(),
+        subtitleLines: Array.isArray(parsed.subtitleLines)
+          ? parsed.subtitleLines.map((s) => String(s).trim()).filter(Boolean)
+          : [],
+        musicSuggestion: parsed.musicSuggestion,
+      };
+    } catch {
+      this.logger.warn('generateAvatarScript: JSON inválido');
+      return { spokenText: '', subtitleLines: [] };
     }
   }
 

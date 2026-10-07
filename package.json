@@ -13,6 +13,11 @@
     "db:pull": "pnpm --filter @cm/db db:pull",
     "db:generate": "pnpm --filter @cm/db db:generate"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "ffmpeg-static"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
     "dotenv": "^16.5.0",

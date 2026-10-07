@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import type {
   GenerateCopyInput,
   GenerateCopyResult,
+  GenerateAvatarScriptInput,
+  GenerateAvatarScriptResult,
+  GenerateReelScriptInput,
+  GenerateReelScriptResult,
   GenerateReportNarrativeInput,
   GenerateReportNarrativeResult,
   LlmProvider,
@@ -32,6 +36,28 @@ export class HybridLlmProvider implements LlmProvider {
   ): Promise<GenerateReportNarrativeResult> {
     if (this.hasApiKey()) return this.openAi.generateReportNarrative(input);
     return this.mock.generateReportNarrative(input);
+  }
+
+  async generateReelScript(
+    input: GenerateReelScriptInput,
+  ): Promise<GenerateReelScriptResult> {
+    if (this.hasApiKey()) {
+      const result = await this.openAi.generateReelScript(input);
+      return { ...result, usedMock: false };
+    }
+    const result = await this.mock.generateReelScript(input);
+    return { ...result, usedMock: true };
+  }
+
+  async generateAvatarScript(
+    input: GenerateAvatarScriptInput,
+  ): Promise<GenerateAvatarScriptResult> {
+    if (this.hasApiKey()) {
+      const result = await this.openAi.generateAvatarScript(input);
+      return { ...result, usedMock: false };
+    }
+    const result = await this.mock.generateAvatarScript(input);
+    return { ...result, usedMock: true };
   }
 
   private hasApiKey(): boolean {

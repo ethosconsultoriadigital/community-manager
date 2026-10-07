@@ -471,13 +471,17 @@ El flujo de media del Composer **no depende de Canva**. Opciones:
 ```
 IMAGE_API_KEY=sk-...
 IMAGE_MODEL=gpt-image-2
+OPENAI_API_KEY=sk-...   # guion de escenas del Reel + copy
 FAL_KEY=...   # Reels IA; sin ella usa mock de video
+# REEL_MULTI_SCENE=true
+# REEL_SCENE_COUNT=2
 ```
 
-Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador de **imagen** usa **mock** (picsum).
+Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador de **imagen** / **guion** usa **mock**.
 Sin `FAL_KEY`, el generador de **Reel** usa un MP4 de muestra (mock).
 La clave de imágenes debe ser de **OpenAI** (no Anthropic `sk-ant-…`).
 `dall-e-3` ya no existe en la API (retirado mayo 2026); usa `gpt-image-2`.
+Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe ejecutarse el postinstall de pnpm).
 
 ### Prueba manual (imagen)
 
@@ -489,8 +493,20 @@ La clave de imágenes debe ser de **OpenAI** (no Anthropic `sk-ant-…`).
 ### Prueba manual (Reel IA)
 
 1. Migración `schema_generation_kind_video.sql` aplicada
-2. Composer → **Reel (video)** → brief (± foto) → **Generar Reel y enviar a aprobación**
-3. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
+2. Composer → **Reel (video)** → brief (± foto como keyframe 1.ª escena) → **Generar Reel y enviar a aprobación**
+3. Pipeline: guion (LLM) → keyframe por escena (imagen) → i2v (fal) → concat 9:16 + subtítulos + música propia (ffmpeg)
+4. En Composer elige duración (~10/15/20 s) y opcionalmente desactiva subtítulos/música
+5. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
+6. `REEL_MULTI_SCENE=false` vuelve al modo de 1 clip (+ keyframe auto si no hay foto)
+7. La música es generada en el servidor (sin tracks con derechos ajenos)
+
+### Prueba manual (Avatar / personaje)
+
+1. Migración `schema_generation_kind_avatar_video.sql` aplicada (`pnpm migrate`)
+2. Composer → IA → **Avatar** → subir imagen del personaje (estilizado, no foto realista)
+3. Brief + caption + destinos → **Generar avatar**
+4. Sin `ELEVENLABS_API_KEY` / `FAL_KEY` usa mocks; con claves reales gasta créditos TTS + lip-sync
+5. Opcional: `ELEVENLABS_VOICE_ID`, `FAL_LIPSYNC_MODEL` (default `fal-ai/live-portrait`)
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 
