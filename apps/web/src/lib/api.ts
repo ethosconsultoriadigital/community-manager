@@ -10,6 +10,38 @@ export class ApiError extends Error {
   }
 }
 
+/** Evita mostrar "[object Object]" cuando Nest/fal devuelven message como objeto. */
+export function formatApiErrorMessage(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatApiErrorMessage(item))
+      .filter(Boolean)
+      .join(', ');
+  }
+  if (typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    if (typeof rec.message === 'string') return rec.message;
+    if (typeof rec.msg === 'string') return rec.msg;
+    try {
+      return JSON.stringify(value).slice(0, 400);
+    } catch {
+      return 'Error desconocido';
+    }
+  }
+  return String(value);
+}
+
+function readErrorMessage(body: { message?: unknown; error?: unknown }, fallback: string): string {
+  return (
+    formatApiErrorMessage(body.message) ||
+    formatApiErrorMessage(body.error) ||
+    fallback
+  );
+}
+
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('cm_access_token');
@@ -48,9 +80,8 @@ export async function apiFetch<T>(
   if (!res.ok) {
     let message = res.statusText;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (typeof body.message === 'string') message = body.message;
-      else if (Array.isArray(body.message)) message = body.message.join(', ');
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
     } catch {
       /* ignore */
     }
@@ -82,9 +113,8 @@ export async function apiUploadMedia<T>(
   if (!res.ok) {
     let message = res.statusText;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (typeof body.message === 'string') message = body.message;
-      else if (Array.isArray(body.message)) message = body.message.join(', ');
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
     } catch {
       /* ignore */
     }
@@ -111,9 +141,8 @@ export async function apiUploadReference<T>(file: File, token?: string | null): 
   if (!res.ok) {
     let message = res.statusText;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (typeof body.message === 'string') message = body.message;
-      else if (Array.isArray(body.message)) message = body.message.join(', ');
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
     } catch {
       /* ignore */
     }
@@ -145,9 +174,8 @@ export async function apiUploadClientCharacter(
   if (!res.ok) {
     let message = res.statusText;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (typeof body.message === 'string') message = body.message;
-      else if (Array.isArray(body.message)) message = body.message.join(', ');
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
     } catch {
       /* ignore */
     }
@@ -182,9 +210,8 @@ export async function apiUploadClientLogo(
   if (!res.ok) {
     let message = res.statusText;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (typeof body.message === 'string') message = body.message;
-      else if (Array.isArray(body.message)) message = body.message.join(', ');
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
     } catch {
       /* ignore */
     }
@@ -214,9 +241,8 @@ export async function apiUploadStandaloneImage(
   if (!res.ok) {
     let message = res.statusText;
     try {
-      const body = (await res.json()) as { message?: string | string[] };
-      if (typeof body.message === 'string') message = body.message;
-      else if (Array.isArray(body.message)) message = body.message.join(', ');
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
     } catch {
       /* ignore */
     }

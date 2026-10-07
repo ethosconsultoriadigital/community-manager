@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-07 (Reel Fase C: avatar TTS + lip-sync)
+**Última actualización:** 2026-10-07 (fix avatar: SadTalker + mensajes de error)
+
+---
+
+## 2026-10-07 — Fix avatar: lip-sync SadTalker + error legible ✅
+
+**Causa del `[object Object]`:** `fal-ai/live-portrait` pide `video_url`, no audio; fal devolvía un error objeto mal mostrado.
+
+**Cambio:** default `fal-ai/sadtalker` (`source_image_url` + `driven_audio_url`); `formatFalError` + front `formatApiErrorMessage`.
+
+**Criterio:** ✅ tests; ⏳ redeploy y reintentar Avatar.
 
 ---
 

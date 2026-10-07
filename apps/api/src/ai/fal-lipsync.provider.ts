@@ -8,8 +8,11 @@ import type {
   LipSyncResult,
 } from './interfaces/lipsync-provider.interface';
 
-/** Modelo lip-sync en fal (experimental; configurable). */
-const DEFAULT_MODEL = 'fal-ai/live-portrait';
+/**
+ * Por defecto SadTalker: imagen + audio (apto para personajes estilizados).
+ * `fal-ai/live-portrait` NO sirve aquí (pide video_url, no audio).
+ */
+const DEFAULT_MODEL = 'fal-ai/sadtalker';
 
 @Injectable()
 export class FalLipSyncProvider implements LipSyncProvider {
@@ -36,14 +39,14 @@ export class FalLipSyncProvider implements LipSyncProvider {
 
     const model =
       this.config.get<string>('FAL_LIPSYNC_MODEL')?.trim() || DEFAULT_MODEL;
+    const imageUrl = input.characterImageUrl.trim();
+    const audioUrl = input.audioUrl.trim();
+    const body = buildLipSyncBody(model, imageUrl, audioUrl);
 
     const result = await runFalQueueJob({
       apiKey,
       model,
-      body: {
-        image_url: input.characterImageUrl.trim(),
-        audio_url: input.audioUrl.trim(),
-      },
+      body,
       logger: this.logger,
       failLabel: 'lip-sync',
     });
@@ -75,6 +78,27 @@ export class FalLipSyncProvider implements LipSyncProvider {
       model,
     };
   }
+}
+
+export function buildLipSyncBody(
+  model: string,
+  imageUrl: string,
+  audioUrl: string,
+): Record<string, unknown> {
+  const id = model.toLowerCase();
+  if (id.includes('sadtalker')) {
+    return {
+      source_image_url: imageUrl,
+      driven_audio_url: audioUrl,
+      preprocess: 'crop',
+      face_model_resolution: '256',
+    };
+  }
+  // fal-ai/live-avatar y similares
+  return {
+    image_url: imageUrl,
+    audio_url: audioUrl,
+  };
 }
 
 function extractVideoUrl(result: Record<string, unknown>): string | null {

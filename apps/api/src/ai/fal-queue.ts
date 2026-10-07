@@ -4,14 +4,14 @@ type FalQueueSubmit = {
   request_id?: string;
   status_url?: string;
   response_url?: string;
-  detail?: string;
-  error?: string;
+  detail?: unknown;
+  error?: unknown;
 };
 
 type FalQueueStatus = {
   status?: string;
   response_url?: string;
-  error?: string;
+  error?: unknown;
 };
 
 const POLL_MS = 2500;
@@ -41,7 +41,9 @@ export async function runFalQueueJob(input: {
   const submitted = (await submitRes.json()) as FalQueueSubmit;
   if (!submitRes.ok) {
     const message =
-      submitted.detail || submitted.error || `fal queue HTTP ${submitRes.status}`;
+      formatFalError(submitted.detail) ||
+      formatFalError(submitted.error) ||
+      `fal queue HTTP ${submitRes.status}`;
     logger?.warn(`${label} submit failed: ${message}`);
     throw new BadRequestException(`No se pudo iniciar ${label}: ${message}`);
   }
@@ -60,7 +62,7 @@ export async function runFalQueueJob(input: {
     const statusBody = (await statusRes.json()) as FalQueueStatus;
     if (!statusRes.ok) {
       throw new BadRequestException(
-        `Error consultando fal: ${statusBody.error ?? statusRes.status}`,
+        `Error consultando fal: ${formatFalError(statusBody.error) || statusRes.status}`,
       );
     }
 
@@ -70,12 +72,14 @@ export async function runFalQueueJob(input: {
         headers: { Authorization: `Key ${input.apiKey}` },
       });
       const result = (await resultRes.json()) as Record<string, unknown> & {
-        detail?: string;
-        error?: string;
+        detail?: unknown;
+        error?: unknown;
       };
       if (!resultRes.ok) {
         throw new BadRequestException(
-          result.detail || result.error || `fal result HTTP ${resultRes.status}`,
+          formatFalError(result.detail) ||
+            formatFalError(result.error) ||
+            `fal result HTTP ${resultRes.status}`,
         );
       }
       return result;
@@ -92,4 +96,40 @@ export async function runFalQueueJob(input: {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** fal a menudo devuelve `detail` como objeto/array; evita "[object Object]". */
+export function formatFalError(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          const rec = item as Record<string, unknown>;
+          if (typeof rec.msg === 'string') return rec.msg;
+          if (typeof rec.message === 'string') return rec.message;
+        }
+        try {
+          return JSON.stringify(item);
+        } catch {
+          return String(item);
+        }
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    if (typeof rec.message === 'string') return rec.message;
+    if (typeof rec.msg === 'string') return rec.msg;
+    try {
+      return JSON.stringify(value).slice(0, 500);
+    } catch {
+      return 'Error desconocido de fal';
+    }
+  }
+  return String(value);
 }
