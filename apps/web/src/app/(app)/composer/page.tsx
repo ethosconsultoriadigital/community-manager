@@ -312,7 +312,7 @@ export default function ComposerPage() {
       });
 
       setMessage(
-        `Avatar en cola (${started.generationId.slice(0, 8)}…). Puede tardar varios minutos…`,
+        `Avatar en cola (${started.generationId.slice(0, 8)}…). Puede tardar varios minutos; si la API se ocupa un momento, el front reintenta solo…`,
       );
 
       const result = await pollAvatarJob(started.generationId);
@@ -730,7 +730,7 @@ export default function ComposerPage() {
       });
 
       setMessage(
-        `Reel en cola (${started.generationId.slice(0, 8)}…). Puede tardar varios minutos…`,
+        `Reel en cola (${started.generationId.slice(0, 8)}…). Puede tardar varios minutos; si la API se ocupa un momento, el front reintenta solo…`,
       );
 
       const result = await pollReelJob(started.generationId);

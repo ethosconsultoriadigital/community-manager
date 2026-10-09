@@ -59,7 +59,7 @@ Editar `.env` y completar al menos:
 | `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` | App TikTok | developers.tiktok.com |
 | `TIKTOK_REDIRECT_URI` | Callback OAuth TikTok | `http://localhost:4000/oauth/tiktok/callback` |
 | `FRONTEND_URL` | Redirección tras OAuth | `http://localhost:3000` |
-| `NEXT_PUBLIC_API_URL` | URL de la API para el frontend | `http://localhost:4000` |
+| `NEXT_PUBLIC_API_URL` | URL de la API (Vercel la usa en rewrite `/api-backend` → API) | `http://localhost:4000` o `https://…onrender.com` |
 | `MEDIA_PUBLIC_BASE_URL` | URL base para media subida en local | `http://localhost:4000` |
 | `S3_PUBLIC_BASE_URL` | URL pública del bucket (si usas S3/R2) | Opcional |
 | `IMAGE_API_KEY` | Clave OpenAI para generar imágenes (Composer → Generar imagen) | Dashboard OpenAI |

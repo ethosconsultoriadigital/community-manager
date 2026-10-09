@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-09 (Avatar Sync-3 cartoon + Redis/BullMQ)
+**Última actualización:** 2026-10-09 (Proxy /api-backend + poll resiliente)
+
+---
+
+## 2026-10-09 — Proxy same-origin + poll que no aborta por red ✅
+
+**Problema:** tras «en cola…» el browser veía «No se pudo conectar» (CORS engañoso). API/CORS OK; Nest bloqueado por fal/ffmpeg cortaba el poll.
+
+**Cambio:** rewrite Next `/api-backend/*` → `NEXT_PUBLIC_API_URL`; browser usa proxy; poll de Reel/Avatar sigue hasta 25 min aunque fallen GETs temporales; CORS www + no-www.
+
+**Criterio:** ⏳ redeploy Vercel (necesario para next.config) + Render API.
 
 ---
 

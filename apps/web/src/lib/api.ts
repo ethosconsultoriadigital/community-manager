@@ -5,7 +5,21 @@ import type {
   ReelJobStatusResult,
 } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const DIRECT_API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+  /\/$/,
+  '',
+);
+
+/**
+ * En el browser usamos proxy same-origin (/api-backend) vía next.config rewrites.
+ * En SSR (servidor Next) hablamos directo a la API.
+ */
+function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    return '/api-backend';
+  }
+  return DIRECT_API_URL;
+}
 
 /** Polling UI: fal multi-escena / lip-sync puede superar 10–15 min. */
 const DEFAULT_VIDEO_POLL_TIMEOUT_MS = 25 * 60 * 1000;
@@ -71,19 +85,23 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const authToken = token ?? getStoredToken();
   const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
+  const method = (options.method ?? 'GET').toUpperCase();
+  // No forzar Content-Type en GET (evita preflight innecesario si se usa API directa).
+  if (method !== 'GET' && method !== 'HEAD' && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
 
+  const url = `${getApiBase()}${path.startsWith('/') ? path : `/${path}`}`;
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  } catch {
-    const hint =
-      API_URL.includes('localhost') || API_URL.includes('127.0.0.1')
-        ? 'En Vercel configura NEXT_PUBLIC_API_URL=https://community-manager-api.onrender.com y vuelve a hacer Redeploy.'
-        : `Revisa que la API responda en ${API_URL}/health y que FRONTEND_URL en Render coincida con la URL de Vercel (CORS).`;
+    res = await fetch(url, { ...options, headers });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : '';
     throw new ApiError(
-      `No se pudo conectar con la API (${API_URL}). ${hint}`,
+      `No se pudo conectar con la API (${url}). ${
+        detail ? `(${detail}) ` : ''
+      }Si estás generando Reel/Avatar, la API puede estar ocupada: espera y reintenta, o revisa logs de Render.`,
       0,
     );
   }
@@ -103,25 +121,60 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-/** Reintenta polls si la API está reiniciando / Redis lento (status 0). */
-async function apiFetchResilient<T>(
-  path: string,
-  token?: string | null,
-  retries = 5,
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < retries; attempt++) {
+/**
+ * Polling de generación: los fallos de red NO abortan el job.
+ * Render a menudo deja de responder HTTP mientras corre fal/ffmpeg en el mismo proceso.
+ */
+async function pollVideoJob<TResult>(options: {
+  path: string;
+  label: string;
+  intervalMs?: number;
+  timeoutMs?: number;
+  token?: string | null;
+  pickResult: (status: {
+    status: string;
+    error?: string;
+    result?: TResult;
+  }) => TResult | undefined;
+}): Promise<TResult> {
+  const intervalMs = options.intervalMs ?? DEFAULT_VIDEO_POLL_INTERVAL_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_VIDEO_POLL_TIMEOUT_MS;
+  const started = Date.now();
+  let consecutiveNetworkErrors = 0;
+
+  while (Date.now() - started < timeoutMs) {
     try {
-      return await apiFetch<T>(path, {}, token);
+      const status = await apiFetch<{
+        status: string;
+        error?: string;
+        result?: TResult;
+      }>(options.path, {}, options.token);
+      consecutiveNetworkErrors = 0;
+
+      if (status.status === 'completed') {
+        const result = options.pickResult(status);
+        if (result) return result;
+        throw new ApiError(`${options.label} completado sin resultado`, 500);
+      }
+      if (status.status === 'failed') {
+        throw new ApiError(status.error ?? `Error al generar ${options.label}`, 500);
+      }
     } catch (err) {
-      lastError = err;
-      if (!(err instanceof ApiError) || err.status !== 0) throw err;
-      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      if (err instanceof ApiError && err.status === 0) {
+        consecutiveNetworkErrors += 1;
+        // Sigue esperando: el worker puede seguir vivo aunque HTTP falle un rato.
+        await new Promise((r) => setTimeout(r, Math.min(15_000, intervalMs * consecutiveNetworkErrors)));
+        continue;
+      }
+      throw err;
     }
+    await new Promise((r) => setTimeout(r, intervalMs));
   }
-  throw lastError instanceof Error
-    ? lastError
-    : new ApiError('No se pudo conectar con la API tras varios reintentos.', 0);
+
+  throw new ApiError(
+    `${options.label} sigue generándose. Revisa Aprobaciones en unos minutos (el job puede seguir en el servidor aunque la conexión se haya cortado).`,
+    408,
+  );
 }
 
 /** Polling de job de avatar (BullMQ). Timeout por defecto ~25 min. */
@@ -129,28 +182,14 @@ export async function pollAvatarJob(
   generationId: string,
   options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },
 ): Promise<GenerateAvatarFromBriefResult> {
-  const intervalMs = options?.intervalMs ?? DEFAULT_VIDEO_POLL_INTERVAL_MS;
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_VIDEO_POLL_TIMEOUT_MS;
-  const started = Date.now();
-
-  while (Date.now() - started < timeoutMs) {
-    const status = await apiFetchResilient<AvatarJobStatusResult>(
-      `/generations/avatar/${generationId}`,
-      options?.token,
-    );
-    if (status.status === 'completed' && status.result) {
-      return status.result;
-    }
-    if (status.status === 'failed') {
-      throw new ApiError(status.error ?? 'Error al generar el avatar', 500);
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-
-  throw new ApiError(
-    'El avatar sigue generándose. Revisa Aprobaciones en unos minutos (el job puede seguir en el servidor).',
-    408,
-  );
+  return pollVideoJob<GenerateAvatarFromBriefResult>({
+    path: `/generations/avatar/${generationId}`,
+    label: 'El avatar',
+    intervalMs: options?.intervalMs,
+    timeoutMs: options?.timeoutMs,
+    token: options?.token,
+    pickResult: (s) => s.result,
+  });
 }
 
 /** Polling de job de Reel (BullMQ). Timeout por defecto ~25 min. */
@@ -158,28 +197,14 @@ export async function pollReelJob(
   generationId: string,
   options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },
 ): Promise<GenerateReelFromBriefResult> {
-  const intervalMs = options?.intervalMs ?? DEFAULT_VIDEO_POLL_INTERVAL_MS;
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_VIDEO_POLL_TIMEOUT_MS;
-  const started = Date.now();
-
-  while (Date.now() - started < timeoutMs) {
-    const status = await apiFetchResilient<ReelJobStatusResult>(
-      `/generations/reel/${generationId}`,
-      options?.token,
-    );
-    if (status.status === 'completed' && status.result) {
-      return status.result;
-    }
-    if (status.status === 'failed') {
-      throw new ApiError(status.error ?? 'Error al generar el Reel', 500);
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-
-  throw new ApiError(
-    'El Reel sigue generándose. Revisa Aprobaciones en unos minutos (el job puede seguir en el servidor).',
-    408,
-  );
+  return pollVideoJob<GenerateReelFromBriefResult>({
+    path: `/generations/reel/${generationId}`,
+    label: 'El Reel',
+    intervalMs: options?.intervalMs,
+    timeoutMs: options?.timeoutMs,
+    token: options?.token,
+    pickResult: (s) => s.result,
+  });
 }
 
 export async function apiUploadMedia<T>(
@@ -194,35 +219,7 @@ export async function apiUploadMedia<T>(
   const headers = new Headers();
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
 
-  const res = await fetch(`${API_URL}/posts/${postId}/media`, {
-    method: 'POST',
-    headers,
-    body: form,
-  });
-
-  if (!res.ok) {
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { message?: unknown; error?: unknown };
-      message = readErrorMessage(body, message);
-    } catch {
-      /* ignore */
-    }
-    throw new ApiError(message, res.status);
-  }
-
-  return res.json() as Promise<T>;
-}
-
-export async function apiUploadReference<T>(file: File, token?: string | null): Promise<T> {
-  const authToken = token ?? getStoredToken();
-  const form = new FormData();
-  form.append('file', file);
-
-  const headers = new Headers();
-  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
-
-  const res = await fetch(`${API_URL}/generations/parse-reference`, {
+  const res = await fetch(`${getApiBase()}/posts/${postId}/media`, {
     method: 'POST',
     headers,
     body: form,
@@ -255,7 +252,7 @@ export async function apiUploadClientCharacter(
   const headers = new Headers();
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
 
-  const res = await fetch(`${API_URL}/clients/${clientId}/character`, {
+  const res = await fetch(`${getApiBase()}/clients/${clientId}/character`, {
     method: 'POST',
     headers,
     body: form,
@@ -291,7 +288,7 @@ export async function apiUploadClientLogo(
   const headers = new Headers();
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
 
-  const res = await fetch(`${API_URL}/clients/${clientId}/logo`, {
+  const res = await fetch(`${getApiBase()}/clients/${clientId}/logo`, {
     method: 'POST',
     headers,
     body: form,
@@ -308,7 +305,41 @@ export async function apiUploadClientLogo(
     throw new ApiError(message, res.status);
   }
 
-  return res.json() as Promise<{ logoUrl: string; brand: Record<string, unknown> }>;
+  return res.json() as Promise<{
+    logoUrl: string;
+    brand: Record<string, unknown>;
+  }>;
+}
+
+export async function apiUploadReference<T>(
+  file: File,
+  token?: string | null,
+): Promise<T> {
+  const authToken = token ?? getStoredToken();
+  const form = new FormData();
+  form.append('file', file);
+
+  const headers = new Headers();
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+
+  const res = await fetch(`${getApiBase()}/generations/parse-reference`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return res.json() as Promise<T>;
 }
 
 export async function apiUploadStandaloneImage(
@@ -322,7 +353,7 @@ export async function apiUploadStandaloneImage(
   const headers = new Headers();
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
 
-  const res = await fetch(`${API_URL}/media/upload`, {
+  const res = await fetch(`${getApiBase()}/media/upload`, {
     method: 'POST',
     headers,
     body: form,

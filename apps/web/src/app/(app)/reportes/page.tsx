@@ -107,7 +107,7 @@ export default function ReportesPage() {
       if (clientId) params.set('clientId', clientId);
       params.set('days', days);
       if (platformFilter !== 'all') params.set('platform', platformFilter);
-      const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+      const base = typeof window !== 'undefined' ? '/api-backend' : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000');
       const res = await fetch(`${base}/analytics/report/pdf?${params}`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},

@@ -226,7 +226,7 @@ export default function ApprovalsPage() {
     setMessage(null);
     try {
       const token = getStoredToken();
-      const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+      const base = typeof window !== 'undefined' ? '/api-backend' : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000');
       const res = await fetch(`${base}/posts/approvals-parrilla/pdf`, {
         method: 'POST',
         headers: {
