@@ -13,6 +13,7 @@ import { PublishQueueService } from './publish-queue.service';
 import { PublishProcessor } from './publish.processor';
 import { RADAR_SYNC_QUEUE } from './radar-sync.constants';
 import { RadarSyncProcessor } from './radar-sync.processor';
+import { bullRedisConnection } from './redis.connection';
 import { ReelGenerationQueueService } from './reel-generation-queue.service';
 import { REEL_GENERATION_QUEUE } from './reel-generation.constants';
 import { ReelGenerationProcessor } from './reel-generation.processor';
@@ -26,7 +27,9 @@ import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.proc
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        connection: { url: config.get<string>('REDIS_URL') ?? 'redis://localhost:6379' },
+        connection: bullRedisConnection(
+          config.get<string>('REDIS_URL') ?? 'redis://localhost:6379',
+        ),
       }),
     }),
     BullModule.registerQueue({ name: TOKEN_REFRESH_QUEUE }),
@@ -58,8 +61,9 @@ export class JobsModule implements OnModuleInit {
   async onModuleInit() {
     const { Queue } = await import('bullmq');
     const redisUrl = this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+    const connection = bullRedisConnection(redisUrl);
 
-    const tokenQueue = new Queue(TOKEN_REFRESH_QUEUE, { connection: { url: redisUrl } });
+    const tokenQueue = new Queue(TOKEN_REFRESH_QUEUE, { connection });
     await tokenQueue.add(
       'refresh-expiring-tokens',
       {},
@@ -70,7 +74,7 @@ export class JobsModule implements OnModuleInit {
     );
     await tokenQueue.close();
 
-    const publishQueue = new Queue(PUBLISH_QUEUE, { connection: { url: redisUrl } });
+    const publishQueue = new Queue(PUBLISH_QUEUE, { connection });
     await publishQueue.add(
       'scan-due-posts',
       {},
@@ -87,7 +91,7 @@ export class JobsModule implements OnModuleInit {
       (this.config.get<string>('RADAR_SYNC_ENABLED') ?? 'true').toLowerCase() !== 'false';
 
     if (radarEnabled) {
-      const radarQueue = new Queue(RADAR_SYNC_QUEUE, { connection: { url: redisUrl } });
+      const radarQueue = new Queue(RADAR_SYNC_QUEUE, { connection });
       await radarQueue.add(
         'sync-all-radar-sources',
         {},

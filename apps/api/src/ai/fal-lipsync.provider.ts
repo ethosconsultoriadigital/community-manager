@@ -9,10 +9,12 @@ import type {
 } from './interfaces/lipsync-provider.interface';
 
 /**
- * Por defecto SadTalker: imagen + audio (apto para personajes estilizados).
- * `fal-ai/live-portrait` NO sirve aquí (pide video_url, no audio).
+ * Sync-3: imagen + audio; documentado para ilustraciones / frames animados
+ * (personajes cartoon), no solo fotos reales.
+ * SadTalker sigue disponible vía FAL_LIPSYNC_MODEL o como fallback.
  */
-const DEFAULT_MODEL = 'fal-ai/sadtalker';
+export const DEFAULT_LIPSYNC_MODEL = 'fal-ai/sync-lipsync/v3/image-to-video';
+const STYLIZED_FALLBACK_MODEL = 'fal-ai/sync-lipsync/v3/image-to-video';
 
 @Injectable()
 export class FalLipSyncProvider implements LipSyncProvider {
@@ -37,12 +39,47 @@ export class FalLipSyncProvider implements LipSyncProvider {
       throw new BadRequestException('agencyId es obligatorio');
     }
 
-    const model =
-      this.config.get<string>('FAL_LIPSYNC_MODEL')?.trim() || DEFAULT_MODEL;
+    const primary =
+      this.config.get<string>('FAL_LIPSYNC_MODEL')?.trim() || DEFAULT_LIPSYNC_MODEL;
     const imageUrl = input.characterImageUrl.trim();
     const audioUrl = input.audioUrl.trim();
-    const body = buildLipSyncBody(model, imageUrl, audioUrl);
 
+    try {
+      return await this.runModel(apiKey, primary, imageUrl, audioUrl, input.agencyId);
+    } catch (error) {
+      if (!isFaceDetectionError(error)) {
+        throw mapLipSyncError(error);
+      }
+
+      if (!primary.toLowerCase().includes('sync-lipsync')) {
+        this.logger.warn(
+          `Lip-sync ${primary} no detectó cara; reintentando con ${STYLIZED_FALLBACK_MODEL}`,
+        );
+        try {
+          return await this.runModel(
+            apiKey,
+            STYLIZED_FALLBACK_MODEL,
+            imageUrl,
+            audioUrl,
+            input.agencyId,
+          );
+        } catch (fallbackError) {
+          throw mapLipSyncError(fallbackError);
+        }
+      }
+
+      throw mapLipSyncError(error);
+    }
+  }
+
+  private async runModel(
+    apiKey: string,
+    model: string,
+    imageUrl: string,
+    audioUrl: string,
+    agencyId: string,
+  ): Promise<LipSyncResult> {
+    const body = buildLipSyncBody(model, imageUrl, audioUrl);
     const result = await runFalQueueJob({
       apiKey,
       model,
@@ -64,7 +101,7 @@ export class FalLipSyncProvider implements LipSyncProvider {
     }
     const buffer = Buffer.from(await response.arrayBuffer());
     const stored = await this.mediaStorage.save({
-      agencyId: input.agencyId,
+      agencyId,
       buffer,
       extension: 'mp4',
       contentType: 'video/mp4',
@@ -90,15 +127,44 @@ export function buildLipSyncBody(
     return {
       source_image_url: imageUrl,
       driven_audio_url: audioUrl,
-      preprocess: 'crop',
+      // full: mejor con bust/retrato cartoon que crop agresivo
+      preprocess: 'full',
       face_model_resolution: '256',
+      still: true,
     };
   }
-  // fal-ai/live-avatar y similares
+  // sync-lipsync/v3/image-to-video, live-avatar, etc.
   return {
     image_url: imageUrl,
     audio_url: audioUrl,
   };
+}
+
+export function isFaceDetectionError(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return (
+    msg.includes('no face detected') ||
+    msg.includes('face not detected') ||
+    msg.includes('could not detect') ||
+    msg.includes('no face') ||
+    msg.includes('facial landmark')
+  );
+}
+
+export function mapLipSyncError(error: unknown): Error {
+  if (isFaceDetectionError(error)) {
+    return new BadRequestException(
+      'No se detectó una cara usable en la imagen del personaje. Usa un retrato frontal con ojos, nariz y boca claros (vale cartoon/3D). Evita perfiles extremos, gafas muy opacas o recortes sin cara.',
+    );
+  }
+  if (error instanceof Error) return error;
+  return new BadRequestException(String(error));
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error ?? '');
 }
 
 function extractVideoUrl(result: Record<string, unknown>): string | null {

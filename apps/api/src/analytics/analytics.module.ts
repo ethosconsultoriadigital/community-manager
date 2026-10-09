@@ -5,6 +5,7 @@ import { AiModule } from '../ai/ai.module';
 import { MetaModule } from '../platforms/meta/meta.module';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsReportService } from './analytics-report.service';
+import { bullRedisConnection } from '../jobs/redis.connection';
 import { METRICS_SYNC_QUEUE } from './metrics-sync.constants';
 import { MetricsSyncProcessor } from './metrics-sync.processor';
 import { SyncPostInsightsService } from './sync-post-insights.service';
@@ -25,7 +26,9 @@ export class AnalyticsModule implements OnModuleInit {
   async onModuleInit() {
     const { Queue } = await import('bullmq');
     const redisUrl = this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-    const queue = new Queue(METRICS_SYNC_QUEUE, { connection: { url: redisUrl } });
+    const queue = new Queue(METRICS_SYNC_QUEUE, {
+      connection: bullRedisConnection(redisUrl),
+    });
     await queue.add(
       'sync-post-insights',
       {},

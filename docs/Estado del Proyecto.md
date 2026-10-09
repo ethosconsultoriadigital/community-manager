@@ -3,7 +3,19 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-07 (Reels async + espera fal 20 min)
+**Última actualización:** 2026-10-09 (Avatar Sync-3 cartoon + Redis/BullMQ)
+
+---
+
+## 2026-10-09 — Avatar Sync-3 (cartoon) + mitigación Redis lento ✅
+
+**Problema:** SadTalker rechazó personaje 3D («No face detected»). Redis: `execution timed out` / `Missing lock` en BullMQ.
+
+**Cambio:** default `fal-ai/sync-lipsync/v3/image-to-video` (+ fallback si SadTalker falla cara); mensaje ES claro; `bullRedisConnection` (`maxRetriesPerRequest: null`); workers `concurrency: 1` + locks largos; poll UI con reintentos ante status 0.
+
+**Operativo:** en Render borrar o actualizar `FAL_LIPSYNC_MODEL` si apuntaba a `sadtalker`. Redis: preferir plan con más CPU si persisten timeouts Lua.
+
+**Criterio:** ✅ tests; ⏳ redeploy y reintentar avatar con imagen cartoon.
 
 ---
 

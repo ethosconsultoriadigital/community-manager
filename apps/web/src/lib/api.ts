@@ -103,6 +103,27 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/** Reintenta polls si la API está reiniciando / Redis lento (status 0). */
+async function apiFetchResilient<T>(
+  path: string,
+  token?: string | null,
+  retries = 5,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await apiFetch<T>(path, {}, token);
+    } catch (err) {
+      lastError = err;
+      if (!(err instanceof ApiError) || err.status !== 0) throw err;
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new ApiError('No se pudo conectar con la API tras varios reintentos.', 0);
+}
+
 /** Polling de job de avatar (BullMQ). Timeout por defecto ~25 min. */
 export async function pollAvatarJob(
   generationId: string,
@@ -113,9 +134,8 @@ export async function pollAvatarJob(
   const started = Date.now();
 
   while (Date.now() - started < timeoutMs) {
-    const status = await apiFetch<AvatarJobStatusResult>(
+    const status = await apiFetchResilient<AvatarJobStatusResult>(
       `/generations/avatar/${generationId}`,
-      {},
       options?.token,
     );
     if (status.status === 'completed' && status.result) {
@@ -143,9 +163,8 @@ export async function pollReelJob(
   const started = Date.now();
 
   while (Date.now() - started < timeoutMs) {
-    const status = await apiFetch<ReelJobStatusResult>(
+    const status = await apiFetchResilient<ReelJobStatusResult>(
       `/generations/reel/${generationId}`,
-      {},
       options?.token,
     );
     if (status.status === 'completed' && status.result) {

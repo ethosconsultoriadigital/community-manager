@@ -7,8 +7,12 @@ import {
   type ReelGenerationJobData,
 } from './reel-generation.constants';
 
-/** Multi-escena fal puede superar 10–15 min; evita stalled jobs. */
-@Processor(REEL_GENERATION_QUEUE, { lockDuration: 1_200_000 })
+/** Multi-escena fal puede superar 10–15 min; concurrency 1 reduce presión en Redis. */
+@Processor(REEL_GENERATION_QUEUE, {
+  concurrency: 1,
+  lockDuration: 1_200_000,
+  stalledInterval: 120_000,
+})
 export class ReelGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(ReelGenerationProcessor.name);
 

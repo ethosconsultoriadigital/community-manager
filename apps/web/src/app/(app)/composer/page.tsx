@@ -1376,8 +1376,8 @@ export default function ComposerPage() {
               <div>
                 <h3 className="text-sm font-medium text-brand">Avatar / personaje</h3>
                 <p className="text-xs text-muted">
-                  Personaje estilizado que habla un guion (TTS + lip-sync). No es un presentador
-                  humano. Requiere imagen del personaje y, en prod, ELEVENLABS + FAL.
+                  Personaje cartoon/3D o semi-realista que habla un guion (TTS + lip-sync Sync-3).
+                  Retrato frontal con ojos, nariz y boca claros. En prod: ELEVENLABS + FAL.
                 </p>
               </div>
               <textarea

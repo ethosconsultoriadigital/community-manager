@@ -508,7 +508,8 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 3. Brief + caption + destinos → **Generar avatar** (encola job BullMQ; el front hace polling a `GET /generations/avatar/:id`)
 4. Requiere Redis (`REDIS_URL`) en la API; la petición HTTP ya no espera el vídeo completo (evita timeout de Render)
 5. Sin `ELEVENLABS_API_KEY` / `FAL_KEY` usa mocks; con claves reales gasta créditos TTS + lip-sync
-6. Opcional: `ELEVENLABS_VOICE_ID`, `FAL_LIPSYNC_MODEL` (default `fal-ai/sadtalker`; imagen+audio)
+6. Lip-sync default: `fal-ai/sync-lipsync/v3/image-to-video` (cartoon/ilustración). Si Render tiene `FAL_LIPSYNC_MODEL=fal-ai/sadtalker`, cámbialo o bórralo (SadTalker falla con caras 3D)
+7. Redis lento (`execution timed out` / Missing lock): revisar plan Redis; la API ya usa concurrency 1 y locks largos
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 

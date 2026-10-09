@@ -6,7 +6,12 @@ import { PUBLISH_QUEUE } from './publish.constants';
 import { PublishPostService, type PublishPostJobData } from './publish-post.service';
 import { PublishQueueService } from './publish-queue.service';
 
-@Processor(PUBLISH_QUEUE)
+/** lockDuration alto: Meta/Threads + Redis lento (Upstash) evitaban Missing lock. */
+@Processor(PUBLISH_QUEUE, {
+  concurrency: 1,
+  lockDuration: 180_000,
+  stalledInterval: 60_000,
+})
 export class PublishProcessor extends WorkerHost {
   private readonly logger = new Logger(PublishProcessor.name);
 

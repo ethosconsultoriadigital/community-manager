@@ -9,8 +9,8 @@ import type {
 import { MockLipSyncProvider } from './mocks/mock-lipsync.provider';
 
 /**
- * fal LivePortrait (u otro FAL_LIPSYNC_MODEL) si hay FAL_KEY; si no, mock.
- * Marcado experimental: el producto no depende de un modelo concreto.
+ * fal Sync-3 / SadTalker (FAL_LIPSYNC_MODEL) si hay FAL_KEY; si no, mock.
+ * Default: sync-lipsync v3 (ilustraciones / cartoon).
  */
 @Injectable()
 export class HybridLipSyncProvider implements LipSyncProvider {
