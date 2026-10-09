@@ -499,7 +499,9 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 5. Espera máxima por clip fal: `FAL_QUEUE_MAX_WAIT_MS` (default 20 min). Antes cortaba a ~4 min con «tardó demasiado»
 6. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
 7. `REEL_MULTI_SCENE=false` vuelve al modo de 1 clip; menos escenas = más rápido
-8. Requiere Redis (`REDIS_URL`) en la API
+8. `REEL_MAX_SCENES=2` (default) limita RAM; en Render free/512MB no subir a 3–4
+9. Si Render dice *exceeded its memory limit*: sube el plan de RAM (≥1 GB) o usa 1 escena
+10. Requiere Redis (`REDIS_URL`) en la API
 
 ### Prueba manual (Avatar / personaje)
 

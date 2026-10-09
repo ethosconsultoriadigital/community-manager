@@ -76,6 +76,30 @@ export class MediaStorageService {
     return { storageUrl: stored.publicUrl, storageKey: stored.storageKey };
   }
 
+  /** Preferible para MP4 grandes en Render (512MB): stream/copia sin buffer doble. */
+  async saveFromFile(input: {
+    agencyId: string;
+    filePath: string;
+    extension: string;
+    contentType: string;
+  }): Promise<SaveMediaResult> {
+    if (this.s3) {
+      const stored = await this.s3.saveFromFile(
+        input.agencyId,
+        input.filePath,
+        input.extension,
+        input.contentType,
+      );
+      return { storageUrl: stored.publicUrl, storageKey: stored.storageKey };
+    }
+    const stored = await this.local.saveFromFile(
+      input.agencyId,
+      input.filePath,
+      input.extension,
+    );
+    return { storageUrl: stored.publicUrl, storageKey: stored.storageKey };
+  }
+
   resolveLocalPath(storageKey: string): string {
     return this.local.resolvePath(storageKey);
   }

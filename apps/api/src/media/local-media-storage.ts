@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -40,6 +40,22 @@ export class LocalMediaStorage {
     await mkdir(agencyDir, { recursive: true });
     const filePath = join(agencyDir, fileName);
     await writeFile(filePath, buffer);
+
+    const storageKey = `${agencyId}/${fileName}`;
+    const publicUrl = `${this.publicBaseUrl}/media/files/${storageKey}`;
+    return { storageKey, publicUrl };
+  }
+
+  async saveFromFile(
+    agencyId: string,
+    sourcePath: string,
+    extension: string,
+  ): Promise<StoredMedia> {
+    const fileName = `${randomUUID()}.${extension}`;
+    const agencyDir = join(this.uploadsDir, agencyId);
+    await mkdir(agencyDir, { recursive: true });
+    const filePath = join(agencyDir, fileName);
+    await copyFile(sourcePath, filePath);
 
     const storageKey = `${agencyId}/${fileName}`;
     const publicUrl = `${this.publicBaseUrl}/media/files/${storageKey}`;

@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { downloadUrlToFile } from '../download-to-file';
 import {
   getMusicTrack,
   resolveMusicTrackId,
@@ -19,7 +20,9 @@ export type SubtitleCue = {
 };
 
 export type ConcatClipsInput = {
-  clips: Buffer[];
+  /** Preferir clipPaths en producción (menos RAM). */
+  clips?: Buffer[];
+  clipPaths?: string[];
   /** Cues de subtítulo (se queman en el video). */
   subtitles?: SubtitleCue[];
   burnSubtitles?: boolean;
@@ -28,10 +31,18 @@ export type ConcatClipsInput = {
   musicSuggestion?: string;
   withMusic?: boolean;
   musicVolume?: number;
+  /**
+   * Si true, no lee el MP4 a memoria: devuelve outPath + workDir
+   * (el caller debe cleanupWorkDir).
+   */
+  keepOnDisk?: boolean;
 };
 
 export type ConcatClipsResult = {
-  buffer: Buffer;
+  buffer?: Buffer;
+  /** Presente si keepOnDisk=true. */
+  outPath?: string;
+  workDir?: string;
   width: number;
   height: number;
   durationSeconds?: number;
@@ -47,7 +58,9 @@ export class VideoCompositionService {
   private readonly logger = new Logger(VideoCompositionService.name);
 
   async concatClips(input: ConcatClipsInput): Promise<ConcatClipsResult> {
-    if (!input.clips?.length) {
+    const fromPaths = Boolean(input.clipPaths?.length);
+    const fromBuffers = Boolean(input.clips?.length);
+    if (!fromPaths && !fromBuffers) {
       throw new BadRequestException('Se necesita al menos un clip para componer el Reel');
     }
 
@@ -55,13 +68,19 @@ export class VideoCompositionService {
     const workDir = await mkdtemp(join(tmpdir(), 'cm-reel-'));
     const burnSubtitles = input.burnSubtitles !== false && Boolean(input.subtitles?.length);
     const withMusic = input.withMusic !== false;
+    const keepOnDisk = Boolean(input.keepOnDisk);
+    let retainWorkDir = false;
 
     try {
       const inputs: string[] = [];
-      for (let i = 0; i < input.clips.length; i++) {
-        const path = join(workDir, `clip-${i}.mp4`);
-        await writeFile(path, input.clips[i]);
-        inputs.push(path);
+      if (fromPaths && input.clipPaths) {
+        inputs.push(...input.clipPaths);
+      } else if (input.clips) {
+        for (let i = 0; i < input.clips.length; i++) {
+          const path = join(workDir, `clip-${i}.mp4`);
+          await writeFile(path, input.clips[i]);
+          inputs.push(path);
+        }
       }
 
       const silentPath = join(workDir, 'silent.mp4');
@@ -106,11 +125,25 @@ export class VideoCompositionService {
         await this.copyVideo(ffmpeg, videoPath, outPath);
       }
 
-      const buffer = await readFile(outPath);
       this.logger.debug(
         `Reel composed: ${inputs.length} clip(s) → ${OUT_W}x${OUT_H}` +
-          ` subs=${burned} music=${musicTrackId ?? 'none'} (${buffer.length} bytes)`,
+          ` subs=${burned} music=${musicTrackId ?? 'none'} disk=${keepOnDisk}`,
       );
+
+      if (keepOnDisk) {
+        retainWorkDir = true;
+        return {
+          outPath,
+          workDir,
+          width: OUT_W,
+          height: OUT_H,
+          durationSeconds: duration,
+          musicTrackId,
+          burnedSubtitles: burned,
+        };
+      }
+
+      const buffer = await readFile(outPath);
       return {
         buffer,
         width: OUT_W,
@@ -120,8 +153,15 @@ export class VideoCompositionService {
         burnedSubtitles: burned,
       };
     } finally {
-      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+      if (!retainWorkDir) {
+        await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+      }
     }
+  }
+
+  async cleanupWorkDir(workDir?: string): Promise<void> {
+    if (!workDir) return;
+    await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
   }
 
   async downloadClip(url: string): Promise<Buffer> {
@@ -137,6 +177,16 @@ export class VideoCompositionService {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  async downloadClipToFile(url: string, destPath: string): Promise<void> {
+    try {
+      await downloadUrlToFile(url, destPath);
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : `No se pudo descargar clip: ${url}`,
+      );
+    }
+  }
+
   async probeClipDuration(buffer: Buffer): Promise<number> {
     const ffmpeg = await this.resolveFfmpegPath();
     const workDir = await mkdtemp(join(tmpdir(), 'cm-probe-'));
@@ -147,6 +197,11 @@ export class VideoCompositionService {
     } finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  async probeClipDurationFromPath(path: string): Promise<number> {
+    const ffmpeg = await this.resolveFfmpegPath();
+    return this.probeDurationSeconds(ffmpeg, path);
   }
 
   buildSrt(cues: SubtitleCue[]): string {
@@ -350,8 +405,10 @@ export class VideoCompositionService {
   }
 
   private runFfmpeg(bin: string, args: string[]): Promise<void> {
+    // -threads 1: baja pico de RAM en Render free/starter
+    const lowMemArgs = this.withLowMemThreads(args);
     return new Promise((resolve, reject) => {
-      const child = spawn(bin, args, { windowsHide: true });
+      const child = spawn(bin, lowMemArgs, { windowsHide: true });
       let stderr = '';
       child.stderr.on('data', (chunk: Buffer) => {
         stderr += chunk.toString();
@@ -372,8 +429,9 @@ export class VideoCompositionService {
   }
 
   private runFfmpegCapture(bin: string, args: string[]): Promise<string> {
+    const lowMemArgs = this.withLowMemThreads(args);
     return new Promise((resolve, reject) => {
-      const child = spawn(bin, args, { windowsHide: true });
+      const child = spawn(bin, lowMemArgs, { windowsHide: true });
       let stderr = '';
       child.stderr.on('data', (chunk: Buffer) => {
         stderr += chunk.toString();
@@ -381,6 +439,18 @@ export class VideoCompositionService {
       child.on('error', reject);
       child.on('close', () => resolve(stderr));
     });
+  }
+
+  private withLowMemThreads(args: string[]): string[] {
+    if (args.includes('-threads')) return args;
+    const out = [...args];
+    const yIdx = out.indexOf('-y');
+    if (yIdx >= 0) {
+      out.splice(yIdx + 1, 0, '-threads', '1');
+    } else {
+      out.unshift('-threads', '1');
+    }
+    return out;
   }
 }
 

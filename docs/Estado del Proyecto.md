@@ -3,7 +3,19 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-09 (Proxy /api-backend + poll resiliente)
+**Última actualización:** 2026-10-09 (Mitigación OOM Render en vídeo)
+
+---
+
+## 2026-10-09 — Mitigación memoria Render (OOM en Reel/Avatar) ✅
+
+**Problema:** Render reiniciaba el servicio (`exceeded its memory limit`) al componer vídeo.
+
+**Cambio:** descarga/composición/subida por disco (`saveFromFile`, `clipPaths`, `keepOnDisk`); ffmpeg `-threads 1`; `REEL_MAX_SCENES` default 2.
+
+**Operativo:** ideal subir instancia API a ≥1 GB RAM; con 512MB usar 1–2 escenas y no solapar jobs pesados.
+
+**Criterio:** ✅ tests pipeline; ⏳ redeploy Render.
 
 ---
 

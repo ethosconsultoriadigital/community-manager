@@ -1,5 +1,8 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ClientsRepository } from '@cm/db';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MediaStorageService } from '../media/media-storage.service';
 import { parseClientBrand } from './composition/brand-layout';
 import { LIPSYNC_PROVIDER, TTS_PROVIDER } from './ai.tokens';
@@ -92,44 +95,55 @@ export class AvatarPipelineService {
       agencyId: input.agencyId,
     });
 
-    const clip = await this.loadClipBuffer(animated.url);
-    const duration = await this.composition.probeClipDuration(clip);
-    const subtitles = this.buildSubtitleCues(
-      avatarScript.subtitleLines,
-      duration,
-      input.withSubtitles !== false,
-    );
+    const workDir = await mkdtemp(join(tmpdir(), 'cm-avatar-pipe-'));
+    try {
+      const clipPath = join(workDir, 'clip.mp4');
+      await this.composition.downloadClipToFile(animated.url, clipPath);
+      const duration = await this.composition.probeClipDurationFromPath(clipPath);
+      const subtitles = this.buildSubtitleCues(
+        avatarScript.subtitleLines,
+        duration,
+        input.withSubtitles !== false,
+      );
 
-    const composed = await this.composition.concatClips({
-      clips: [clip],
-      subtitles,
-      burnSubtitles: input.withSubtitles !== false,
-      withMusic: input.withMusic !== false,
-      musicTrackId: input.musicTrackId,
-      musicSuggestion: avatarScript.musicSuggestion,
-      musicVolume: 0.12,
-    });
+      const composed = await this.composition.concatClips({
+        clipPaths: [clipPath],
+        subtitles,
+        burnSubtitles: input.withSubtitles !== false,
+        withMusic: input.withMusic !== false,
+        musicTrackId: input.musicTrackId,
+        musicSuggestion: avatarScript.musicSuggestion,
+        musicVolume: 0.12,
+        keepOnDisk: true,
+      });
+      if (!composed.outPath) {
+        throw new BadRequestException('Composición de avatar sin archivo de salida');
+      }
 
-    const stored = await this.mediaStorage.save({
-      agencyId: input.agencyId,
-      buffer: composed.buffer,
-      extension: 'mp4',
-      contentType: 'video/mp4',
-    });
+      const stored = await this.mediaStorage.saveFromFile({
+        agencyId: input.agencyId,
+        filePath: composed.outPath,
+        extension: 'mp4',
+        contentType: 'video/mp4',
+      });
+      await this.composition.cleanupWorkDir(composed.workDir);
 
-    return {
-      url: stored.storageUrl,
-      width: composed.width,
-      height: composed.height,
-      model: `${speech.model ?? speech.provider}+${animated.model ?? animated.provider}`,
-      ttsProvider: speech.provider,
-      lipsyncProvider: animated.provider,
-      usedMock: speech.provider === 'mock' || animated.provider === 'mock',
-      musicTrackId: composed.musicTrackId,
-      burnedSubtitles: composed.burnedSubtitles,
-      durationSeconds: composed.durationSeconds,
-      spokenTextPreview: avatarScript.spokenText.slice(0, 160),
-    };
+      return {
+        url: stored.storageUrl,
+        width: composed.width,
+        height: composed.height,
+        model: `${speech.model ?? speech.provider}+${animated.model ?? animated.provider}`,
+        ttsProvider: speech.provider,
+        lipsyncProvider: animated.provider,
+        usedMock: speech.provider === 'mock' || animated.provider === 'mock',
+        musicTrackId: composed.musicTrackId,
+        burnedSubtitles: composed.burnedSubtitles,
+        durationSeconds: composed.durationSeconds,
+        spokenTextPreview: avatarScript.spokenText.slice(0, 160),
+      };
+    } finally {
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 
   buildSubtitleCues(
@@ -146,12 +160,4 @@ export class AvatarPipelineService {
     }));
   }
 
-  private async loadClipBuffer(url: string): Promise<Buffer> {
-    try {
-      const fromStorage = await this.mediaStorage.readBytesFromUrl(url);
-      return fromStorage.buffer;
-    } catch {
-      return this.composition.downloadClip(url);
-    }
-  }
 }

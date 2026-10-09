@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MediaStorageService } from '../media/media-storage.service';
+import { downloadUrlToFile } from './download-to-file';
 import { runFalQueueJob } from './fal-queue';
 import type {
   LipSyncInput,
@@ -93,27 +97,32 @@ export class FalLipSyncProvider implements LipSyncProvider {
       throw new BadRequestException('fal lip-sync no devolvió URL de video');
     }
 
-    const response = await fetch(videoUrl);
-    if (!response.ok) {
-      throw new BadRequestException(
-        `No se pudo descargar el video lip-sync (${response.status})`,
-      );
-    }
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const stored = await this.mediaStorage.save({
-      agencyId,
-      buffer,
-      extension: 'mp4',
-      contentType: 'video/mp4',
-    });
+    const workDir = await mkdtemp(join(tmpdir(), 'cm-fal-lipsync-'));
+    try {
+      const localPath = join(workDir, 'lipsync.mp4');
+      await downloadUrlToFile(videoUrl, localPath);
+      const stored = await this.mediaStorage.saveFromFile({
+        agencyId,
+        filePath: localPath,
+        extension: 'mp4',
+        contentType: 'video/mp4',
+      });
 
-    return {
-      url: stored.storageUrl,
-      width: 720,
-      height: 1280,
-      provider: 'fal',
-      model,
-    };
+      return {
+        url: stored.storageUrl,
+        width: 720,
+        height: 1280,
+        provider: 'fal',
+        model,
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'No se pudo guardar el video lip-sync',
+      );
+    } finally {
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 }
 

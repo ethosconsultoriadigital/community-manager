@@ -1,4 +1,5 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { createReadStream } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
 export type StoredMedia = {
@@ -45,6 +46,29 @@ export class S3MediaStorage {
         Bucket: this.bucket,
         Key: storageKey,
         Body: buffer,
+        ContentType: contentType,
+      }),
+    );
+
+    const publicUrl = `${this.publicBaseUrl}/${storageKey}`;
+    return { storageKey, publicUrl };
+  }
+
+  /** Sube desde disco (stream) sin cargar el MP4 entero en heap. */
+  async saveFromFile(
+    agencyId: string,
+    filePath: string,
+    extension: string,
+    contentType: string,
+  ): Promise<StoredMedia> {
+    const fileName = `${randomUUID()}.${extension}`;
+    const storageKey = `${agencyId}/${fileName}`;
+
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: storageKey,
+        Body: createReadStream(filePath),
         ContentType: contentType,
       }),
     );

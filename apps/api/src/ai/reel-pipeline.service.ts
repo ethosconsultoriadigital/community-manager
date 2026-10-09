@@ -1,13 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MediaStorageService } from '../media/media-storage.service';
 import { IMAGE_PROVIDER, VIDEO_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
 import type { VideoProvider } from './interfaces/video-provider.interface';
 import { ScriptService } from './script/script.service';
-import {
-  sceneCountFromTargetDuration,
-} from './video-composition/licensed-music';
+import { sceneCountFromTargetDuration } from './video-composition/licensed-music';
 import {
   VideoCompositionService,
   type SubtitleCue,
@@ -71,9 +72,21 @@ export class ReelPipelineService {
     return true;
   }
 
+  /** Tope de escenas (default 2) para no OOM en Render 512MB. */
+  private maxScenes(): number {
+    const raw = Number(this.config.get<string>('REEL_MAX_SCENES') ?? '2');
+    if (!Number.isFinite(raw)) return 2;
+    return Math.min(4, Math.max(1, Math.round(raw)));
+  }
+
   private resolveSceneCount(input: ReelPipelineInput): number | undefined {
-    if (input.sceneCount != null) return input.sceneCount;
-    return sceneCountFromTargetDuration(input.targetDurationSeconds);
+    const max = this.maxScenes();
+    const fromInput =
+      input.sceneCount != null
+        ? input.sceneCount
+        : sceneCountFromTargetDuration(input.targetDurationSeconds);
+    if (fromInput == null) return max;
+    return Math.min(max, fromInput);
   }
 
   private async generateSingle(input: ReelPipelineInput): Promise<ReelPipelineResult> {
@@ -100,43 +113,61 @@ export class ReelPipelineService {
       agencyId: input.agencyId,
     });
 
-    const clip = await this.loadClipBuffer(generated.url);
-    const duration = await this.composition.probeClipDuration(clip);
-    const subtitleText = input.caption.trim().slice(0, 72);
-    const subtitles: SubtitleCue[] =
-      input.withSubtitles === false || !subtitleText
-        ? []
-        : [{ startSeconds: 0.2, endSeconds: Math.max(1, duration - 0.2), text: subtitleText }];
+    const workDir = await mkdtemp(join(tmpdir(), 'cm-reel-pipe-'));
+    try {
+      const clipPath = join(workDir, 'clip-0.mp4');
+      await this.composition.downloadClipToFile(generated.url, clipPath);
+      const duration = await this.composition.probeClipDurationFromPath(clipPath);
+      const subtitleText = input.caption.trim().slice(0, 72);
+      const subtitles: SubtitleCue[] =
+        input.withSubtitles === false || !subtitleText
+          ? []
+          : [
+              {
+                startSeconds: 0.2,
+                endSeconds: Math.max(1, duration - 0.2),
+                text: subtitleText,
+              },
+            ];
 
-    const composed = await this.composition.concatClips({
-      clips: [clip],
-      subtitles,
-      burnSubtitles: input.withSubtitles !== false,
-      withMusic: input.withMusic !== false,
-      musicTrackId: input.musicTrackId,
-      musicSuggestion: 'upbeat light',
-    });
-    const stored = await this.mediaStorage.save({
-      agencyId: input.agencyId,
-      buffer: composed.buffer,
-      extension: 'mp4',
-      contentType: 'video/mp4',
-    });
+      const composed = await this.composition.concatClips({
+        clipPaths: [clipPath],
+        subtitles,
+        burnSubtitles: input.withSubtitles !== false,
+        withMusic: input.withMusic !== false,
+        musicTrackId: input.musicTrackId,
+        musicSuggestion: 'upbeat light',
+        keepOnDisk: true,
+      });
+      if (!composed.outPath) {
+        throw new Error('Composición sin outPath');
+      }
 
-    return {
-      url: stored.storageUrl,
-      width: composed.width,
-      height: composed.height,
-      model: generated.model ?? generated.provider ?? 'video',
-      provider: generated.provider ?? 'unknown',
-      usedMock: generated.provider === 'mock',
-      sceneCount: 1,
-      multiScene: false,
-      musicTrackId: composed.musicTrackId,
-      burnedSubtitles: composed.burnedSubtitles,
-      durationSeconds: composed.durationSeconds,
-      sceneModels: [generated.model ?? 'unknown'],
-    };
+      const stored = await this.mediaStorage.saveFromFile({
+        agencyId: input.agencyId,
+        filePath: composed.outPath,
+        extension: 'mp4',
+        contentType: 'video/mp4',
+      });
+      await this.composition.cleanupWorkDir(composed.workDir);
+
+      return {
+        url: stored.storageUrl,
+        width: composed.width,
+        height: composed.height,
+        model: generated.model ?? generated.provider ?? 'video',
+        provider: generated.provider ?? 'unknown',
+        usedMock: generated.provider === 'mock',
+        sceneCount: 1,
+        multiScene: false,
+        musicTrackId: composed.musicTrackId,
+        burnedSubtitles: composed.burnedSubtitles,
+        durationSeconds: composed.durationSeconds,
+        sceneModels: [generated.model ?? 'unknown'],
+      };
+    } finally {
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 
   private async generateMultiScene(input: ReelPipelineInput): Promise<ReelPipelineResult> {
@@ -147,88 +178,100 @@ export class ReelPipelineService {
       sceneCount: this.resolveSceneCount(input),
     });
 
-    this.logger.log(`Guion Reel: ${script.scenes.length} escenas`);
+    this.logger.log(`Guion Reel: ${script.scenes.length} escenas (max=${this.maxScenes()})`);
 
-    const clipBuffers: Buffer[] = [];
+    const workDir = await mkdtemp(join(tmpdir(), 'cm-reel-pipe-'));
+    const clipPaths: string[] = [];
     const sceneModels: string[] = [];
     const sceneDurations: number[] = [];
     let anyMock = false;
     let lastProvider: 'fal' | 'mock' | 'unknown' = 'unknown';
 
-    for (let i = 0; i < script.scenes.length; i++) {
-      const scene = script.scenes[i];
-      let keyframeUrl: string | undefined;
+    try {
+      for (let i = 0; i < script.scenes.length; i++) {
+        const scene = script.scenes[i];
+        let keyframeUrl: string | undefined;
 
-      if (i === 0 && input.referenceImageUrl?.trim()) {
-        keyframeUrl = input.referenceImageUrl.trim();
-      } else {
-        const keyframe = await this.image.generateImage({
-          brief: scene.visualPrompt,
+        if (i === 0 && input.referenceImageUrl?.trim()) {
+          keyframeUrl = input.referenceImageUrl.trim();
+        } else {
+          const keyframe = await this.image.generateImage({
+            brief: scene.visualPrompt,
+            caption: input.caption,
+            hashtags: input.hashtags,
+            referenceText: input.referenceText,
+            imageSize: '1024x1792',
+            agencyId: input.agencyId,
+          });
+          keyframeUrl = keyframe.url;
+          if (keyframe.provider === 'mock') anyMock = true;
+        }
+
+        const clip = await this.video.generateVideo({
+          prompt: scene.motionPrompt,
           caption: input.caption,
           hashtags: input.hashtags,
-          referenceText: input.referenceText,
-          imageSize: '1024x1792',
+          referenceImageUrl: keyframeUrl,
           agencyId: input.agencyId,
         });
-        keyframeUrl = keyframe.url;
-        if (keyframe.provider === 'mock') anyMock = true;
+        sceneModels.push(clip.model ?? 'unknown');
+        lastProvider = clip.provider ?? 'unknown';
+        if (clip.provider === 'mock') anyMock = true;
+
+        const clipPath = join(workDir, `clip-${i}.mp4`);
+        await this.composition.downloadClipToFile(clip.url, clipPath);
+        clipPaths.push(clipPath);
+        const dur = await this.composition.probeClipDurationFromPath(clipPath);
+        sceneDurations.push(dur > 0 ? dur : scene.durationHintSeconds || 5);
+        this.logger.log(`Escena ${scene.id}: clip en disco (${clip.model}, ${dur.toFixed(1)}s)`);
       }
 
-      const clip = await this.video.generateVideo({
-        prompt: scene.motionPrompt,
-        caption: input.caption,
-        hashtags: input.hashtags,
-        referenceImageUrl: keyframeUrl,
-        agencyId: input.agencyId,
+      const subtitles = this.buildSubtitleCues(
+        script.scenes.map((s) => s.subtitle),
+        sceneDurations,
+        input.caption,
+        input.withSubtitles !== false,
+      );
+
+      const composed = await this.composition.concatClips({
+        clipPaths,
+        subtitles,
+        burnSubtitles: input.withSubtitles !== false,
+        withMusic: input.withMusic !== false,
+        musicTrackId: input.musicTrackId,
+        musicSuggestion: script.musicSuggestion,
+        keepOnDisk: true,
       });
-      sceneModels.push(clip.model ?? 'unknown');
-      lastProvider = clip.provider ?? 'unknown';
-      if (clip.provider === 'mock') anyMock = true;
+      if (!composed.outPath) {
+        throw new Error('Composición sin outPath');
+      }
 
-      const buffer = await this.loadClipBuffer(clip.url);
-      clipBuffers.push(buffer);
-      const dur = await this.composition.probeClipDuration(buffer);
-      sceneDurations.push(dur > 0 ? dur : scene.durationHintSeconds || 5);
-      this.logger.log(`Escena ${scene.id}: clip listo (${clip.model}, ${dur.toFixed(1)}s)`);
+      const stored = await this.mediaStorage.saveFromFile({
+        agencyId: input.agencyId,
+        filePath: composed.outPath,
+        extension: 'mp4',
+        contentType: 'video/mp4',
+      });
+      await this.composition.cleanupWorkDir(composed.workDir);
+
+      return {
+        url: stored.storageUrl,
+        width: composed.width,
+        height: composed.height,
+        model: sceneModels.join('+'),
+        provider: lastProvider,
+        usedMock: anyMock,
+        sceneCount: script.scenes.length,
+        multiScene: true,
+        musicSuggestion: script.musicSuggestion,
+        musicTrackId: composed.musicTrackId,
+        burnedSubtitles: composed.burnedSubtitles,
+        durationSeconds: composed.durationSeconds,
+        sceneModels,
+      };
+    } finally {
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
     }
-
-    const subtitles = this.buildSubtitleCues(
-      script.scenes.map((s) => s.subtitle),
-      sceneDurations,
-      input.caption,
-      input.withSubtitles !== false,
-    );
-
-    const composed = await this.composition.concatClips({
-      clips: clipBuffers,
-      subtitles,
-      burnSubtitles: input.withSubtitles !== false,
-      withMusic: input.withMusic !== false,
-      musicTrackId: input.musicTrackId,
-      musicSuggestion: script.musicSuggestion,
-    });
-    const stored = await this.mediaStorage.save({
-      agencyId: input.agencyId,
-      buffer: composed.buffer,
-      extension: 'mp4',
-      contentType: 'video/mp4',
-    });
-
-    return {
-      url: stored.storageUrl,
-      width: composed.width,
-      height: composed.height,
-      model: sceneModels.join('+'),
-      provider: lastProvider,
-      usedMock: anyMock,
-      sceneCount: script.scenes.length,
-      multiScene: true,
-      musicSuggestion: script.musicSuggestion,
-      musicTrackId: composed.musicTrackId,
-      burnedSubtitles: composed.burnedSubtitles,
-      durationSeconds: composed.durationSeconds,
-      sceneModels,
-    };
   }
 
   buildSubtitleCues(
@@ -255,14 +298,5 @@ export class ReelPipelineService {
       t += dur;
     }
     return cues;
-  }
-
-  private async loadClipBuffer(url: string): Promise<Buffer> {
-    try {
-      const fromStorage = await this.mediaStorage.readBytesFromUrl(url);
-      return fromStorage.buffer;
-    } catch {
-      return this.composition.downloadClip(url);
-    }
   }
 }

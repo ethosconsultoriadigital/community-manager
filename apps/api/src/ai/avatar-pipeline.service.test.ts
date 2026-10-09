@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AvatarPipelineService } from './avatar-pipeline.service';
 
 describe('AvatarPipelineService', () => {
-  it('guion → TTS → lip-sync → composición 9:16', async () => {
+  it('guion → TTS → lip-sync → composición 9:16 en disco', async () => {
     const clients = {
       findById: vi.fn().mockResolvedValue({
         id: 'client-1',
@@ -18,30 +18,26 @@ describe('AvatarPipelineService', () => {
     };
     const composition = {
       concatClips: vi.fn().mockResolvedValue({
-        buffer: Buffer.from('mp4'),
+        outPath: '/tmp/avatar-out.mp4',
+        workDir: '/tmp/avatar-compose',
         width: 1080,
         height: 1920,
         musicTrackId: 'upbeat-light',
         burnedSubtitles: true,
         durationSeconds: 8,
       }),
-      probeClipDuration: vi.fn().mockResolvedValue(8),
-      downloadClip: vi.fn(),
+      downloadClipToFile: vi.fn().mockResolvedValue(undefined),
+      probeClipDurationFromPath: vi.fn().mockResolvedValue(8),
+      cleanupWorkDir: vi.fn().mockResolvedValue(undefined),
     };
     const mediaStorage = {
-      save: vi
-        .fn()
-        .mockResolvedValueOnce({
-          storageUrl: 'https://storage.local/speech.mp3',
-          storageKey: 'a',
-        })
-        .mockResolvedValueOnce({
-          storageUrl: 'https://storage.local/avatar.mp4',
-          storageKey: 'b',
-        }),
-      readBytesFromUrl: vi.fn().mockResolvedValue({
-        buffer: Buffer.from('clip'),
-        contentType: 'video/mp4',
+      save: vi.fn().mockResolvedValue({
+        storageUrl: 'https://storage.local/speech.mp3',
+        storageKey: 'a',
+      }),
+      saveFromFile: vi.fn().mockResolvedValue({
+        storageUrl: 'https://storage.local/avatar.mp4',
+        storageKey: 'b',
       }),
     };
     const tts = {
@@ -88,7 +84,10 @@ describe('AvatarPipelineService', () => {
         audioUrl: 'https://storage.local/speech.mp3',
       }),
     );
-    expect(composition.concatClips).toHaveBeenCalled();
+    expect(composition.concatClips).toHaveBeenCalledWith(
+      expect.objectContaining({ keepOnDisk: true }),
+    );
+    expect(mediaStorage.saveFromFile).toHaveBeenCalled();
     expect(result.url).toBe('https://storage.local/avatar.mp4');
     expect(result.width).toBe(1080);
     expect(result.height).toBe(1920);

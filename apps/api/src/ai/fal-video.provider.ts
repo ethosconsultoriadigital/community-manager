@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MediaStorageService } from '../media/media-storage.service';
 import { buildVideoPrompt } from './build-video-prompt';
+import { downloadUrlToFile } from './download-to-file';
 import { runFalQueueJob } from './fal-queue';
 import type {
   GenerateVideoInput,
@@ -68,35 +72,31 @@ export class FalVideoProvider implements VideoProvider {
       throw new BadRequestException('fal no devolvió URL de video');
     }
 
-    const buffer = await this.downloadBinary(videoUrl);
-    const stored = await this.mediaStorage.save({
-      agencyId: input.agencyId,
-      buffer,
-      extension: 'mp4',
-      contentType: 'video/mp4',
-    });
+    const workDir = await mkdtemp(join(tmpdir(), 'cm-fal-vid-'));
+    try {
+      const localPath = join(workDir, 'clip.mp4');
+      await downloadUrlToFile(videoUrl, localPath);
+      const stored = await this.mediaStorage.saveFromFile({
+        agencyId: input.agencyId,
+        filePath: localPath,
+        extension: 'mp4',
+        contentType: 'video/mp4',
+      });
 
-    return {
-      url: stored.storageUrl,
-      width: 720,
-      height: 1280,
-      model,
-      provider: 'fal',
-    };
+      return {
+        url: stored.storageUrl,
+        width: 720,
+        height: 1280,
+        model,
+        provider: 'fal',
+      };
+    } finally {
+      await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 
   private resolveApiKey(): string | null {
     return this.config.get<string>('FAL_KEY')?.trim() || null;
-  }
-
-  private async downloadBinary(url: string): Promise<Buffer> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new BadRequestException(
-        `No se pudo descargar el video de fal (${response.status})`,
-      );
-    }
-    return Buffer.from(await response.arrayBuffer());
   }
 }
 
