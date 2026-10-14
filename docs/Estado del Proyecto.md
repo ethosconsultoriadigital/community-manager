@@ -3,7 +3,17 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-14 (Stories: caption overlay transparente)
+**Última actualización:** 2026-10-14 (Parrilla PDF HTML→Chromium Ethos)
+
+---
+
+## 2026-10-14 — Parrilla PDF con diseño HTML Ethos ✅
+
+**Cambio:** `ApprovalsParrillaService` genera PDF vía plantilla HTML + `puppeteer-core` / `@sparticuz/chromium` (portada, cards, casillas Aprobar/Rechazar). Fallback PDFKit si Chrome no está disponible. Endpoint y UI sin cambios.
+
+**Operativo:** redeploy API; en Render Linux usa chromium empaquetado. Local: Chrome instalado o `PUPPETEER_EXECUTABLE_PATH`.
+
+**Criterio:** ✅ test plantilla HTML; ⏳ descargar parrilla en Aprobaciones tras deploy.
 
 ---
 
@@ -472,9 +482,9 @@
 
 | Ítem | Estado |
 |------|--------|
-| **Fase actual** | Mejoras UX por módulo (plan 6 fases) — entregadas |
+| **Fase actual** | Mejoras UX + IA + parrilla PDF Ethos |
 | **Fases completadas** | 0–8 + A–E + preview/edit + Radar + Stories + UX módulos |
-| **Próximo paso** | Aplicar `schema_post_place.sql` (`pnpm migrate`); redeploy API/web; probar copy IA + ubicación |
+| **Próximo paso** | Redeploy API (Chromium parrilla); descargar PDF en Aprobaciones y validar casillas |
 | **Verificación automática** | `@cm/api` test OK · `@cm/web` build OK |
 | **Cuenta de pruebas** | `meta-test-1781556894@example.com` / `TestMeta123!` |
 | **API en local** | `http://localhost:4000` (Postgres :5433, Redis :6379) |

@@ -3,6 +3,11 @@ import { ClientsRepository, PostsRepository } from '@cm/db';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import PDFDocument from 'pdfkit';
+import { renderHtmlToPdf } from './parrilla/html-to-pdf';
+import {
+  buildParrillaHtml,
+  type ParrillaPostView,
+} from './parrilla/parrilla-html.template';
 
 type PdfDoc = InstanceType<typeof PDFDocument>;
 
@@ -83,14 +88,156 @@ export class ApprovalsParrillaService {
           (a, b) => a.position - b.position,
         )[0];
         if (!media?.storage_url || media.type === 'video') {
-          return { postId: post.id, buffer: null as Buffer | null, isVideo: media?.type === 'video' };
+          return {
+            postId: post.id,
+            buffer: null as Buffer | null,
+            isVideo: media?.type === 'video',
+            contentType: null as string | null,
+          };
         }
-        const buffer = await this.fetchImageBuffer(media.storage_url);
-        return { postId: post.id, buffer, isVideo: false };
+        const fetched = await this.fetchImageBuffer(media.storage_url);
+        return {
+          postId: post.id,
+          buffer: fetched?.buffer ?? null,
+          isVideo: false,
+          contentType: fetched?.contentType ?? null,
+        };
       }),
     );
     const imagesByPost = new Map(imageBuffers.map((row) => [row.postId, row]));
 
+    try {
+      const html = this.buildHtmlDocument(input, imagesByPost, logo);
+      const pdf = await renderHtmlToPdf(html);
+      this.logger.log(`Parrilla PDF (HTML→Chromium): ${input.posts.length} pieza(s)`);
+      return pdf;
+    } catch (error) {
+      this.logger.warn(
+        `HTML→PDF falló; usando PDFKit: ${error instanceof Error ? error.message : error}`,
+      );
+      return this.renderPdfKit(input, imagesByPost, logo);
+    }
+  }
+
+  private buildHtmlDocument(
+    input: {
+      clientName: string;
+      posts: PostForParrilla[];
+      generatedAt: Date;
+    },
+    imagesByPost: Map<
+      string,
+      { buffer: Buffer | null; isVideo: boolean; contentType: string | null }
+    >,
+    logo: Buffer | null,
+  ): string {
+    const dateOpts: Intl.DateTimeFormatOptions = {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    };
+    const generatedAtLabel = input.generatedAt.toLocaleDateString('es-MX', dateOpts);
+    const first = input.posts[0]?.created_at
+      ? new Date(input.posts[0].created_at)
+      : input.generatedAt;
+    const last = input.posts[input.posts.length - 1]?.created_at
+      ? new Date(input.posts[input.posts.length - 1].created_at)
+      : input.generatedAt;
+    const periodLabel =
+      first.toDateString() === last.toDateString()
+        ? first.toLocaleDateString('es-MX', dateOpts)
+        : `${first.toLocaleDateString('es-MX', dateOpts)} — ${last.toLocaleDateString('es-MX', dateOpts)}`;
+
+    const posts: ParrillaPostView[] = input.posts.map((post, index) => {
+      const media = imagesByPost.get(post.id) ?? {
+        buffer: null,
+        isVideo: false,
+        contentType: null,
+      };
+      return {
+        index: index + 1,
+        total: input.posts.length,
+        clientName: input.clientName,
+        caption: (post.caption ?? '').trim() || 'Sin texto',
+        hashtags: (post.hashtags ?? []).filter(Boolean),
+        destinations: this.destinationLabels(post),
+        formatLabel: this.formatLabel(post),
+        statusLabel:
+          post.status === 'pending_approval'
+            ? 'Pendiente de aprobación'
+            : 'Aprobado (sin programar)',
+        placeName: post.place_name,
+        shortId: post.id.slice(0, 8),
+        imageDataUrl: media.buffer
+          ? this.toDataUrl(media.buffer, media.contentType ?? 'image/jpeg')
+          : null,
+        isVideo: media.isVideo,
+        createdLabel: this.capitalizeDay(
+          new Date(post.created_at).toLocaleDateString('es-MX', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          }),
+        ),
+      };
+    });
+
+    return buildParrillaHtml({
+      clientName: input.clientName,
+      count: input.posts.length,
+      generatedAtLabel,
+      periodLabel,
+      logoDataUrl: logo ? this.toDataUrl(logo, 'image/png') : null,
+      posts,
+    });
+  }
+
+  private destinationLabels(post: PostForParrilla): string[] {
+    const destinations = post.post_targets.map((t) => {
+      const platform =
+        PLATFORM_LABEL[t.social_accounts.platform] ?? t.social_accounts.platform;
+      const page =
+        t.social_accounts.username?.trim() ||
+        t.social_accounts.external_account_id ||
+        null;
+      return page ? `${platform} · ${page.startsWith('@') ? page : `@${page}`}` : platform;
+    });
+    return [...new Set(destinations)];
+  }
+
+  private formatLabel(post: PostForParrilla): string {
+    const formatParts: string[] = [];
+    if (post.video_format === 'reel') formatParts.push('Reel');
+    else if (post.media_assets?.some((m) => m.type === 'video')) formatParts.push('Video (feed)');
+    else if (post.media_assets?.some((m) => m.type === 'image')) formatParts.push('Imagen');
+    else formatParts.push('Texto');
+    if (post.also_publish_as_story) formatParts.push('+ Story');
+    return formatParts.join(' · ');
+  }
+
+  private capitalizeDay(label: string): string {
+    if (!label) return label;
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
+  private toDataUrl(buffer: Buffer, contentType: string): string {
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  }
+
+  /** Fallback si Chromium no está disponible (local sin Chrome / error de launch). */
+  private async renderPdfKit(
+    input: {
+      clientName: string;
+      posts: PostForParrilla[];
+      generatedAt: Date;
+    },
+    imagesByPost: Map<
+      string,
+      { buffer: Buffer | null; isVideo: boolean; contentType: string | null }
+    >,
+    logo: Buffer | null,
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 48, size: 'A4' });
       const chunks: Buffer[] = [];
@@ -107,12 +254,13 @@ export class ApprovalsParrillaService {
 
       input.posts.forEach((post, index) => {
         doc.addPage();
+        const media = imagesByPost.get(post.id) ?? { buffer: null, isVideo: false };
         this.drawPostPage(doc, {
           post,
           index: index + 1,
           total: input.posts.length,
           clientName: input.clientName,
-          media: imagesByPost.get(post.id) ?? { buffer: null, isVideo: false },
+          media: { buffer: media.buffer, isVideo: media.isVideo },
         });
       });
 
@@ -222,32 +370,23 @@ export class ApprovalsParrillaService {
       .fillColor('#0f172a')
       .text(`Publicación ${input.index}`, margin, margin + 22, { width: contentWidth });
 
-    const destinations = post.post_targets.map((t) => {
-      const platform =
-        PLATFORM_LABEL[t.social_accounts.platform] ?? t.social_accounts.platform;
-      const page =
-        t.social_accounts.username?.trim() ||
-        t.social_accounts.external_account_id ||
-        null;
-      return page ? `${platform} · ${page.startsWith('@') ? page : `@${page}`}` : platform;
-    });
-    const uniqueDestinations = [...new Set(destinations)];
-    const formatParts: string[] = [];
-    if (post.video_format === 'reel') formatParts.push('Reel');
-    else if (post.media_assets?.some((m) => m.type === 'video')) formatParts.push('Video (feed)');
-    else if (post.media_assets?.some((m) => m.type === 'image')) formatParts.push('Imagen');
-    else formatParts.push('Texto');
-    if (post.also_publish_as_story) formatParts.push('+ Story');
-
     doc.moveDown(0.8);
     doc.fontSize(10).fillColor('#374151');
     doc.text(
       `Destinos: ${
-        uniqueDestinations.length ? uniqueDestinations.join(' · ') : 'Sin destinos'
+        this.destinationLabels(post).length
+          ? this.destinationLabels(post).join(' · ')
+          : 'Sin destinos'
       }`,
     );
-    doc.text(`Formato: ${formatParts.join(' · ')}`);
-    doc.text(`Estado: ${post.status === 'pending_approval' ? 'Pendiente de aprobación' : 'Aprobado (sin programar)'}`);
+    doc.text(`Formato: ${this.formatLabel(post)}`);
+    doc.text(
+      `Estado: ${
+        post.status === 'pending_approval'
+          ? 'Pendiente de aprobación'
+          : 'Aprobado (sin programar)'
+      }`,
+    );
     if (post.place_name) doc.text(`Ubicación: ${post.place_name}`);
     doc.text(`ID: ${post.id.slice(0, 8)}…`);
 
@@ -331,7 +470,9 @@ export class ApprovalsParrillaService {
     return null;
   }
 
-  private async fetchImageBuffer(url: string): Promise<Buffer | null> {
+  private async fetchImageBuffer(
+    url: string,
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
       if (!res.ok) return null;
@@ -341,9 +482,9 @@ export class ApprovalsParrillaService {
       }
       const arrayBuffer = await res.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      // pdfkit: JPEG/PNG; skip huge payloads
       if (buffer.length > 8 * 1024 * 1024) return null;
-      return buffer;
+      const mime = contentType.split(';')[0]?.trim() || 'image/jpeg';
+      return { buffer, contentType: mime };
     } catch (error) {
       this.logger.warn(`No se pudo descargar media para PDF: ${error}`);
       return null;

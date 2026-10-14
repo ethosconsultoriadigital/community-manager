@@ -20,6 +20,7 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.2",
+    "@sparticuz/chromium": "^153.0.0",
     "bcryptjs": "^3.0.2",
     "bullmq": "^5.53.2",
     "ffmpeg-static": "^5.3.0",
@@ -31,6 +32,7 @@
     "passport-jwt": "^4.0.1",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.20.2",
+    "puppeteer-core": "^25.14.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "sharp": "^0.34.5"

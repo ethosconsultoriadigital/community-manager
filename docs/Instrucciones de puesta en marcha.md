@@ -534,6 +534,13 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 
 ### Cuándo usar
 
+### Parrilla PDF (Aprobaciones)
+
+1. Filtra por cliente, selecciona piezas pendientes/aprobadas → **Descargar parrilla PDF**
+2. El PDF se genera con plantilla HTML (identidad Ethos) vía Chromium; incluye casillas Aprobar / Rechazar
+3. En Render se usa `@sparticuz/chromium`. En local hace falta Chrome o `PUPPETEER_EXECUTABLE_PATH`
+4. Si Chromium falla, la API cae automáticamente al PDFKit anterior (mismo endpoint)
+
 En **Generar Contenido** o **Aprobaciones**, marca **«También colgar como historia (24 h)»** si quieres publicar en feed **y** en Story con la misma imagen o video. Requiere media adjunta (no aplica a posts solo texto).
 
 ### Comportamiento
