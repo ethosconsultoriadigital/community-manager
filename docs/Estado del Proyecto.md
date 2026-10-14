@@ -3,7 +3,15 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-09 (Mitigación OOM Render en vídeo)
+**Última actualización:** 2026-10-14 (Stories: caption overlay transparente)
+
+---
+
+## 2026-10-14 — Stories: texto sin franja azul ✅
+
+**Cambio:** caption de story se superpone sobre la foto 9:16 (fondo SVG transparente + contorno para legibilidad). Ya no hay banda `#111827` abajo.
+
+**Criterio:** ✅ tests layout; ⏳ redeploy API y publicar una story de prueba.
 
 ---
 

@@ -12,8 +12,11 @@ describe('story-caption-layout', () => {
     expect(lines.length).toBeLessThanOrEqual(4);
   });
 
-  it('genera SVG con texto escapado', () => {
+  it('genera SVG con texto escapado y sin franja de fondo', () => {
     const svg = buildStoryCaptionSvg(['Hola & <world>'], 1080, 400);
     expect(svg).toContain('Hola &amp; &lt;world&gt;');
+    expect(svg).not.toContain('<rect');
+    expect(svg).toContain('fill="#ffffff"');
+    expect(svg).toContain('paint-order="stroke fill"');
   });
 });

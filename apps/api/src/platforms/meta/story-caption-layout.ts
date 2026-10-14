@@ -35,18 +35,30 @@ export function escapeSvgText(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
+/**
+ * SVG del caption sin fondo (transparente).
+ * Contorno oscuro para legibilidad al superponer sobre la foto.
+ */
 export function buildStoryCaptionSvg(lines: string[], width: number, height: number): string {
-  const lineHeight = 44;
-  const startY = 72;
+  const lineHeight = 48;
+  const startY = Math.max(56, height - lines.length * lineHeight - 48);
   const tspans = lines
     .map((line, index) => {
       const y = startY + index * lineHeight;
-      return `<tspan x="48" y="${y}">${escapeSvgText(line)}</tspan>`;
+      return `<tspan x="${width / 2}" y="${y}">${escapeSvgText(line)}</tspan>`;
     })
     .join('');
 
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="#111827" opacity="0.88"/>
-  <text font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="600" fill="#ffffff">${tspans}</text>
+  <text
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="36"
+    font-weight="700"
+    fill="#ffffff"
+    stroke="#111827"
+    stroke-width="5"
+    paint-order="stroke fill"
+  >${tspans}</text>
 </svg>`;
 }

@@ -538,7 +538,7 @@ En **Generar Contenido** o **Aprobaciones**, marca **«También colgar como hist
 
 ### Comportamiento
 
-- **Instagram:** segundo contenedor con `media_type=STORIES`. La API no acepta caption en stories; la API compone una imagen 9:16 con foto + texto del post en la franja inferior (solo fotos).
+- **Instagram:** segundo contenedor con `media_type=STORIES`. La API no acepta caption en stories; la API compone una imagen 9:16 a pantalla completa con el texto del post superpuesto abajo (sin franja de color; solo fotos).
 - **Facebook Page:** story primero (`photo_stories` o `video_stories`) con la misma imagen compuesta cuando hay caption, luego feed.
 - Si la story falla pero el feed OK, el post queda publicado y verás el error de story en el destino.
 

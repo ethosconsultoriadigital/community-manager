@@ -5,8 +5,8 @@ import { buildStoryCaptionSvg, wrapStoryCaption } from './story-caption-layout';
 
 const STORY_WIDTH = 1080;
 const STORY_HEIGHT = 1920;
-const CAPTION_ZONE_HEIGHT = 420;
-const MEDIA_ZONE_HEIGHT = STORY_HEIGHT - CAPTION_ZONE_HEIGHT;
+/** Zona inferior donde se superpone el texto (sin franja de color). */
+const CAPTION_OVERLAY_HEIGHT = 420;
 
 @Injectable()
 export class StoryMediaComposerService {
@@ -15,8 +15,8 @@ export class StoryMediaComposerService {
   constructor(private readonly mediaStorage: MediaStorageService) {}
 
   /**
-   * Genera una imagen 9:16 con la foto arriba y el caption abajo (estilo preview Meta).
-   * La API oficial de Instagram/Facebook no acepta caption en STORIES; el texto va en la imagen.
+   * Genera una imagen 9:16 a pantalla completa con el caption superpuesto abajo
+   * (fondo transparente; la API de Stories no acepta caption de texto aparte).
    */
   async composeStoryImage(
     imageUrl: string,
@@ -35,24 +35,20 @@ export class StoryMediaComposerService {
 
     const sourceBuffer = Buffer.from(await response.arrayBuffer());
     const imagePart = await sharp(sourceBuffer)
-      .resize(STORY_WIDTH, MEDIA_ZONE_HEIGHT, { fit: 'cover', position: 'centre' })
+      .resize(STORY_WIDTH, STORY_HEIGHT, { fit: 'cover', position: 'centre' })
       .jpeg({ quality: 92 })
       .toBuffer();
 
-    const captionSvg = buildStoryCaptionSvg(lines, STORY_WIDTH, CAPTION_ZONE_HEIGHT);
+    const captionSvg = buildStoryCaptionSvg(lines, STORY_WIDTH, CAPTION_OVERLAY_HEIGHT);
     const captionPart = await sharp(Buffer.from(captionSvg)).png().toBuffer();
 
-    const composed = await sharp({
-      create: {
-        width: STORY_WIDTH,
-        height: STORY_HEIGHT,
-        channels: 3,
-        background: '#000000',
-      },
-    })
+    const composed = await sharp(imagePart)
       .composite([
-        { input: imagePart, top: 0, left: 0 },
-        { input: captionPart, top: MEDIA_ZONE_HEIGHT, left: 0 },
+        {
+          input: captionPart,
+          top: STORY_HEIGHT - CAPTION_OVERLAY_HEIGHT,
+          left: 0,
+        },
       ])
       .jpeg({ quality: 90 })
       .toBuffer();
@@ -64,7 +60,9 @@ export class StoryMediaComposerService {
       contentType: 'image/jpeg',
     });
 
-    this.logger.log(`Story compuesta con caption (${lines.length} líneas) para agencia ${agencyId}`);
+    this.logger.log(
+      `Story compuesta con caption overlay (${lines.length} líneas) para agencia ${agencyId}`,
+    );
     return saved.storageUrl;
   }
 }
