@@ -16,6 +16,13 @@ export type SaveMediaResult = {
   storageKey: string;
 };
 
+/** Origen de bytes por rango. El llamador pide un tramo; no recibe el archivo entero. */
+export type MediaRangeSource = {
+  contentLength: number;
+  contentType: string;
+  readRange(start: number, endInclusive: number): Promise<Buffer>;
+};
+
 @Injectable()
 export class MediaStorageService {
   private readonly local: LocalMediaStorage;
@@ -105,6 +112,21 @@ export class MediaStorageService {
   }
 
   /**
+   * Abre el video para subirlo por partes (TikTok FILE_UPLOAD).
+   * R2/S3 usa Range de GetObject; local usa read posicional.
+   * Una URL externa solo se acepta si responde 206 a Range.
+   */
+  async openRangeSource(url: string): Promise<MediaRangeSource> {
+    if (this.s3) {
+      const key = this.s3.keyFromPublicUrl(url);
+      if (key) return this.s3.openRange(key);
+    }
+    const localKey = this.local.keyFromPublicUrl(url);
+    if (localKey) return this.local.openRange(localKey);
+    return openHttpRangeSource(url);
+  }
+
+  /**
    * Lee bytes desde storage (S3/local) a partir de la URL pública.
    * Si no es URL de nuestro storage, descarga por HTTP (p. ej. imágenes externas).
    */
@@ -131,4 +153,52 @@ export class MediaStorageService {
       contentType,
     };
   }
+}
+
+/**
+ * URL que no es nuestro storage. Exige Range (206). Si el servidor ignora
+ * el rango y manda el archivo entero, se cancela el body.
+ */
+async function openHttpRangeSource(url: string): Promise<MediaRangeSource> {
+  const head = await fetch(url, {
+    method: 'HEAD',
+    headers: { 'User-Agent': 'CommunityManager/1.0' },
+    redirect: 'follow',
+  });
+  const contentLength = Number(head.headers.get('content-length'));
+  if (!head.ok || !Number.isFinite(contentLength) || contentLength <= 0) {
+    throw new Error(
+      'El video debe estar en el almacenamiento de la app (R2 o local) para subirlo a TikTok por partes',
+    );
+  }
+  const contentType =
+    head.headers.get('content-type')?.split(';')[0]?.trim() || 'application/octet-stream';
+
+  return {
+    contentLength,
+    contentType,
+    readRange: async (start, endInclusive) => {
+      const expected = endInclusive - start + 1;
+      const response = await fetch(url, {
+        headers: {
+          Range: `bytes=${start}-${endInclusive}`,
+          'User-Agent': 'CommunityManager/1.0',
+        },
+        redirect: 'follow',
+      });
+      if (response.status !== 206) {
+        await response.body?.cancel();
+        throw new Error(
+          'El origen del video no admite descargas por rango. Súbelo al almacenamiento de la app.',
+        );
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length !== expected) {
+        throw new Error(
+          `Tramo de video incompleto (${buffer.length}/${expected} bytes)`,
+        );
+      }
+      return buffer;
+    },
+  };
 }

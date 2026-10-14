@@ -1,4 +1,9 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { createReadStream } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
@@ -91,6 +96,46 @@ export class S3MediaStorage {
     return {
       buffer: Buffer.from(bytes),
       contentType: response.ContentType ?? 'application/octet-stream',
+    };
+  }
+
+  /**
+   * Metadatos + lectura por rango. Cada readRange baja solo ese tramo (R2/S3),
+   * no el objeto entero.
+   */
+  async openRange(storageKey: string): Promise<{
+    contentLength: number;
+    contentType: string;
+    readRange: (start: number, endInclusive: number) => Promise<Buffer>;
+  }> {
+    const head = await this.client.send(
+      new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: storageKey,
+      }),
+    );
+    if (head.ContentLength == null) {
+      throw new Error(`S3 sin tamaño para key ${storageKey}`);
+    }
+    const contentLength = head.ContentLength;
+    const contentType = head.ContentType ?? 'application/octet-stream';
+    return {
+      contentLength,
+      contentType,
+      readRange: async (start, endInclusive) => {
+        const response = await this.client.send(
+          new GetObjectCommand({
+            Bucket: this.bucket,
+            Key: storageKey,
+            Range: `bytes=${start}-${endInclusive}`,
+          }),
+        );
+        if (!response.Body) {
+          throw new Error(`S3 sin cuerpo para rango ${start}-${endInclusive}`);
+        }
+        const bytes = await response.Body.transformToByteArray();
+        return Buffer.from(bytes);
+      },
     };
   }
 

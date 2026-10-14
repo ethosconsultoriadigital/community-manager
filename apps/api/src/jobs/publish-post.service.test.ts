@@ -296,4 +296,41 @@ describe('PublishPostService', () => {
       }),
     );
   });
+
+  it('en TikTok toma el video aunque la primera media sea una imagen', async () => {
+    const tiktokPublish = {
+      publish: vi.fn().mockResolvedValue({ platformPostId: 'tt-1' }),
+    };
+    const { service, posts, socialAccounts, publishers } = createService();
+    publishers.getPublisher.mockReturnValue(tiktokPublish);
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Clip',
+      hashtags: [],
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [
+        { type: 'image', storage_url: 'https://cdn.example.com/a.jpg' },
+        { type: 'video', storage_url: 'https://cdn.example.com/a.mp4' },
+      ],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa-tt' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa-tt',
+      platform: 'tiktok',
+      external_account_id: 'open-1',
+      access_token_enc: encryptedToken('tt-token'),
+      is_active: true,
+    });
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(publishers.getPublisher).toHaveBeenCalledWith('tiktok');
+    expect(tiktokPublish.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'tiktok',
+        videoUrl: 'https://cdn.example.com/a.mp4',
+      }),
+    );
+  });
 });

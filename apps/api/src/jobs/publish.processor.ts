@@ -6,11 +6,14 @@ import { PUBLISH_QUEUE } from './publish.constants';
 import { PublishPostService, type PublishPostJobData } from './publish-post.service';
 import { PublishQueueService } from './publish-queue.service';
 
-/** lockDuration alto: Meta/Threads + Redis lento (Upstash) evitaban Missing lock. */
+/**
+ * Lock largo: la subida TikTok (fragmentos + poll de status) puede tardar
+ * varios minutos. 3 min dejaban el job en Missing lock en Upstash.
+ */
 @Processor(PUBLISH_QUEUE, {
   concurrency: 1,
-  lockDuration: 180_000,
-  stalledInterval: 60_000,
+  lockDuration: 1_200_000,
+  stalledInterval: 120_000,
 })
 export class PublishProcessor extends WorkerHost {
   private readonly logger = new Logger(PublishProcessor.name);

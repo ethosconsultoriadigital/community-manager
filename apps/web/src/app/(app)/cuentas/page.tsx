@@ -270,7 +270,7 @@ export default function CuentasPage() {
 
       {features?.tiktok && (
         <p className="text-xs text-muted">
-          App en revisión: las publicaciones serán privadas hasta la auditoría de TikTok.
+          TikTok publica solo video y, mientras la app esté en sandbox, siempre en privado (SELF_ONLY).
         </p>
       )}
 

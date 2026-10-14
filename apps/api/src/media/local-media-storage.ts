@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, open, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -18,6 +18,9 @@ const EXT_MIME: Record<string, string> = {
   '.png': 'image/png',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
 };
 
 export class LocalMediaStorage {
@@ -68,6 +71,38 @@ export class LocalMediaStorage {
       throw new Error('Clave de almacenamiento inválida');
     }
     return join(this.uploadsDir, normalized);
+  }
+
+  /** stat + read posicional: un tramo, no el archivo entero. */
+  async openRange(storageKey: string): Promise<{
+    contentLength: number;
+    contentType: string;
+    readRange: (start: number, endInclusive: number) => Promise<Buffer>;
+  }> {
+    const path = this.resolvePath(storageKey);
+    const info = await stat(path);
+    const contentType = EXT_MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
+    return {
+      contentLength: info.size,
+      contentType,
+      readRange: async (start, endInclusive) => {
+        const length = endInclusive - start + 1;
+        if (length <= 0) {
+          throw new Error('Rango de lectura vacío');
+        }
+        const handle = await open(path, 'r');
+        try {
+          const buf = Buffer.alloc(length);
+          const { bytesRead } = await handle.read(buf, 0, length, start);
+          if (bytesRead !== length) {
+            throw new Error(`Lectura incompleta del video (${bytesRead}/${length})`);
+          }
+          return buf;
+        } finally {
+          await handle.close();
+        }
+      },
+    };
   }
 
   async read(storageKey: string): Promise<ReadMediaResult> {

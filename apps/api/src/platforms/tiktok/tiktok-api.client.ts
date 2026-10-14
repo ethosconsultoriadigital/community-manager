@@ -2,10 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   TIKTOK_AUTHORIZE_URL,
+  TIKTOK_CREATOR_INFO_URL,
   TIKTOK_OAUTH_SCOPES,
   TIKTOK_REVOKE_URL,
+  TIKTOK_STATUS_FETCH_URL,
   TIKTOK_TOKEN_URL,
   TIKTOK_USER_INFO_URL,
+  TIKTOK_VIDEO_INIT_URL,
+  type TikTokCreatorInfo,
+  type TikTokInitVideoResult,
+  type TikTokPublishStatus,
   type TikTokTokenResponse,
   type TikTokUserInfo,
 } from './tiktok.types';
@@ -77,6 +83,87 @@ export class TikTokApiClient {
     return user;
   }
 
+  async queryCreatorInfo(accessToken: string): Promise<TikTokCreatorInfo> {
+    const data = await this.postJson<TikTokCreatorInfo>(
+      TIKTOK_CREATOR_INFO_URL,
+      accessToken,
+      {},
+    );
+    return data ?? {};
+  }
+
+  async initFileUpload(
+    accessToken: string,
+    body: {
+      post_info: {
+        title: string;
+        privacy_level: string;
+        disable_duet: boolean;
+        disable_comment: boolean;
+        disable_stitch: boolean;
+        video_cover_timestamp_ms: number;
+      };
+      source_info: {
+        source: 'FILE_UPLOAD';
+        video_size: number;
+        chunk_size: number;
+        total_chunk_count: number;
+      };
+    },
+  ): Promise<TikTokInitVideoResult> {
+    const data = await this.postJson<TikTokInitVideoResult>(
+      TIKTOK_VIDEO_INIT_URL,
+      accessToken,
+      body,
+    );
+    if (!data?.publish_id || !data.upload_url) {
+      throw new Error('TikTok no devolvió publish_id o upload_url');
+    }
+    return data;
+  }
+
+  /**
+   * PUT de un tramo al upload_url de init. No lleva Bearer: el token va en la URL.
+   * Acepta 200/201 (último) y 206 (intermedios).
+   */
+  async uploadChunk(
+    uploadUrl: string,
+    chunk: Buffer,
+    contentRange: string,
+    contentType: string,
+  ): Promise<void> {
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(chunk.length),
+        'Content-Range': contentRange,
+      },
+      body: chunk,
+    });
+    if (response.status !== 200 && response.status !== 201 && response.status !== 206) {
+      const detail = (await response.text().catch(() => '')).slice(0, 300);
+      this.logger.error(
+        `TikTok upload chunk: status=${response.status} range=${contentRange}`,
+      );
+      throw new Error(
+        `TikTok no aceptó el fragmento (${response.status})${detail ? `: ${detail}` : ''}`,
+      );
+    }
+  }
+
+  async fetchPublishStatus(
+    accessToken: string,
+    publishId: string,
+  ): Promise<TikTokPublishStatus> {
+    const data = await this.postJson<TikTokPublishStatus>(
+      TIKTOK_STATUS_FETCH_URL,
+      accessToken,
+      { publish_id: publishId },
+    );
+    return data ?? {};
+  }
+
   async revokeToken(accessToken: string): Promise<void> {
     const response = await fetch(TIKTOK_REVOKE_URL, {
       method: 'POST',
@@ -113,6 +200,33 @@ export class TikTokApiClient {
       throw new Error(`No se pudo obtener token de TikTok: ${detail}`);
     }
     return json;
+  }
+
+  private async postJson<T>(
+    url: string,
+    accessToken: string,
+    body: unknown,
+  ): Promise<T> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify(body),
+    });
+    const json = await this.readJson(response);
+    const error = json.error as
+      | { code?: string; message?: string; log_id?: string }
+      | undefined;
+    const code = error?.code;
+    if (!response.ok || (code && code !== 'ok')) {
+      this.logger.error(
+        `TikTok POST ${new URL(url).pathname}: status=${response.status} code=${code ?? 'n/a'} log_id=${error?.log_id ?? 'n/a'}`,
+      );
+      throw new Error(error?.message || code || `TikTok HTTP ${response.status}`);
+    }
+    return (json.data ?? {}) as T;
   }
 
   private requireClientKey(): string {

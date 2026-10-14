@@ -89,6 +89,7 @@ export class AutoPromoteService {
     const accounts = await this.socialAccounts.findByAgency(agencyId, item.client_id);
     const active = accounts.filter((a) => a.is_active);
 
+    // TikTok no entra: Content Posting exige un video y el Radar solo trae texto/imagen.
     const platforms: Array<{
       platform: 'facebook' | 'instagram' | 'threads' | 'x';
       copy: string | null | undefined;

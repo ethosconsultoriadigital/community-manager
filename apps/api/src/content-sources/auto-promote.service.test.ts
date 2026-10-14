@@ -155,4 +155,43 @@ describe('AutoPromoteService', () => {
     expect(posts.create.mock.calls[0][2].caption).toContain('Tweet corto Radar');
     expect(posts.create.mock.calls[0][2].caption).not.toContain('Texto largo FB');
   });
+
+  it('no promueve a TikTok aunque la cuenta esté activa', async () => {
+    const item = {
+      id: 'item-1',
+      client_id: 'client-1',
+      source_id: 'source-1',
+      external_id: 'noticia_1',
+      copy_facebook: 'Hola FB',
+      copy_instagram: 'Hola IG',
+      hashtags: [],
+      source_url: null,
+      image_url: null,
+      post_id: null,
+    };
+    const sourceItems = {
+      findPromotable: vi.fn().mockResolvedValue([item]),
+      linkPost: vi.fn(),
+    };
+    const posts = { create: vi.fn() };
+    const socialAccounts = {
+      findByAgency: vi.fn().mockResolvedValue([
+        { id: 'sa-tt', platform: 'tiktok', is_active: true },
+      ]),
+    };
+    const service = new AutoPromoteService(
+      sourceItems as never,
+      posts as never,
+      { create: vi.fn() } as never,
+      { createPending: vi.fn() } as never,
+      socialAccounts as never,
+      { save: vi.fn() } as never,
+    );
+
+    const result = await service.promoteSource('agency-1', null, 'source-1');
+
+    expect(posts.create).not.toHaveBeenCalled();
+    expect(result.postsCreated).toBe(0);
+    expect(result.postIds).toEqual([]);
+  });
 });

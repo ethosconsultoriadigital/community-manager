@@ -6,6 +6,7 @@ function makeRegistry(opts?: {
   meta?: { publish: ReturnType<typeof vi.fn> };
   threads?: { publish: ReturnType<typeof vi.fn> };
   x?: { publish: ReturnType<typeof vi.fn> };
+  tiktok?: { publish: ReturnType<typeof vi.fn> };
 }) {
   const config = { get: opts?.configGet ?? (() => undefined) };
   return new PlatformPublisherRegistry(
@@ -13,6 +14,7 @@ function makeRegistry(opts?: {
     (opts?.meta ?? { publish: vi.fn() }) as never,
     (opts?.threads ?? { publish: vi.fn() }) as never,
     (opts?.x ?? { publish: vi.fn() }) as never,
+    (opts?.tiktok ?? { publish: vi.fn() }) as never,
   );
 }
 
@@ -64,8 +66,23 @@ describe('PlatformPublisherRegistry', () => {
     expect(registry.getPublisher('x')).toBe(x);
   });
 
-  it('tiktok aún no implementado', () => {
+  it('exige flag TikTok activo', () => {
     const registry = makeRegistry();
-    expect(() => registry.getPublisher('tiktok')).toThrow(/no implementada/i);
+    expect(() => registry.getPublisher('tiktok')).toThrow(/desactivada/i);
+  });
+
+  it('devuelve TikTok cuando está habilitado', () => {
+    const tiktok = { publish: vi.fn() };
+    const registry = makeRegistry({
+      tiktok,
+      configGet: (key) =>
+        ({
+          TIKTOK_PUBLISH_ENABLED: 'true',
+          TIKTOK_CLIENT_KEY: 'key',
+          TIKTOK_CLIENT_SECRET: 'sec',
+          TIKTOK_REDIRECT_URI: 'http://cb',
+        })[key],
+    });
+    expect(registry.getPublisher('tiktok')).toBe(tiktok);
   });
 });

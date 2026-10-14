@@ -77,11 +77,13 @@ Tras cada fase: revisar en staging antes de la siguiente.
 
 ---
 
-## Fase 3 — TikTok — ✅ conexión OAuth (publish pendiente)
+## Fase 3 — TikTok — ✅ OAuth + publicación de video
 
 - OAuth 2.0 + Redis state; tokens cifrados; refresh; revoke.
-- Flag `TIKTOK_PUBLISH_ENABLED` + `TIKTOK_CLIENT_KEY` / `SECRET` / `REDIRECT_URI`.
-- UI Cuentas: Conectar TikTok (sin publisher de video aún).
+- `TikTokPublishService` (Content Posting API, `FILE_UPLOAD` por rangos desde R2/local).
+- Privacidad `SELF_ONLY` mientras `creator_info` la ofrezca (app en sandbox).
+- Exige video. Stories y lugar no se envían. El Radar no promueve a TikTok.
+- Flag `TIKTOK_PUBLISH_ENABLED` + `TIKTOK_CLIENT_KEY` / `SECRET` / `REDIRECT_URI` activa OAuth y publish.
 - Doc: `docs/TikTok_activacion.md`.
 
 ---
@@ -99,7 +101,7 @@ Tras cada fase: revisar en staging antes de la siguiente.
 |----------|---------|--------|
 | `THREADS_PUBLISH_ENABLED` | `false` | Activa OAuth + publish Threads |
 | `X_PUBLISH_ENABLED` | `false` | Activa OAuth + publish X |
-| `TIKTOK_PUBLISH_ENABLED` | `false` | (Fase 3) |
+| `TIKTOK_PUBLISH_ENABLED` | `false` | Activa OAuth + publish de video TikTok |
 
 ---
 

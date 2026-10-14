@@ -91,8 +91,13 @@ export class PublishPostService {
         .slice(0, 4)
         .map((m) => m.storage_url)
         .filter(Boolean);
-      const videoUrl =
-        primaryMedia?.type === 'video' ? primaryMedia.storage_url : undefined;
+      const videoAsset =
+        account.platform === 'tiktok'
+          ? post.media_assets.find((m) => m.type === 'video')
+          : primaryMedia?.type === 'video'
+            ? primaryMedia
+            : undefined;
+      const videoUrl = videoAsset?.storage_url;
       const videoFormat =
         post.video_format === 'reel' ? ('reel' as const) : ('feed' as const);
 

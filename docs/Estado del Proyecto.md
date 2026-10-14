@@ -3,7 +3,22 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-14 (Parrilla PDF HTML→Chromium Ethos)
+**Última actualización:** 2026-10-14 (TikTok: publicación de video FILE_UPLOAD)
+
+---
+
+## 2026-10-14 — TikTok: publicación de video (Content Posting API) ✅
+
+**Implementado:**
+- `TikTokPublishService` detrás del registry, solo si `TIKTOK_PUBLISH_ENABLED` y credenciales.
+- `creator_info/query` → privacidad `SELF_ONLY` (sandbox). Sin video, el destino falla. Stories y lugar no se envían.
+- `video/init` con `FILE_UPLOAD`, subida por fragmentos (Range en R2/S3 o read posicional en local; no se carga el MP4 entero) y `status/fetch` hasta `PUBLISH_COMPLETE`.
+- `post_targets.platform_post_id` guarda el id público del post, o el `publish_id` si TikTok aún no lo devuelve.
+- Lock del worker `post-publish`: 20 min. El Radar sigue sin promover a TikTok.
+
+**Operativo:** ver `docs/TikTok_activacion.md` (productos, scopes, redirect, sandbox, auditoría). Redeploy de la API. Sin migración nueva.
+
+**Criterio:** ✅ tests publisher + registry + radar; ⏳ video real en sandbox (sale privado hasta la auditoría).
 
 ---
 

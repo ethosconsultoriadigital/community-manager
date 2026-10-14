@@ -5,7 +5,7 @@ export function visualPresetChips(platforms: string[]): string[] {
   for (const p of unique) {
     if (p === 'facebook') chips.push('Facebook: feed 1:1 o 4:5');
     else if (p === 'instagram') chips.push('Instagram: feed 1:1 (Reel = subir video 9:16)');
-    else if (p === 'tiktok') chips.push('TikTok: vertical 9:16 (publicación próximamente)');
+    else if (p === 'tiktok') chips.push('TikTok: video vertical 9:16 (privado hasta auditoría)');
     else chips.push(`${p}: formato feed`);
   }
   return chips;

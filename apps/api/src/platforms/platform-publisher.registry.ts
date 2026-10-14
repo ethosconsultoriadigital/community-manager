@@ -8,6 +8,7 @@ import {
 import { isPlatformPublishEnabled } from './platform-features';
 import { MetaPublishService } from './meta/meta-publish.service';
 import { ThreadsPublishService } from './threads/threads-publish.service';
+import { TikTokPublishService } from './tiktok/tiktok-publish.service';
 import { XPublishService } from './x/x-publish.service';
 
 /**
@@ -21,6 +22,7 @@ export class PlatformPublisherRegistry {
     private readonly metaPublish: MetaPublishService,
     private readonly threadsPublish: ThreadsPublishService,
     private readonly xPublish: XPublishService,
+    private readonly tiktokPublish: TikTokPublishService,
   ) {}
 
   getPublisher(platform: string): PlatformPublisher {
@@ -47,9 +49,12 @@ export class PlatformPublisherRegistry {
     }
 
     if (platform === 'tiktok') {
-      throw new Error(
-        `Plataforma ${platform} aún no implementada para publicación (ver Plan_Redes_Adicionales)`,
-      );
+      if (!isPlatformPublishEnabled(this.config, 'tiktok')) {
+        throw new Error(
+          'Publicación en TikTok desactivada (TIKTOK_PUBLISH_ENABLED / credenciales)',
+        );
+      }
+      return this.tiktokPublish;
     }
 
     throw new Error(`Plataforma no soportada para publicación: ${platform}`);
