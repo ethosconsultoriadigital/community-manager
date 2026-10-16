@@ -3,11 +3,25 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-16 (logo: colocación automática sobre la foto)
+**Última actualización:** 2026-10-16 (logo: solo se mueve, el archivo no se toca)
 
 ---
 
-## 2026-10-16 — Logo: posición automática y fondo recortado ✅
+## 2026-10-16 — Logo: el archivo subido no se modifica ✅
+
+**Corrección tras producción (`f8d019c`):** el recorte de fondo y el halo alteraban el logo. Se eliminan los dos.
+
+**Queda:**
+- El PNG/JPEG se compone tal cual (mismos píxeles, fondo y colores). Solo se reduce en proporción si no cabe en el tamaño de marca.
+- La posición automática sigue evitando letras, piel, focos mucho más claros que el resto y el sujeto. Un layout de logo distinto del default se respeta.
+
+**Operativo:** redeploy de la API. Sin migración y sin variables nuevas.
+
+**Criterio:** ✅ tests de colocación y de que el fondo del logo sigue en la foto; ⏳ revisión visual.
+
+---
+
+## 2026-10-16 — Logo: posición automática y fondo recortado ❌ sustituido
 
 **Implementado:**
 - Al componer la foto generada, el logo ya no queda siempre arriba a la izquierda. Si el bloque de logo en `clients.brand` es el default (arriba-izquierda, 360×200, margen 40, también el que se guarda al subir el archivo), se elige otra posición con margen: esquinas, bordes o interior.
@@ -19,7 +33,7 @@
 
 **Operativo:** redeploy de la API. Sin migración y sin variables nuevas.
 
-**Criterio:** ✅ tests de recorte, colocación (cara, titular, producto, patrón, claro/oscuro, proporciones) y composición; ⏳ revisión visual de las muestras.
+**Criterio:** ❌ sustituido el mismo día. El recorte y el halo no se usan.
 
 ---
 

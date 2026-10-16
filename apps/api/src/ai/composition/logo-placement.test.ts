@@ -97,7 +97,7 @@ describe('autoLogoBox / resolveLayout', () => {
 });
 
 describe('chooseLogoPlacement', () => {
-  const logo = { logoWidth: 48, logoHeight: 28, logoLuminance: 0.12, margin: 10 };
+  const logo = { logoWidth: 48, logoHeight: 28, margin: 10 };
 
   it('no tapa una cara centrada aunque sea la zona más lisa', () => {
     const width = 240;
@@ -178,7 +178,6 @@ describe('chooseLogoPlacement', () => {
       canvasHeight: height,
       logoWidth: 36,
       logoHeight: 28,
-      logoLuminance: 0.1,
       margin: 8,
     });
     const cx = placed.left + 18;
@@ -204,7 +203,6 @@ describe('chooseLogoPlacement', () => {
       canvasHeight: height,
       logoWidth: 40,
       logoHeight: 24,
-      logoLuminance: 0.15,
       margin: 8,
     });
     expect(placed.left).toBeGreaterThan(50);
@@ -213,42 +211,26 @@ describe('chooseLogoPlacement', () => {
     expect(placed.top + 24).toBeLessThan(185);
   });
 
-  it('pide placa si el logo oscuro cae en una foto oscura, y no si hay contraste', () => {
-    const dark = scene(80, 80, () => [12, 12, 14]);
-    const onDark = chooseLogoPlacement({
-      image: dark,
-      canvasWidth: 80,
-      canvasHeight: 80,
-      logoWidth: 16,
-      logoHeight: 10,
-      logoLuminance: 0.04,
-      margin: 4,
+  it('no tapa un foco mucho más claro que el resto de la foto', () => {
+    const width = 240;
+    const height = 200;
+    const image = scene(width, height, (x, y) => {
+      const spot = x > 88 && x < 168 && y > 58 && y < 148;
+      if (spot) return [252, 248, 230];
+      const n = hash(x, y);
+      return [22 + Math.round(n * 36), 26 + Math.round(n * 28), 32];
     });
-    expect(onDark.needsBackdrop).toBe(true);
-    expect(onDark.contrastRatio).toBeLessThan(3);
-
-    const bright = scene(80, 80, () => [248, 248, 246]);
-    const onBright = chooseLogoPlacement({
-      image: bright,
-      canvasWidth: 80,
-      canvasHeight: 80,
-      logoWidth: 16,
-      logoHeight: 10,
-      logoLuminance: 0.06,
-      margin: 4,
+    const placed = chooseLogoPlacement({
+      image,
+      canvasWidth: width,
+      canvasHeight: height,
+      logoWidth: 36,
+      logoHeight: 22,
+      margin: 8,
     });
-    expect(onBright.needsBackdrop).toBe(false);
-
-    const lightOnBright = chooseLogoPlacement({
-      image: bright,
-      canvasWidth: 80,
-      canvasHeight: 80,
-      logoWidth: 16,
-      logoHeight: 10,
-      logoLuminance: 0.92,
-      margin: 4,
-    });
-    expect(lightOnBright.needsBackdrop).toBe(true);
+    const cx = placed.left + 18;
+    const cy = placed.top + 11;
+    expect(cx > 88 && cx < 168 && cy > 58 && cy < 148).toBe(false);
   });
 
   it('respeta el texto compuesto y cabe en 1:1, 4:5, 9:16 y 16:9', () => {
@@ -261,7 +243,6 @@ describe('chooseLogoPlacement', () => {
       canvasHeight: height,
       logoWidth: 40,
       logoHeight: 20,
-      logoLuminance: 0.2,
       margin: 8,
       avoid: [{ x: 10, y: 150, width: 180, height: 70 }],
     });
@@ -281,7 +262,6 @@ describe('chooseLogoPlacement', () => {
         canvasHeight: h,
         logoWidth: 36,
         logoHeight: 18,
-        logoLuminance: 0.2,
         margin: 8,
       });
       expect(box.left).toBeGreaterThanOrEqual(8);

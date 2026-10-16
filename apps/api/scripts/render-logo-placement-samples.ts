@@ -549,9 +549,9 @@ async function main() {
       height: composed.logoHeight,
     };
     const hit = job.forbid.filter((zone) => overlaps(box, zone));
-    const file = join(OUT, `${job.name}.png`);
+    const file = join(OUT, `asis_${job.name}.png`);
     await sharp(composed.buffer).png().toFile(file);
-    const where = `${box.x},${box.y} ${box.width}x${box.height} backdrop=${composed.needsBackdrop}`;
+    const where = `${box.x},${box.y} ${box.width}x${box.height}`;
     if (hit.length) {
       failures.push(
         `${job.name} tapa ${hit.map((z) => z.label).join(', ')} (${where})`,

@@ -68,7 +68,7 @@ export class CompositionService {
     this.logger.debug(
       `Composed brand layout=${layoutKey} canvas=${composed.width}x${composed.height} ` +
         `logo=${composed.logoWidth}x${composed.logoHeight} at=${composed.logoLeft},${composed.logoTop} ` +
-        `placement=${composed.placement} backdrop=${composed.needsBackdrop}`,
+        `placement=${composed.placement}`,
     );
 
     return { buffer: composed.buffer, width: composed.width, height: composed.height };

@@ -5,13 +5,7 @@ import {
   type BrandTextField,
   type ResolvedBrandLayout,
 } from './brand-layout';
-import { edgeOpaqueLuminance, knockoutUniformBackground } from './logo-matte';
-import {
-  chooseLogoPlacement,
-  contrastAt,
-  downsampleRgb,
-  type PixelRect,
-} from './logo-placement';
+import { chooseLogoPlacement, downsampleRgb, type PixelRect } from './logo-placement';
 
 export type ComposeBrandInput = {
   background: Buffer;
@@ -28,7 +22,6 @@ export type ComposeBrandResult = {
   logoTop: number;
   logoWidth: number;
   logoHeight: number;
-  needsBackdrop: boolean;
   placement: 'auto' | 'fixed';
 };
 
@@ -41,27 +34,16 @@ export async function composeBrandImage(
       ? input.layout.logo
       : autoLogoBox(canvasW, canvasH);
 
-  const [background, resizedLogo] = await Promise.all([
+  const [background, logo] = await Promise.all([
     sharp(input.background).resize(canvasW, canvasH, { fit: 'cover' }).png().toBuffer(),
-    sharp(input.logo)
-      .resize(box.maxWidth, box.maxHeight, { fit: 'inside', withoutEnlargement: true })
-      .png()
-      .toBuffer(),
+    scaledLogo(input.logo, box.maxWidth, box.maxHeight),
   ]);
-
-  const matted = await knockoutUniformBackground(resizedLogo);
-  const logoRaw = await sharp(matted.buffer).ensureAlpha().raw().toBuffer({
-    resolveWithObject: true,
-  });
-  const logoW = logoRaw.info.width ?? matted.width;
-  const logoH = logoRaw.info.height ?? matted.height;
-  const logoLuminance = edgeOpaqueLuminance(logoRaw.data, logoW, logoH);
+  const { buffer: logoBuffer, width: logoW, height: logoH } = logo;
   const analysis = await downsampleRgb(background, canvasW, canvasH);
   const avoid = textAvoidRects(input.layout.text, input.fields);
 
   let left: number;
   let top: number;
-  let needsBackdrop: boolean;
   if (input.layout.logoPlacement === 'fixed') {
     const pos = logoPosition({
       canvasW,
@@ -73,13 +55,6 @@ export async function composeBrandImage(
     });
     left = pos.left;
     top = pos.top;
-    needsBackdrop = contrastAt({
-      image: analysis,
-      canvasWidth: canvasW,
-      canvasHeight: canvasH,
-      rect: { x: left, y: top, width: logoW, height: logoH },
-      logoLuminance,
-    }).needsBackdrop;
   } else {
     const placed = chooseLogoPlacement({
       image: analysis,
@@ -87,13 +62,11 @@ export async function composeBrandImage(
       canvasHeight: canvasH,
       logoWidth: logoW,
       logoHeight: logoH,
-      logoLuminance,
       margin: box.margin,
       avoid,
     });
     left = placed.left;
     top = placed.top;
-    needsBackdrop = placed.needsBackdrop;
   }
 
   const maxLeft = Math.max(0, canvasW - logoW);
@@ -101,22 +74,7 @@ export async function composeBrandImage(
   left = Math.min(maxLeft, Math.max(0, left));
   top = Math.min(maxTop, Math.max(0, top));
 
-  const composites: sharp.OverlayOptions[] = [];
-  if (needsBackdrop) {
-    const pad = 16;
-    const halo = await logoHalo(matted.buffer, logoW, logoH, pad, logoLuminance < 0.5);
-    const layer = await croppedOverlay(
-      halo,
-      logoW + pad * 2,
-      logoH + pad * 2,
-      left - pad,
-      top - pad,
-      canvasW,
-      canvasH,
-    );
-    if (layer) composites.push(layer);
-  }
-  composites.push({ input: matted.buffer, left, top });
+  const composites: sharp.OverlayOptions[] = [{ input: logoBuffer, left, top }];
 
   const svgText = buildTextSvg(input.layout.canvas, input.layout.text, input.fields);
   if (svgText) composites.push({ input: Buffer.from(svgText), left: 0, top: 0 });
@@ -130,9 +88,41 @@ export async function composeBrandImage(
     logoTop: top,
     logoWidth: logoW,
     logoHeight: logoH,
-    needsBackdrop,
     placement: input.layout.logoPlacement,
   };
+}
+
+/**
+ * Solo escala hacia abajo, con la misma proporción. Si ya cabe, devuelve el
+ * archivo subido sin re-codificar: mismos píxeles, fondo y colores.
+ */
+async function scaledLogo(
+  logo: Buffer,
+  maxWidth: number,
+  maxHeight: number,
+): Promise<{ buffer: Buffer; width: number; height: number }> {
+  const meta = await sharp(logo).metadata();
+  const srcW = meta.width ?? 0;
+  const srcH = meta.height ?? 0;
+  if (srcW < 1 || srcH < 1) {
+    const resized = await sharp(logo)
+      .resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer({ resolveWithObject: true });
+    return {
+      buffer: resized.data,
+      width: resized.info.width ?? maxWidth,
+      height: resized.info.height ?? maxHeight,
+    };
+  }
+  const scale = Math.min(maxWidth / srcW, maxHeight / srcH, 1);
+  if (scale >= 0.999) return { buffer: logo, width: srcW, height: srcH };
+  const width = Math.max(1, Math.round(srcW * scale));
+  const height = Math.max(1, Math.round(srcH * scale));
+  const buffer = await sharp(logo)
+    .resize(width, height, { fit: 'fill' })
+    .png()
+    .toBuffer();
+  return { buffer, width, height };
 }
 
 export function textAvoidRects(
@@ -194,91 +184,6 @@ function buildTextSvg(
     nodes.join('') +
     `</svg>`
   );
-}
-
-/** Halo que sigue el alfa del logo, no un rectángulo blanco. */
-async function logoHalo(
-  logoPng: Buffer,
-  logoW: number,
-  logoH: number,
-  pad: number,
-  lightPlate: boolean,
-): Promise<Buffer> {
-  const padded = await sharp(logoPng)
-    .extend({
-      top: pad,
-      bottom: pad,
-      left: pad,
-      right: pad,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const width = padded.info.width ?? logoW + pad * 2;
-  const height = padded.info.height ?? logoH + pad * 2;
-  const alpha = Buffer.alloc(width * height);
-  for (let i = 0; i < width * height; i++) alpha[i] = padded.data[i * 4 + 3]!;
-  const blurred = await sharp(alpha, { raw: { width, height, channels: 1 } })
-    .blur(7)
-    .raw()
-    .toBuffer();
-  const color = lightPlate ? [255, 255, 255] : [8, 10, 16];
-  const gain = lightPlate ? 1.35 : 1.55;
-  const rgba = Buffer.alloc(width * height * 4);
-  for (let i = 0; i < width * height; i++) {
-    const a = Math.min(255, Math.round((blurred[i] ?? 0) * gain));
-    rgba[i * 4] = color[0]!;
-    rgba[i * 4 + 1] = color[1]!;
-    rgba[i * 4 + 2] = color[2]!;
-    rgba[i * 4 + 3] = a;
-  }
-  return sharp(rgba, { raw: { width, height, channels: 4 } })
-    .png()
-    .toBuffer();
-}
-
-async function croppedOverlay(
-  input: Buffer,
-  layerW: number,
-  layerH: number,
-  left: number,
-  top: number,
-  canvasW: number,
-  canvasH: number,
-): Promise<sharp.OverlayOptions | null> {
-  let cropLeft = 0;
-  let cropTop = 0;
-  let cropW = layerW;
-  let cropH = layerH;
-  let destLeft = left;
-  let destTop = top;
-  if (destLeft < 0) {
-    cropLeft = -destLeft;
-    cropW -= cropLeft;
-    destLeft = 0;
-  }
-  if (destTop < 0) {
-    cropTop = -destTop;
-    cropH -= cropTop;
-    destTop = 0;
-  }
-  if (destLeft + cropW > canvasW) cropW = canvasW - destLeft;
-  if (destTop + cropH > canvasH) cropH = canvasH - destTop;
-  if (cropW < 1 || cropH < 1) return null;
-  if (cropLeft === 0 && cropTop === 0 && cropW === layerW && cropH === layerH) {
-    return { input, left: destLeft, top: destTop };
-  }
-  const cropped = await sharp(input)
-    .extract({
-      left: Math.round(cropLeft),
-      top: Math.round(cropTop),
-      width: Math.round(cropW),
-      height: Math.round(cropH),
-    })
-    .png()
-    .toBuffer();
-  return { input: cropped, left: Math.round(destLeft), top: Math.round(destTop) };
 }
 
 function escapeXml(value: string): string {

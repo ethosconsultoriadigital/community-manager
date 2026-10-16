@@ -1,20 +1,17 @@
 import sharp from 'sharp';
-import { contrastRatio } from './logo-matte';
 
 /**
- * Elige un rectángulo con margen para el logo.
- * Baja la puntuación donde hay detalle (varianza y bordes), piel, trazos de
- * texto o la zona central. Si alguna celda está libre de piel y de texto,
- * descarta las demás. El contraste solo desempata. La placa translúcida aparece
- * si la relación de contraste queda por debajo de 3:1.
+ * Elige un rectángulo con margen para el logo, sin tocar sus píxeles.
+ * Evita detalle, piel, letras, focos mucho más claros que el resto y el centro.
+ * Si queda alguna celda libre de piel, texto y foco, no usa las demás.
  */
-
-export const BACKDROP_CONTRAST_THRESHOLD = 3;
 
 const ANALYSIS_MAX_WIDTH = 180;
 const SKIN_BLOCK = 0.04;
 const TEXT_BLOCK = 0.05;
 const OVERLAP_BLOCK = 0.2;
+const HIGHLIGHT_L = 0.84;
+const HIGHLIGHT_ABOVE_MEDIAN = 0.18;
 
 export type RgbImage = {
   data: Uint8Array;
@@ -36,8 +33,6 @@ export type PixelRect = {
 export type LogoPlacement = {
   left: number;
   top: number;
-  needsBackdrop: boolean;
-  contrastRatio: number;
 };
 
 export async function downsampleRgb(
@@ -126,7 +121,6 @@ export function chooseLogoPlacement(input: {
   canvasHeight: number;
   logoWidth: number;
   logoHeight: number;
-  logoLuminance: number;
   margin: number;
   avoid?: PixelRect[];
 }): LogoPlacement {
@@ -135,6 +129,7 @@ export function chooseLogoPlacement(input: {
   const logoWidth = Math.max(1, Math.min(input.logoWidth, canvasWidth));
   const logoHeight = Math.max(1, Math.min(input.logoHeight, canvasHeight));
   const maps = buildMaps(input.image);
+  const medianL = medianLuminance(maps.simpleL);
   const scaleX = input.image.width / canvasWidth;
   const scaleY = input.image.height / canvasHeight;
   const spots = candidateSpots(
@@ -166,13 +161,16 @@ export function chooseLogoPlacement(input: {
       canvasWidth,
       canvasHeight,
     );
-    const ratio = contrastRatio(input.logoLuminance, stats.meanRel);
-    return { ...spot, ...stats, overlap, centerProx, ratio };
+    const highlight = focalHighlight(stats.meanL, medianL);
+    return { ...spot, ...stats, overlap, centerProx, highlight };
   });
 
   const open = scored.filter(
     (spot) =>
-      spot.skin < SKIN_BLOCK && spot.text < TEXT_BLOCK && spot.overlap < OVERLAP_BLOCK,
+      spot.skin < SKIN_BLOCK &&
+      spot.text < TEXT_BLOCK &&
+      spot.overlap < OVERLAP_BLOCK &&
+      !spot.highlight,
   );
   const pool = open.length ? open : scored;
   const maxVar = Math.max(...pool.map((spot) => spot.variance), 1e-6);
@@ -182,60 +180,52 @@ export function chooseLogoPlacement(input: {
   let best = pool[0]!;
   let bestCost = Number.POSITIVE_INFINITY;
   for (const spot of pool) {
+    const glare = spot.meanL >= HIGHLIGHT_L ? Math.max(0, spot.meanL - medianL) : 0;
     const detail =
       0.25 * (spot.variance / maxVar) +
       0.55 * (spot.colorVar / maxColor) +
       0.35 * (spot.edge / maxEdge) +
       1.7 * spot.skin +
       1.6 * spot.text +
+      2.4 * glare +
       3.2 * spot.overlap;
-    // El centro suma aunque esté liso: un foco, una cara suave o un producto
-    // sin textura no deben ganar solo por contraste.
+    // El centro suma aunque esté liso: una cara suave o un producto
+    // sin textura no deben ganar solo por estar vacíos.
     const importance =
       detail * (0.45 + 1.05 * spot.centerProx) + 0.28 * spot.centerProx;
-    const cost = importance - 0.12 * (Math.min(spot.ratio, 7) / 7);
+    const cost = importance;
     const closer =
       cost < bestCost - 0.015 ||
       (Math.abs(cost - bestCost) <= 0.015 &&
-        (spot.ratio > best.ratio + 0.15 ||
-          (Math.abs(spot.ratio - best.ratio) <= 0.15 &&
-            (spot.centerProx < best.centerProx - 0.05 ||
-              (Math.abs(spot.centerProx - best.centerProx) <= 0.05 &&
-                (spot.top < best.top ||
-                  (spot.top === best.top && spot.left < best.left)))))));
+        (spot.centerProx < best.centerProx - 0.05 ||
+          (Math.abs(spot.centerProx - best.centerProx) <= 0.05 &&
+            (spot.top < best.top ||
+              (spot.top === best.top && spot.left < best.left)))));
     if (closer) {
       best = spot;
       bestCost = cost;
     }
   }
 
-  return {
-    left: best.left,
-    top: best.top,
-    needsBackdrop: best.ratio < BACKDROP_CONTRAST_THRESHOLD,
-    contrastRatio: best.ratio,
-  };
+  return { left: best.left, top: best.top };
 }
 
-export function contrastAt(input: {
-  image: RgbImage;
-  canvasWidth: number;
-  canvasHeight: number;
-  rect: PixelRect;
-  logoLuminance: number;
-}): { contrastRatio: number; needsBackdrop: boolean } {
-  const maps = buildMaps(input.image);
-  const scaleX = input.image.width / Math.max(1, input.canvasWidth);
-  const scaleY = input.image.height / Math.max(1, input.canvasHeight);
-  const stats = regionStats(
-    maps,
-    mapRect(input.rect, scaleX, scaleY, input.image.width, input.image.height),
-  );
-  const ratio = contrastRatio(input.logoLuminance, stats.meanRel);
-  return {
-    contrastRatio: ratio,
-    needsBackdrop: ratio < BACKDROP_CONTRAST_THRESHOLD,
-  };
+function focalHighlight(meanL: number, medianL: number): boolean {
+  return meanL >= HIGHLIGHT_L && meanL - medianL >= HIGHLIGHT_ABOVE_MEDIAN;
+}
+
+function medianLuminance(values: Float32Array): number {
+  const bins = new Uint32Array(32);
+  for (let i = 0; i < values.length; i++) {
+    bins[Math.min(31, Math.floor(values[i]! * 32))]!++;
+  }
+  const mid = values.length / 2;
+  let acc = 0;
+  for (let i = 0; i < 32; i++) {
+    acc += bins[i]!;
+    if (acc >= mid) return (i + 0.5) / 32;
+  }
+  return 0.5;
 }
 
 type Maps = {
@@ -318,6 +308,7 @@ function regionStats(
   edge: number;
   skin: number;
   text: number;
+  meanL: number;
   meanRel: number;
 } {
   let sum = 0;
@@ -365,7 +356,15 @@ function regionStats(
     }
   }
   if (!n) {
-    return { variance: 0, colorVar: 0, edge: 0, skin: 0, text: 0, meanRel: 0.5 };
+    return {
+      variance: 0,
+      colorVar: 0,
+      edge: 0,
+      skin: 0,
+      text: 0,
+      meanL: 0.5,
+      meanRel: 0.5,
+    };
   }
   const mean = sum / n;
   const channelVar = (sumC: number, sumC2: number) =>
@@ -378,6 +377,7 @@ function regionStats(
     edge: edgeSum / n,
     skin: maps.skinFrac ? skinFracSum / n : skinSum / n,
     text: maps.textFrac ? textFracSum / n : textSum / n,
+    meanL: mean,
     meanRel: relSum / n,
   };
 }

@@ -123,7 +123,7 @@ describe('CompositionService', () => {
     expect(bb).toBeGreaterThan(100);
   });
 
-  it('quita el fondo blanco y deja ver la foto en un layout fijo', async () => {
+  it('pega el logo tal cual, con su fondo, sin recortar ni teñir', async () => {
     const background = await sharp({
       create: {
         width: 400,
@@ -170,13 +170,11 @@ describe('CompositionService', () => {
     });
 
     const [r, g, b] = await rawPixel(result.buffer, 38, 38);
-    expect(r).toBeGreaterThan(180);
-    expect(g).toBeGreaterThan(180);
-    expect(b).toBeGreaterThan(160);
+    expect([r, g, b]).toEqual([255, 255, 255]);
     const [mr, mg, mb] = await rawPixel(result.buffer, 36 + 40, 36 + 20);
-    expect(mr).toBeLessThan(40);
-    expect(mg).toBeLessThan(50);
-    expect(mb).toBeLessThan(80);
+    expect([mr, mg, mb]).toEqual([10, 20, 40]);
+    const [or, og, ob] = await rawPixel(result.buffer, 10, 10);
+    expect([or, og, ob]).toEqual([210, 220, 200]);
   });
 
   it('coloca solo el logo en la zona calma y fuera de la cara', async () => {
