@@ -112,7 +112,8 @@ function parseTextField(raw: unknown): BrandTextField | null {
     x: positiveInt(raw.x, 64),
     y: positiveInt(raw.y, 980),
     size: positiveInt(raw.size, 64),
-    color: typeof raw.color === 'string' && raw.color.trim() ? raw.color.trim() : '#FFFFFF',
+    color:
+      typeof raw.color === 'string' && raw.color.trim() ? raw.color.trim() : '#FFFFFF',
     maxWidth: positiveInt(raw.maxWidth, 952),
     align,
     font: typeof raw.font === 'string' ? raw.font : undefined,
@@ -159,14 +160,13 @@ export function parseClientBrand(brand: unknown): ClientBrandConfig {
       ? root.ttsVoiceId.trim()
       : undefined;
 
-  const fonts =
-    isRecord(root.fonts)
-      ? Object.fromEntries(
-          Object.entries(root.fonts).filter(
-            (e): e is [string, string] => typeof e[1] === 'string',
-          ),
-        )
-      : undefined;
+  const fonts = isRecord(root.fonts)
+    ? Object.fromEntries(
+        Object.entries(root.fonts).filter(
+          (e): e is [string, string] => typeof e[1] === 'string',
+        ),
+      )
+    : undefined;
 
   const layoutsRaw = isRecord(root.layouts) ? root.layouts : {};
   const layouts: Record<string, BrandLayout> = {};
@@ -184,17 +184,57 @@ export function parseClientBrand(brand: unknown): ClientBrandConfig {
   return { logoUrl, characterImageUrl, ttsVoiceId, fonts, layouts };
 }
 
+export type ResolvedBrandLayout = BrandLayout & {
+  /**
+   * auto: el bloque de logo coincide con el default (también el que se guarda al
+   * subir un logo). fixed: ancla, tamaño o margen distintos de ese default.
+   */
+  logoPlacement: 'auto' | 'fixed';
+};
+
+/** El default top-left 360×200 margen 40 no cuenta como posición elegida. */
+export function isCustomLogoLayout(logo: BrandLogoLayout): boolean {
+  const d = DEFAULT_POST_FEED_LAYOUT.logo;
+  return (
+    logo.anchor !== d.anchor ||
+    logo.maxWidth !== d.maxWidth ||
+    logo.maxHeight !== d.maxHeight ||
+    logo.margin !== d.margin
+  );
+}
+
+/**
+ * Tamaño del logo respecto al lienzo. En 1080×1350 coincide con el default
+ * (360×200, margen 40). En otros formatos escala con la diagonal, con tope.
+ */
+export function autoLogoBox(
+  canvasWidth: number,
+  canvasHeight: number,
+): BrandLogoLayout {
+  const d = DEFAULT_POST_FEED_LAYOUT;
+  const scaleRaw = Math.sqrt(
+    (canvasWidth / d.canvas.width) * (canvasHeight / d.canvas.height),
+  );
+  const scale = Math.min(1.65, Math.max(0.55, scaleRaw));
+  return {
+    anchor: d.logo.anchor,
+    maxWidth: Math.max(48, Math.round(d.logo.maxWidth * scale)),
+    maxHeight: Math.max(32, Math.round(d.logo.maxHeight * scale)),
+    margin: Math.max(12, Math.round(d.logo.margin * scale)),
+  };
+}
+
 export function resolveLayout(
   brand: ClientBrandConfig,
   layoutKey: string,
-): BrandLayout {
+): ResolvedBrandLayout {
   const base = brand.layouts[layoutKey] ?? brand.layouts[DEFAULT_LAYOUT_KEY]!;
-  // Posición/tamaño del logo: siempre el default actual (arriba-izquierda, más grande).
-  // Así clientes con layout antiguo en brand no quedan con bottom-right.
+  const custom = isCustomLogoLayout(base.logo);
   return {
     canvas: { ...base.canvas },
-    logo: { ...DEFAULT_POST_FEED_LAYOUT.logo },
+    logo: custom ? { ...base.logo } : { ...DEFAULT_POST_FEED_LAYOUT.logo },
     text: base.text.map((t) => ({ ...t })),
+    logoPlacement: custom ? 'fixed' : 'auto',
   };
 }
 

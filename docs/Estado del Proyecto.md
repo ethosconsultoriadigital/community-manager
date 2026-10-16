@@ -3,7 +3,23 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-14 (TikTok: publicación de video FILE_UPLOAD)
+**Última actualización:** 2026-10-16 (logo: colocación automática sobre la foto)
+
+---
+
+## 2026-10-16 — Logo: posición automática y fondo recortado ✅
+
+**Implementado:**
+- Al componer la foto generada, el logo ya no queda siempre arriba a la izquierda. Si el bloque de logo en `clients.brand` es el default (arriba-izquierda, 360×200, margen 40, también el que se guarda al subir el archivo), se elige otra posición con margen: esquinas, bordes o interior.
+- La elección mira la foto reducida por bloques: poca variación de color, poca piel, pocos trazos de texto y lejos del centro y del titular compuesto. Si hay alguna zona libre de piel y de texto, no usa las demás.
+- Un layout con ancla, tamaño o margen distintos de ese default se respeta tal cual (no se mueve).
+- El tamaño conserva la proporción y, en 1080×1350, sigue siendo 360×200. En 1:1, 4:5, 9:16 y 16:9 escala con el lienzo.
+- Fondo blanco, negro o de color plano (PNG o JPEG) se recorta si está conectado al borde. Un PNG ya transparente, un logo de un solo color o una contraforma cerrada no se vacían.
+- Solo si el trazo del logo contrasta poco con esa zona se añade un halo suave, claro u oscuro según el logo. No es un rectángulo blanco.
+
+**Operativo:** redeploy de la API. Sin migración y sin variables nuevas.
+
+**Criterio:** ✅ tests de recorte, colocación (cara, titular, producto, patrón, claro/oscuro, proporciones) y composición; ⏳ revisión visual de las muestras.
 
 ---
 
