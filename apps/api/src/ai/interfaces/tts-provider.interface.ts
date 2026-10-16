@@ -9,7 +9,7 @@ export type SynthesizeSpeechResult = {
   buffer: Buffer;
   contentType: string;
   extension: string;
-  provider: 'elevenlabs' | 'mock';
+  provider: 'elevenlabs' | 'mock' | 'fal';
   model?: string;
   voiceId?: string;
 };

@@ -6,6 +6,12 @@
 export const HAILUO_T2V_MODEL = 'fal-ai/minimax/hailuo-02/standard/text-to-video';
 export const HAILUO_I2V_MODEL = 'fal-ai/minimax/hailuo-02/standard/image-to-video';
 
+/** Opt-in más baratos. No son el default: hay que ponerlos en FAL_*_MODEL. */
+export const SEEDANCE_T2V_MODEL = 'fal-ai/bytedance/seedance/v1/pro/fast/text-to-video';
+export const SEEDANCE_I2V_MODEL = 'fal-ai/bytedance/seedance/v1/pro/fast/image-to-video';
+export const LTX_T2V_MODEL = 'fal-ai/ltxv-13b-098-distilled';
+export const LTX_I2V_MODEL = 'fal-ai/ltxv-13b-098-distilled/image-to-video';
+
 const LEGACY_VIDEO_01 = /video-01/i;
 
 export function resolveFalVideoModel(
@@ -21,7 +27,31 @@ export function resolveFalVideoModel(
   if (LEGACY_VIDEO_01.test(raw)) {
     return { model: fallback, remappedFrom: raw };
   }
+  const alias = expandVideoAlias(raw, hasImage);
+  if (alias) return { model: alias, remappedFrom: raw === alias ? undefined : raw };
+  const paired = pairVideoEndpoint(raw, hasImage);
+  if (paired !== raw) return { model: paired, remappedFrom: raw };
   return { model: raw };
+}
+
+function expandVideoAlias(raw: string, hasImage: boolean): string | null {
+  const id = raw.trim().toLowerCase();
+  if (id === 'seedance' || id === 'seedance-fast') {
+    return hasImage ? SEEDANCE_I2V_MODEL : SEEDANCE_T2V_MODEL;
+  }
+  if (id === 'ltx' || id === 'ltxv') {
+    return hasImage ? LTX_I2V_MODEL : LTX_T2V_MODEL;
+  }
+  return null;
+}
+
+/** Si pegan el id de image-to-video en el env de texto (o al revés), usa el par correcto. */
+function pairVideoEndpoint(model: string, hasImage: boolean): string {
+  if (model === SEEDANCE_I2V_MODEL && !hasImage) return SEEDANCE_T2V_MODEL;
+  if (model === SEEDANCE_T2V_MODEL && hasImage) return SEEDANCE_I2V_MODEL;
+  if (model === LTX_I2V_MODEL && !hasImage) return LTX_T2V_MODEL;
+  if (model === LTX_T2V_MODEL && hasImage) return LTX_I2V_MODEL;
+  return model;
 }
 
 /**
@@ -34,19 +64,59 @@ export function buildFalVideoBody(
   imageUrl?: string,
 ): Record<string, unknown> {
   const text = prompt.trim().slice(0, 2000);
+  const image = imageUrl?.trim();
+  const id = model.toLowerCase();
+
+  if (id.includes('seedance')) {
+    const body: Record<string, unknown> = {
+      prompt: text,
+      aspect_ratio: '9:16',
+      resolution: seedanceResolution(),
+      duration: '5',
+    };
+    if (image) body.image_url = image;
+    return body;
+  }
+
+  if (id.includes('ltxv')) {
+    const body: Record<string, unknown> = {
+      prompt: text,
+      aspect_ratio: '9:16',
+      resolution: ltxResolution(),
+      num_frames: 121,
+      frame_rate: 24,
+    };
+    if (image) body.image_url = image;
+    return body;
+  }
+
   const body: Record<string, unknown> = {
     prompt: text,
     prompt_optimizer: true,
   };
-  if (imageUrl?.trim()) body.image_url = imageUrl.trim();
+  if (image) body.image_url = image;
 
-  const id = model.toLowerCase();
   if (id.includes('hailuo') && id.includes('/standard/')) {
     body.duration = '6';
     const resolution = process.env.FAL_VIDEO_RESOLUTION?.trim() || '768P';
     body.resolution = resolution === '512P' ? '512P' : '768P';
   }
   return body;
+}
+
+/** Seedance: 480p | 720p | 1080p, en minúsculas. 720p equilibra coste y el 9:16 final. */
+function seedanceResolution(): '480p' | '720p' | '1080p' {
+  const raw = (process.env.FAL_VIDEO_RESOLUTION ?? '').trim().toLowerCase();
+  if (raw === '512p' || raw === '480p') return '480p';
+  if (raw === '1080p') return '1080p';
+  return '720p';
+}
+
+/** LTX distilled solo admite 480p y 720p. */
+function ltxResolution(): '480p' | '720p' {
+  const raw = (process.env.FAL_VIDEO_RESOLUTION ?? '').trim().toLowerCase();
+  if (raw === '512p' || raw === '480p') return '480p';
+  return '720p';
 }
 
 export function extractFalVideoUrl(result: Record<string, unknown>): string | null {

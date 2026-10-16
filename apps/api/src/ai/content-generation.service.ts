@@ -100,7 +100,7 @@ export type GenerateAvatarFromBriefResult = {
   media: Awaited<ReturnType<MediaAssetsRepository['findByPost']>>;
   generations: Awaited<ReturnType<GenerationsRepository['findByPost']>>;
   usedMock: boolean;
-  ttsProvider: 'elevenlabs' | 'mock' | 'unknown';
+  ttsProvider: 'elevenlabs' | 'fal' | 'mock' | 'unknown';
   lipsyncProvider: 'fal' | 'mock' | 'unknown';
   videoModel: string | null;
 };

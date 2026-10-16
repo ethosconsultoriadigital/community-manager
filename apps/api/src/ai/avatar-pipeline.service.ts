@@ -32,7 +32,7 @@ export type AvatarPipelineResult = {
   width: number;
   height: number;
   model: string;
-  ttsProvider: 'elevenlabs' | 'mock' | 'unknown';
+  ttsProvider: 'elevenlabs' | 'fal' | 'mock' | 'unknown';
   lipsyncProvider: 'fal' | 'mock' | 'unknown';
   usedMock: boolean;
   musicTrackId?: string;

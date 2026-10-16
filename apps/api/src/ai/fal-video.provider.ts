@@ -55,8 +55,11 @@ export class FalVideoProvider implements VideoProvider {
     const resolved = resolveFalVideoModel(configured, hasImage);
     const model = resolved.model;
     if (resolved.remappedFrom) {
+      const legacy = /video-01/i.test(resolved.remappedFrom);
       this.logger.warn(
-        `Modelo fal obsoleto ${resolved.remappedFrom} → ${model}. Quita FAL_VIDEO_MODEL / FAL_IMAGE_TO_VIDEO_MODEL o déjalos en Hailuo 02.`,
+        legacy
+          ? `Modelo fal obsoleto ${resolved.remappedFrom} → ${model}. Quita FAL_VIDEO_MODEL / FAL_IMAGE_TO_VIDEO_MODEL o déjalos en Hailuo 02.`
+          : `Modelo fal ${resolved.remappedFrom} → ${model}`,
       );
     }
 

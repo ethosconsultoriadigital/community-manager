@@ -173,7 +173,7 @@ export type GenerateAvatarFromBriefResult = {
   posts: Post[];
   media: MediaAsset[];
   usedMock: boolean;
-  ttsProvider?: 'elevenlabs' | 'mock' | 'unknown';
+  ttsProvider?: 'elevenlabs' | 'fal' | 'mock' | 'unknown';
   lipsyncProvider?: 'fal' | 'mock' | 'unknown';
   videoModel?: string | null;
 };

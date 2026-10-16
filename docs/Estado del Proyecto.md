@@ -3,7 +3,22 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-16 (Reel y avatar: R2, Hailuo 02, ffmpeg y jobs colgados)
+**Última actualización:** 2026-10-16 (fal opt-in: Seedance, LTX, Kling, voces)
+
+---
+
+## 2026-10-16 — Proveedores fal más baratos, solo si se piden ✅
+
+**Default sin cambios:** Hailuo 02, Sync-3 y ElevenLabs.
+
+**Opt-in por env:**
+- Reel: `FAL_VIDEO_MODEL` + `FAL_IMAGE_TO_VIDEO_MODEL` con Seedance 1.0 Pro Fast o LTX distilled. El cuerpo pide 9:16 (Seedance: `duration` `"5"`, `720p`; LTX: 121 frames a 24 fps, `720p`). Alias `seedance` y `ltx`.
+- Avatar: `AVATAR_PROVIDER=kling` → `fal-ai/kling-video/v1/standard/ai-avatar` (imagen + audio).
+- Voz: `TTS_PROVIDER=minimax` (`fal-ai/minimax/speech-02-turbo`, `Spanish_Narrator`, `language_boost=Spanish`, `output_format=url`) o `kokoro` (`fal-ai/kokoro/spanish`, voces `ef_dora` / `em_alex` / `em_santa`).
+
+**Operativo:** nada que cambiar para seguir igual. Para probar, ver `.env.example` y las instrucciones. Quitar las variables vuelve al default.
+
+**Criterio:** ✅ tests de cuerpo de cada modelo y de que el default no se mueve; ⏳ comparar calidad en Render.
 
 ---
 

@@ -1,12 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import {
+  KLING_AVATAR_MODEL,
   buildLipSyncBody,
   isFaceDetectionError,
   mapLipSyncError,
+  resolveAvatarModel,
   resolveLipSyncModel,
 } from './fal-lipsync.provider';
 import { formatFalError } from './fal-queue';
 import { BadRequestException } from '@nestjs/common';
+
+describe('resolveAvatarModel', () => {
+  it('sigue en Sync-3 si AVATAR_PROVIDER está vacío', () => {
+    expect(resolveAvatarModel(undefined, undefined).model).toContain('sync-lipsync');
+    expect(resolveAvatarModel('sync', 'fal-ai/sync-lipsync/v3/image-to-video').model).toContain(
+      'sync-lipsync',
+    );
+  });
+
+  it('kling usa imagen + audio del avatar de Kling', () => {
+    expect(resolveAvatarModel('kling', 'fal-ai/sadtalker').model).toBe(KLING_AVATAR_MODEL);
+    expect(buildLipSyncBody(KLING_AVATAR_MODEL, 'https://img', 'https://aud')).toEqual({
+      image_url: 'https://img',
+      audio_url: 'https://aud',
+      prompt: '.',
+    });
+  });
+});
 
 describe('resolveLipSyncModel', () => {
   it('ignora SadTalker (falla con cartoon) y usa Sync-3', () => {

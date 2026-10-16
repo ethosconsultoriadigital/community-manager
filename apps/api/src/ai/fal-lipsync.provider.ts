@@ -19,6 +19,7 @@ import type {
  * SadTalker sigue disponible vía FAL_LIPSYNC_MODEL o como fallback.
  */
 export const DEFAULT_LIPSYNC_MODEL = 'fal-ai/sync-lipsync/v3/image-to-video';
+export const KLING_AVATAR_MODEL = 'fal-ai/kling-video/v1/standard/ai-avatar';
 const STYLIZED_FALLBACK_MODEL = 'fal-ai/sync-lipsync/v3/image-to-video';
 
 @Injectable()
@@ -44,7 +45,10 @@ export class FalLipSyncProvider implements LipSyncProvider {
       throw new BadRequestException('agencyId es obligatorio');
     }
 
-    const resolved = resolveLipSyncModel(this.config.get<string>('FAL_LIPSYNC_MODEL'));
+    const resolved = resolveAvatarModel(
+      this.config.get<string>('AVATAR_PROVIDER'),
+      this.config.get<string>('FAL_LIPSYNC_MODEL'),
+    );
     const primary = resolved.model;
     if (resolved.remappedFrom) {
       this.logger.warn(
@@ -57,8 +61,11 @@ export class FalLipSyncProvider implements LipSyncProvider {
     try {
       return await this.runModel(apiKey, primary, imageUrl, audioUrl, input.agencyId);
     } catch (error) {
+      const id = primary.toLowerCase();
       const canFallback =
-        !primary.toLowerCase().includes('sync-lipsync') &&
+        !id.includes('sync-lipsync') &&
+        !id.includes('kling-video') &&
+        !id.includes('ai-avatar') &&
         primary !== STYLIZED_FALLBACK_MODEL;
       if (!canFallback) {
         throw mapLipSyncError(error);
@@ -131,6 +138,24 @@ export class FalLipSyncProvider implements LipSyncProvider {
   }
 }
 
+/**
+ * AVATAR_PROVIDER=kling usa Kling AI Avatar (imagen + audio).
+ * Vacío, sync o lipsync deja Sync-3, el default.
+ */
+export function resolveAvatarModel(
+  avatarProvider: string | undefined,
+  lipsyncModel: string | undefined,
+): { model: string; remappedFrom?: string } {
+  const mode = avatarProvider?.trim().toLowerCase() ?? '';
+  if (!mode || mode === 'sync' || mode === 'lipsync' || mode === 'fal') {
+    return resolveLipSyncModel(lipsyncModel);
+  }
+  if (mode === 'kling') return { model: KLING_AVATAR_MODEL };
+  throw new BadRequestException(
+    `AVATAR_PROVIDER=${avatarProvider?.trim()} no es válido. Usa sync (default) o kling.`,
+  );
+}
+
 /** SadTalker falla con personajes 3D/cartoon. Se ignora salvo FAL_ALLOW_LEGACY_LIPSYNC=true. */
 export function resolveLipSyncModel(configured: string | undefined): {
   model: string;
@@ -153,6 +178,13 @@ export function buildLipSyncBody(
   audioUrl: string,
 ): Record<string, unknown> {
   const id = model.toLowerCase();
+  if (id.includes('kling') || id.includes('ai-avatar')) {
+    return {
+      image_url: imageUrl,
+      audio_url: audioUrl,
+      prompt: '.',
+    };
+  }
   if (id.includes('sadtalker')) {
     return {
       source_image_url: imageUrl,

@@ -22,6 +22,7 @@ import { ScriptService } from './script/script.service';
 import { VideoCompositionService } from './video-composition/video-composition.service';
 import { ReelPipelineService } from './reel-pipeline.service';
 import { ElevenLabsTtsProvider } from './elevenlabs-tts.provider';
+import { FalTtsProvider } from './fal-tts.provider';
 import { MockTtsProvider } from './mocks/mock-tts.provider';
 import { HybridTtsProvider } from './hybrid-tts.provider';
 import { FalLipSyncProvider } from './fal-lipsync.provider';
@@ -53,6 +54,7 @@ import { AvatarPipelineService } from './avatar-pipeline.service';
     { provide: VIDEO_PROVIDER, useExisting: HybridVideoProvider },
     MockTtsProvider,
     ElevenLabsTtsProvider,
+    FalTtsProvider,
     HybridTtsProvider,
     { provide: TTS_PROVIDER, useExisting: HybridTtsProvider },
     MockLipSyncProvider,

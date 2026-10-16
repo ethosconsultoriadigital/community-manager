@@ -504,6 +504,10 @@ Reels y avatares necesitan el binario **ffmpeg** (`ffmpeg-static`; en Render deb
 8. `REEL_MAX_SCENES=2` (default) limita RAM; en Render 512MB no subir a 3–4. `REEL_MAX_SCENES=1` si sigue el OOM
 9. Si Render dice *exceeded its memory limit*: sube el plan a ≥1 GB, baja a 1 escena, o `FAL_VIDEO_RESOLUTION=512P`
 10. Requiere Redis (`REDIS_URL`). Si Redis falla al encolar, la generación queda `failed` (no se queda en processing)
+11. Comparar un modelo más barato (no cambia el default): pon **los dos**
+    - Seedance: `FAL_VIDEO_MODEL=fal-ai/bytedance/seedance/v1/pro/fast/text-to-video` y `FAL_IMAGE_TO_VIDEO_MODEL=fal-ai/bytedance/seedance/v1/pro/fast/image-to-video`
+    - LTX: `FAL_VIDEO_MODEL=fal-ai/ltxv-13b-098-distilled` y `FAL_IMAGE_TO_VIDEO_MODEL=fal-ai/ltxv-13b-098-distilled/image-to-video`
+    Redeploy, genera un Reel, y borra las dos variables para volver a Hailuo 02.
 
 ### Prueba manual (Avatar / personaje)
 
@@ -514,6 +518,8 @@ Reels y avatares necesitan el binario **ffmpeg** (`ffmpeg-static`; en Render deb
 5. En producción hacen falta `ELEVENLABS_API_KEY` y `FAL_KEY` (si faltan, error en español, no un tono/video de prueba). En local, sin claves, sigue el mock
 6. Lip-sync: `fal-ai/sync-lipsync/v3/image-to-video`. Si Render tiene `FAL_LIPSYNC_MODEL=fal-ai/sadtalker`, el código lo ignora. Bórralo igual para no confundir
 7. Redis lento (`execution timed out` / Missing lock): el lock del worker de video es 50 min y se renueva cada 30 s. Si un job se quedó en processing más de 55 min, el siguiente GET lo marca failed
+8. Voz más barata (opt-in, hace falta `FAL_KEY`): `TTS_PROVIDER=minimax` y `TTS_VOICE_ID=Spanish_Narrator`, o `TTS_PROVIDER=kokoro` y `TTS_VOICE_ID=ef_dora` (`em_alex` o `em_santa` son las otras voces). Quitar `TTS_PROVIDER` vuelve a ElevenLabs
+9. Avatar Kling en lugar de Sync-3: `AVATAR_PROVIDER=kling`. Vacío o `sync` deja Sync-3. No hace falta tocar `FAL_LIPSYNC_MODEL`
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 
