@@ -5,6 +5,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 
 export type StoredMedia = {
@@ -34,6 +35,11 @@ export class S3MediaStorage {
       endpoint: endpoint || undefined,
       forcePathStyle: Boolean(endpoint),
       credentials,
+      // AWS SDK v3 calcula checksums por defecto y, con un stream, usa
+      // aws-chunked. Cloudflare R2 responde NotImplemented y el Reel/avatar
+      // falla al guardar. WHEN_REQUIRED deja las fotos (buffer) y los videos.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 
@@ -68,15 +74,25 @@ export class S3MediaStorage {
   ): Promise<StoredMedia> {
     const fileName = `${randomUUID()}.${extension}`;
     const storageKey = `${agencyId}/${fileName}`;
+    const size = (await stat(filePath)).size;
+    if (!Number.isFinite(size) || size <= 0) {
+      throw new Error('El video compuesto está vacío y no se puede guardar');
+    }
 
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: storageKey,
-        Body: createReadStream(filePath),
-        ContentType: contentType,
-      }),
-    );
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: storageKey,
+          Body: createReadStream(filePath),
+          ContentLength: size,
+          ContentType: contentType,
+        }),
+      );
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`No se pudo guardar el video en el almacenamiento: ${detail}`);
+    }
 
     const publicUrl = `${this.publicBaseUrl}/${storageKey}`;
     return { storageKey, publicUrl };
