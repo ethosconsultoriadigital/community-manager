@@ -3,7 +3,29 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-16 (logo: solo se mueve, el archivo no se toca)
+**Última actualización:** 2026-10-16 (Reel y avatar: R2, Hailuo 02, ffmpeg y jobs colgados)
+
+---
+
+## 2026-10-16 — Reel y avatar dejan de fallar en producción ✅
+
+**Causas:**
+- El MP4 se subía a R2 como stream sin `ContentLength`. El AWS SDK v3 añade checksums `aws-chunked` y R2 responde error. Las fotos (buffer) sí se guardaban; el logo seguía bien.
+- El modelo por defecto `fal-ai/minimax/video-01` es la generación anterior. Hailuo 02 pide `duration` en texto (`"6"`) y `resolution`. Un `FAL_LIPSYNC_MODEL=sadtalker` sigue rompiendo personajes ilustrados.
+- El lock del worker (20 min) era igual a una sola espera de fal. Con 2 escenas el job quedaba stalled y la fila en `processing`. El front cortaba el polling a los 25 min.
+- ffmpeg componía a 1080×1920 (mucho RAM en 512 MB) y, si el binario de `ffmpeg-static` no estaba, el error era un `ENOENT` opaco.
+- Sin `FAL_KEY` / `ELEVENLABS_API_KEY`, producción devolvía un mock en silencio.
+
+**Cambio:**
+- Subida R2 con tamaño conocido y checksums solo cuando hacen falta.
+- Default `fal-ai/minimax/hailuo-02/standard/*`. `video-01` y SadTalker se redirigen (salvo `FAL_ALLOW_LEGACY_*`).
+- Composición 720×1280, preset `veryfast`, 1 hilo. Subtítulos: libass y, si falta, drawtext.
+- Lock y polling ~50 min; un job abierto más de 55 min pasa a failed al consultarlo. Si Redis no encola, la fila no se queda en processing.
+- En `NODE_ENV=production` faltan claves = error en español, no un MP4 de prueba.
+
+**Operativo:** redeploy API (Render) y web (Vercel). En Render, borra `FAL_VIDEO_MODEL`, `FAL_IMAGE_TO_VIDEO_MODEL` y `FAL_LIPSYNC_MODEL` si apuntan a `video-01` o `sadtalker` (si se quedan, el código los redirige). Hacen falta `FAL_KEY` y `ELEVENLABS_API_KEY`. El postinstall de `ffmpeg-static` tiene que ejecutarse. Con 512 MB deja `REEL_MAX_SCENES=1` o `2`; si sigue el reinicio por memoria, sube el plan a ≥1 GB o pon `FAL_VIDEO_RESOLUTION=512P`.
+
+**Criterio:** ✅ tests de cola fal, cuerpo Hailuo, R2, composición 9:16, error de job y mock en producción; ⏳ regenerar un Reel y un avatar reales tras el deploy.
 
 ---
 

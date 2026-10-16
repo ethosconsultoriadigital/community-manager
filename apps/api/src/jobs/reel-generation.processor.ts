@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { ContentGenerationService } from '../ai/content-generation.service';
@@ -6,13 +6,10 @@ import {
   REEL_GENERATION_QUEUE,
   type ReelGenerationJobData,
 } from './reel-generation.constants';
+import { VIDEO_JOB_WORKER_OPTIONS } from './video-job-options';
 
-/** Multi-escena fal puede superar 10–15 min; concurrency 1 reduce presión en Redis. */
-@Processor(REEL_GENERATION_QUEUE, {
-  concurrency: 1,
-  lockDuration: 1_200_000,
-  stalledInterval: 120_000,
-})
+/** Dos clips fal (hasta 20 min cada uno) + ffmpeg. El lock se renueva cada 30 s. */
+@Processor(REEL_GENERATION_QUEUE, VIDEO_JOB_WORKER_OPTIONS)
 export class ReelGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(ReelGenerationProcessor.name);
 
@@ -30,6 +27,23 @@ export class ReelGenerationProcessor extends WorkerHost {
         `Reel job ${generationId} falló: ${err instanceof Error ? err.message : err}`,
       );
       throw err;
+    }
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<ReelGenerationJobData> | undefined, err: Error): Promise<void> {
+    const agencyId = job?.data?.agencyId;
+    const generationId = job?.data?.generationId;
+    if (!agencyId || !generationId) return;
+    const message = err?.message || 'El job de Reel falló';
+    try {
+      await this.generation.failOpenGeneration(agencyId, generationId, message);
+    } catch (markErr) {
+      this.logger.warn(
+        `No se pudo marcar el Reel ${generationId} como fallido: ${
+          markErr instanceof Error ? markErr.message : markErr
+        }`,
+      );
     }
   }
 }

@@ -3,9 +3,19 @@ import {
   buildLipSyncBody,
   isFaceDetectionError,
   mapLipSyncError,
+  resolveLipSyncModel,
 } from './fal-lipsync.provider';
 import { formatFalError } from './fal-queue';
 import { BadRequestException } from '@nestjs/common';
+
+describe('resolveLipSyncModel', () => {
+  it('ignora SadTalker (falla con cartoon) y usa Sync-3', () => {
+    expect(resolveLipSyncModel('fal-ai/sadtalker').model).toBe(
+      'fal-ai/sync-lipsync/v3/image-to-video',
+    );
+    expect(resolveLipSyncModel(undefined).model).toContain('sync-lipsync');
+  });
+});
 
 describe('buildLipSyncBody', () => {
   it('usa campos de SadTalker (preprocess full para cartoon)', () => {

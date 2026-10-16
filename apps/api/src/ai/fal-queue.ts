@@ -12,6 +12,8 @@ type FalQueueStatus = {
   status?: string;
   response_url?: string;
   error?: unknown;
+  detail?: unknown;
+  payload?: unknown;
 };
 
 /** Intervalo entre polls (ms). Override: FAL_QUEUE_POLL_MS */
@@ -56,10 +58,11 @@ export async function runFalQueueJob(input: {
     headers: {
       Authorization: `Key ${input.apiKey}`,
       'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
     body: JSON.stringify(input.body),
   });
-  const submitted = (await submitRes.json()) as FalQueueSubmit;
+  const submitted = (await readFalJson(submitRes)) as FalQueueSubmit;
   if (!submitRes.ok) {
     const message =
       formatFalError(submitted.detail) ||
@@ -69,8 +72,17 @@ export async function runFalQueueJob(input: {
     throw new BadRequestException(`No se pudo iniciar ${label}: ${message}`);
   }
 
-  const statusUrl = submitted.status_url;
-  const responseUrl = submitted.response_url;
+  const requestId = submitted.request_id?.trim();
+  const statusUrl =
+    submitted.status_url ||
+    (requestId
+      ? `https://queue.fal.run/${input.model}/requests/${requestId}/status`
+      : undefined);
+  const responseUrl =
+    submitted.response_url ||
+    (requestId
+      ? `https://queue.fal.run/${input.model}/requests/${requestId}`
+      : undefined);
   if (!statusUrl || !responseUrl) {
     throw new BadRequestException('fal no devolvió status_url/response_url');
   }
@@ -78,9 +90,12 @@ export async function runFalQueueJob(input: {
   for (let i = 0; i < maxPolls; i++) {
     await sleep(pollMs);
     const statusRes = await fetch(statusUrl, {
-      headers: { Authorization: `Key ${input.apiKey}` },
+      headers: {
+        Authorization: `Key ${input.apiKey}`,
+        Accept: 'application/json',
+      },
     });
-    const statusBody = (await statusRes.json()) as FalQueueStatus;
+    const statusBody = (await readFalJson(statusRes)) as FalQueueStatus;
     if (!statusRes.ok) {
       throw new BadRequestException(
         `Error consultando fal: ${formatFalError(statusBody.error) || statusRes.status}`,
@@ -90,9 +105,12 @@ export async function runFalQueueJob(input: {
     const st = (statusBody.status ?? '').toUpperCase();
     if (st === 'COMPLETED') {
       const resultRes = await fetch(statusBody.response_url || responseUrl, {
-        headers: { Authorization: `Key ${input.apiKey}` },
+        headers: {
+          Authorization: `Key ${input.apiKey}`,
+          Accept: 'application/json',
+        },
       });
-      const result = (await resultRes.json()) as Record<string, unknown> & {
+      const result = (await readFalJson(resultRes)) as Record<string, unknown> & {
         detail?: unknown;
         error?: unknown;
       };
@@ -105,8 +123,14 @@ export async function runFalQueueJob(input: {
       }
       return result;
     }
-    if (st === 'FAILED' || st === 'CANCELLED') {
-      throw new BadRequestException(`${label} falló en fal (${st})`);
+    if (st === 'FAILED' || st === 'CANCELLED' || st === 'ERROR') {
+      const detail =
+        formatFalError(statusBody.error) ||
+        formatFalError(statusBody.detail) ||
+        formatFalError(statusBody.payload);
+      throw new BadRequestException(
+        detail ? `${label} falló en fal: ${detail}` : `${label} falló en fal (${st})`,
+      );
     }
   }
 
@@ -118,6 +142,18 @@ export async function runFalQueueJob(input: {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readFalJson(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  if (!text.trim()) return {};
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+    return { error: String(parsed) };
+  } catch {
+    return { error: text.slice(0, 300) };
+  }
 }
 
 /** fal a menudo devuelve `detail` como objeto/array; evita "[object Object]". */

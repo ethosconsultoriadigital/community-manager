@@ -25,22 +25,24 @@ describe('runFalQueueJob', () => {
       .fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          status_url: 'https://fal.test/status',
-          response_url: 'https://fal.test/response',
-        }),
+        text: async () =>
+          JSON.stringify({
+            status_url: 'https://fal.test/status',
+            response_url: 'https://fal.test/response',
+          }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ status: 'IN_PROGRESS' }),
+        text: async () => JSON.stringify({ status: 'IN_PROGRESS' }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ status: 'COMPLETED', response_url: 'https://fal.test/response' }),
+        text: async () =>
+          JSON.stringify({ status: 'COMPLETED', response_url: 'https://fal.test/response' }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ video: { url: 'https://cdn/v.mp4' } }),
+        text: async () => JSON.stringify({ video: { url: 'https://cdn/v.mp4' } }),
       });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -55,5 +57,48 @@ describe('runFalQueueJob', () => {
 
     expect(result).toEqual({ video: { url: 'https://cdn/v.mp4' } });
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('incluye el detalle cuando fal marca FAILED', async () => {
+    process.env.FAL_QUEUE_POLL_MS = '1000';
+    process.env.FAL_QUEUE_MAX_WAIT_MS = '60000';
+    vi.useFakeTimers();
+
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () =>
+            JSON.stringify({
+              status_url: 'https://fal.test/status',
+              response_url: 'https://fal.test/response',
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () =>
+            JSON.stringify({
+              status: 'FAILED',
+              error: { message: 'Exhausted balance' },
+            }),
+        }),
+    );
+
+    const pending = runFalQueueJob({
+      apiKey: 'k',
+      model: 'fal-ai/test',
+      body: { prompt: 'x' },
+      failLabel: 'Reel',
+    });
+    const assertion = pending.then(
+      () => {
+        throw new Error('debía fallar');
+      },
+      (err: Error) => err.message,
+    );
+    await vi.runAllTimersAsync();
+    await expect(assertion).resolves.toMatch(/Exhausted balance/);
   });
 });

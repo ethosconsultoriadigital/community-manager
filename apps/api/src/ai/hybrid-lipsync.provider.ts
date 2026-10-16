@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { aiMocksAllowed } from './ai-mocks';
 import { FalLipSyncProvider } from './fal-lipsync.provider';
 import type {
   LipSyncInput,
@@ -23,6 +24,11 @@ export class HybridLipSyncProvider implements LipSyncProvider {
   animate(input: LipSyncInput): Promise<LipSyncResult> {
     if (this.config.get<string>('FAL_KEY')?.trim()) {
       return this.fal.animate(input);
+    }
+    if (!aiMocksAllowed(this.config)) {
+      throw new BadRequestException(
+        'Falta FAL_KEY en el servidor. Sin esa clave no se puede animar el avatar (en producción no se sustituye por un video de prueba).',
+      );
     }
     return this.mock.animate(input);
   }

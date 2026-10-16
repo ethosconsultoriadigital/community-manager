@@ -52,7 +52,7 @@ export class ElevenLabsTtsProvider implements TtsProvider {
       const errText = await response.text().catch(() => '');
       this.logger.warn(`ElevenLabs TTS failed: ${response.status} ${errText.slice(0, 200)}`);
       throw new BadRequestException(
-        `No se pudo sintetizar la voz (${response.status})`,
+        `No se pudo sintetizar la voz (${response.status}): ${elevenLabsDetail(errText)}`,
       );
     }
 
@@ -66,4 +66,25 @@ export class ElevenLabsTtsProvider implements TtsProvider {
       voiceId,
     };
   }
+}
+
+function elevenLabsDetail(raw: string): string {
+  const text = raw.trim();
+  if (!text) return 'respuesta vacía';
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
+    if (typeof parsed.message === 'string' && parsed.message.trim()) {
+      return parsed.message.trim().slice(0, 240);
+    }
+    if (typeof parsed.detail === 'string' && parsed.detail.trim()) {
+      return parsed.detail.trim().slice(0, 240);
+    }
+    if (parsed.detail && typeof parsed.detail === 'object') {
+      const msg = (parsed.detail as { message?: unknown }).message;
+      if (typeof msg === 'string' && msg.trim()) return msg.trim().slice(0, 240);
+    }
+  } catch {
+    /* texto plano */
+  }
+  return text.slice(0, 240);
 }

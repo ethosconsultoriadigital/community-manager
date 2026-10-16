@@ -26,7 +26,7 @@ function run(bin: string, args: string[]): Promise<void> {
 }
 
 describe('VideoCompositionService', () => {
-  it('une 2 clips de prueba y exporta 9:16 (1080x1920)', async () => {
+  it('une 2 clips de prueba y exporta 9:16 (720x1280)', async () => {
     const ffmpeg = await resolveFfmpeg();
     if (!ffmpeg) {
       console.warn('ffmpeg-static no disponible; se omite test de composición');
@@ -76,8 +76,8 @@ describe('VideoCompositionService', () => {
         musicTrackId: 'upbeat-light',
       });
 
-      expect(result.width).toBe(1080);
-      expect(result.height).toBe(1920);
+      expect(result.width).toBe(720);
+      expect(result.height).toBe(1280);
       expect(result.buffer.length).toBeGreaterThan(1000);
       expect(result.musicTrackId).toBe('upbeat-light');
 
@@ -92,7 +92,7 @@ describe('VideoCompositionService', () => {
         child.on('error', reject);
         child.on('close', () => resolve(err));
       });
-      expect(probe).toMatch(/1080x1920/);
+      expect(probe).toMatch(/720x1280/);
       expect(probe).toMatch(/Audio:/);
     } finally {
       await rm(dir, { recursive: true, force: true });

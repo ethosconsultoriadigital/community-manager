@@ -7,7 +7,7 @@ export type GenerateImageInput = {
   hashtags?: string[];
   referenceText?: string;
   platformPresets?: PlatformVisualPreset[];
-  imageSize?: '1024x1024' | '1024x1792';
+  imageSize?: '1024x1024' | '1024x1792' | '720x1280';
   /** Necesario para guardar la imagen en storage propio (OpenAI real). */
   agencyId?: string;
 };

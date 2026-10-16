@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { aiMocksAllowed } from './ai-mocks';
 import type {
   GenerateVideoInput,
   GenerateVideoResult,
@@ -22,6 +23,11 @@ export class HybridVideoProvider implements VideoProvider {
   async generateVideo(input: GenerateVideoInput): Promise<GenerateVideoResult> {
     if (this.hasFalKey()) {
       return this.fal.generateVideo(input);
+    }
+    if (!aiMocksAllowed(this.config)) {
+      throw new BadRequestException(
+        'Falta FAL_KEY en el servidor. Sin esa clave no se puede generar el Reel (en producción no se sustituye por un video de prueba).',
+      );
     }
     return this.mock.generateVideo(input);
   }

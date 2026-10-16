@@ -19,6 +19,7 @@ import { CompositionService } from './composition/composition.service';
 import { DEFAULT_LAYOUT_KEY, parseClientBrand } from './composition/brand-layout';
 import { ReelPipelineService } from './reel-pipeline.service';
 import { AvatarPipelineService } from './avatar-pipeline.service';
+import { STALE_VIDEO_JOB_MS } from '../jobs/video-job-options';
 
 export type GenerateFromBriefInput = {
   clientId: string;
@@ -355,6 +356,27 @@ export class ContentGenerationService {
     };
   }
 
+  /**
+   * Marca failed solo si sigue abierta. Conserva el payload del job.
+   * Lo usan el worker (error o evento failed) y el controller si Redis no encola.
+   */
+  async failOpenGeneration(
+    agencyId: string,
+    generationId: string,
+    message: string,
+  ): Promise<void> {
+    const gen = await this.generations.findById(agencyId, generationId);
+    if (!gen) return;
+    if (gen.status === 'completed' || gen.status === 'failed') return;
+    const previous =
+      gen.output && typeof gen.output === 'object' && !Array.isArray(gen.output)
+        ? (gen.output as Record<string, unknown>)
+        : {};
+    await this.generations.updateStatus(agencyId, generationId, 'failed', {
+      output: { ...previous, error: message.slice(0, 500) },
+    });
+  }
+
   async startReelFromBrief(
     agencyId: string,
     userId: string | null,
@@ -400,9 +422,11 @@ export class ContentGenerationService {
     const output = (gen.output ?? {}) as { job?: ReelJobPayload };
     const input = output.job;
     if (!input) {
-      await this.generations.updateStatus(agencyId, generationId, 'failed', {
-        output: { error: 'Falta el payload del job de Reel' },
-      });
+      await this.failOpenGeneration(
+        agencyId,
+        generationId,
+        'Falta el payload del job de Reel',
+      );
       throw new PostsValidationError('Falta el payload del job de Reel');
     }
 
@@ -423,11 +447,11 @@ export class ContentGenerationService {
         withSubtitles: input.withSubtitles,
       });
     } catch (error) {
-      await this.generations.updateStatus(agencyId, generationId, 'failed', {
-        output: {
-          error: error instanceof Error ? error.message : 'Error desconocido',
-        },
-      });
+      await this.failOpenGeneration(
+        agencyId,
+        generationId,
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
       throw error;
     }
 
@@ -470,9 +494,7 @@ export class ContentGenerationService {
 
     const primary = createdPosts[0];
     if (!primary) {
-      await this.generations.updateStatus(agencyId, generationId, 'failed', {
-        output: { error: 'No se pudo crear el post' },
-      });
+      await this.failOpenGeneration(agencyId, generationId, 'No se pudo crear el post');
       throw new PostsValidationError('No se pudo crear el post');
     }
 
@@ -506,6 +528,11 @@ export class ContentGenerationService {
     const gen = await this.generations.findById(agencyId, generationId);
     if (!gen || gen.kind !== 'video') {
       throw new PostsValidationError('Generación de Reel no encontrada');
+    }
+
+    const stale = await this.failIfStale(agencyId, gen, 'El Reel');
+    if (stale) {
+      return { generationId: gen.id, status: 'failed', error: stale };
     }
 
     if (gen.status === 'pending' || gen.status === 'processing') {
@@ -625,9 +652,11 @@ export class ContentGenerationService {
     const output = (gen.output ?? {}) as { job?: AvatarJobPayload; error?: string };
     const input = output.job;
     if (!input) {
-      await this.generations.updateStatus(agencyId, generationId, 'failed', {
-        output: { error: 'Falta el payload del job de avatar' },
-      });
+      await this.failOpenGeneration(
+        agencyId,
+        generationId,
+        'Falta el payload del job de avatar',
+      );
       throw new PostsValidationError('Falta el payload del job de avatar');
     }
 
@@ -648,11 +677,11 @@ export class ContentGenerationService {
         withSubtitles: input.withSubtitles,
       });
     } catch (error) {
-      await this.generations.updateStatus(agencyId, generationId, 'failed', {
-        output: {
-          error: error instanceof Error ? error.message : 'Error desconocido',
-        },
-      });
+      await this.failOpenGeneration(
+        agencyId,
+        generationId,
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
       throw error;
     }
 
@@ -695,9 +724,7 @@ export class ContentGenerationService {
 
     const primary = createdPosts[0];
     if (!primary) {
-      await this.generations.updateStatus(agencyId, generationId, 'failed', {
-        output: { error: 'No se pudo crear el post' },
-      });
+      await this.failOpenGeneration(agencyId, generationId, 'No se pudo crear el post');
       throw new PostsValidationError('No se pudo crear el post');
     }
 
@@ -729,6 +756,11 @@ export class ContentGenerationService {
     const gen = await this.generations.findById(agencyId, generationId);
     if (!gen || gen.kind !== 'avatar_video') {
       throw new PostsValidationError('Generación de avatar no encontrada');
+    }
+
+    const stale = await this.failIfStale(agencyId, gen, 'El avatar');
+    if (stale) {
+      return { generationId: gen.id, status: 'failed', error: stale };
     }
 
     if (gen.status === 'pending' || gen.status === 'processing') {
@@ -799,6 +831,22 @@ export class ContentGenerationService {
       throw new PostsValidationError(status.error ?? 'Error al generar el avatar');
     }
     return status.result;
+  }
+
+  private async failIfStale(
+    agencyId: string,
+    gen: { id: string; status: string; created_at?: Date | string | null },
+    label: string,
+  ): Promise<string | null> {
+    if (gen.status !== 'processing' && gen.status !== 'pending') return null;
+    if (!gen.created_at) return null;
+    const createdMs = new Date(gen.created_at).getTime();
+    if (!Number.isFinite(createdMs) || Date.now() - createdMs < STALE_VIDEO_JOB_MS) {
+      return null;
+    }
+    const error = `${label} se interrumpió o superó el tiempo máximo (el servidor pudo reiniciarse por memoria). Vuelve a generarlo. En Render 512 MB deja REEL_MAX_SCENES=1 o sube la RAM.`;
+    await this.failOpenGeneration(agencyId, gen.id, error);
+    return error;
   }
 
   private async assertSocialAccountsActive(

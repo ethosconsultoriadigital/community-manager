@@ -7,14 +7,16 @@ import { MediaStorageService } from '../media/media-storage.service';
 import { buildVideoPrompt } from './build-video-prompt';
 import { downloadUrlToFile } from './download-to-file';
 import { runFalQueueJob } from './fal-queue';
+import {
+  buildFalVideoBody,
+  extractFalVideoUrl,
+  resolveFalVideoModel,
+} from './fal-video-request';
 import type {
   GenerateVideoInput,
   GenerateVideoResult,
   VideoProvider,
 } from './interfaces/video-provider.interface';
-
-const DEFAULT_T2V = 'fal-ai/minimax/video-01';
-const DEFAULT_I2V = 'fal-ai/minimax/video-01/image-to-video';
 
 @Injectable()
 export class FalVideoProvider implements VideoProvider {
@@ -47,17 +49,22 @@ export class FalVideoProvider implements VideoProvider {
     }
 
     const hasImage = Boolean(input.referenceImageUrl?.trim());
-    const model = hasImage
-      ? this.config.get<string>('FAL_IMAGE_TO_VIDEO_MODEL')?.trim() || DEFAULT_I2V
-      : this.config.get<string>('FAL_VIDEO_MODEL')?.trim() || DEFAULT_T2V;
-
-    const falInput: Record<string, unknown> = {
-      prompt,
-      prompt_optimizer: true,
-    };
-    if (hasImage) {
-      falInput.image_url = input.referenceImageUrl!.trim();
+    const configured = hasImage
+      ? this.config.get<string>('FAL_IMAGE_TO_VIDEO_MODEL')
+      : this.config.get<string>('FAL_VIDEO_MODEL');
+    const resolved = resolveFalVideoModel(configured, hasImage);
+    const model = resolved.model;
+    if (resolved.remappedFrom) {
+      this.logger.warn(
+        `Modelo fal obsoleto ${resolved.remappedFrom} → ${model}. Quita FAL_VIDEO_MODEL / FAL_IMAGE_TO_VIDEO_MODEL o déjalos en Hailuo 02.`,
+      );
     }
+
+    const falInput = buildFalVideoBody(
+      model,
+      prompt,
+      hasImage ? input.referenceImageUrl!.trim() : undefined,
+    );
 
     const result = await runFalQueueJob({
       apiKey,
@@ -67,7 +74,7 @@ export class FalVideoProvider implements VideoProvider {
       failLabel: 'Reel',
     });
 
-    const videoUrl = extractVideoUrl(result);
+    const videoUrl = extractFalVideoUrl(result);
     if (!videoUrl) {
       throw new BadRequestException('fal no devolvió URL de video');
     }
@@ -100,14 +107,3 @@ export class FalVideoProvider implements VideoProvider {
   }
 }
 
-function extractVideoUrl(result: Record<string, unknown>): string | null {
-  const video = result.video;
-  if (video && typeof video === 'object') {
-    const url = (video as { url?: unknown }).url;
-    if (typeof url === 'string' && url.trim()) return url.trim();
-  }
-  if (typeof result.video_url === 'string' && result.video_url.trim()) {
-    return result.video_url.trim();
-  }
-  return null;
-}

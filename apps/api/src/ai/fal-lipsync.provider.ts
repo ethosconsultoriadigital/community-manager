@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MediaStorageService } from '../media/media-storage.service';
 import { downloadUrlToFile } from './download-to-file';
+import { extractFalVideoUrl } from './fal-video-request';
 import { runFalQueueJob } from './fal-queue';
 import type {
   LipSyncInput,
@@ -43,36 +44,40 @@ export class FalLipSyncProvider implements LipSyncProvider {
       throw new BadRequestException('agencyId es obligatorio');
     }
 
-    const primary =
-      this.config.get<string>('FAL_LIPSYNC_MODEL')?.trim() || DEFAULT_LIPSYNC_MODEL;
+    const resolved = resolveLipSyncModel(this.config.get<string>('FAL_LIPSYNC_MODEL'));
+    const primary = resolved.model;
+    if (resolved.remappedFrom) {
+      this.logger.warn(
+        `FAL_LIPSYNC_MODEL=${resolved.remappedFrom} está obsoleto para ilustraciones; se usa ${primary}. Borra la variable en Render.`,
+      );
+    }
     const imageUrl = input.characterImageUrl.trim();
     const audioUrl = input.audioUrl.trim();
 
     try {
       return await this.runModel(apiKey, primary, imageUrl, audioUrl, input.agencyId);
     } catch (error) {
-      if (!isFaceDetectionError(error)) {
+      const canFallback =
+        !primary.toLowerCase().includes('sync-lipsync') &&
+        primary !== STYLIZED_FALLBACK_MODEL;
+      if (!canFallback) {
         throw mapLipSyncError(error);
       }
 
-      if (!primary.toLowerCase().includes('sync-lipsync')) {
-        this.logger.warn(
-          `Lip-sync ${primary} no detectó cara; reintentando con ${STYLIZED_FALLBACK_MODEL}`,
+      this.logger.warn(
+        `Lip-sync ${primary} falló (${error instanceof Error ? error.message : error}); reintentando con ${STYLIZED_FALLBACK_MODEL}`,
+      );
+      try {
+        return await this.runModel(
+          apiKey,
+          STYLIZED_FALLBACK_MODEL,
+          imageUrl,
+          audioUrl,
+          input.agencyId,
         );
-        try {
-          return await this.runModel(
-            apiKey,
-            STYLIZED_FALLBACK_MODEL,
-            imageUrl,
-            audioUrl,
-            input.agencyId,
-          );
-        } catch (fallbackError) {
-          throw mapLipSyncError(fallbackError);
-        }
+      } catch (fallbackError) {
+        throw mapLipSyncError(fallbackError);
       }
-
-      throw mapLipSyncError(error);
     }
   }
 
@@ -92,7 +97,7 @@ export class FalLipSyncProvider implements LipSyncProvider {
       failLabel: 'lip-sync',
     });
 
-    const videoUrl = extractVideoUrl(result);
+    const videoUrl = extractFalVideoUrl(result);
     if (!videoUrl) {
       throw new BadRequestException('fal lip-sync no devolvió URL de video');
     }
@@ -124,6 +129,22 @@ export class FalLipSyncProvider implements LipSyncProvider {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
+}
+
+/** SadTalker falla con personajes 3D/cartoon. Se ignora salvo FAL_ALLOW_LEGACY_LIPSYNC=true. */
+export function resolveLipSyncModel(configured: string | undefined): {
+  model: string;
+  remappedFrom?: string;
+} {
+  const raw = configured?.trim();
+  if (!raw) return { model: DEFAULT_LIPSYNC_MODEL };
+  if (
+    raw.toLowerCase().includes('sadtalker') &&
+    process.env.FAL_ALLOW_LEGACY_LIPSYNC !== 'true'
+  ) {
+    return { model: DEFAULT_LIPSYNC_MODEL, remappedFrom: raw };
+  }
+  return { model: raw };
 }
 
 export function buildLipSyncBody(
@@ -176,11 +197,3 @@ function errorMessage(error: unknown): string {
   return String(error ?? '');
 }
 
-function extractVideoUrl(result: Record<string, unknown>): string | null {
-  const video = result.video as { url?: string } | undefined;
-  if (video?.url) return video.url;
-  if (typeof result.video_url === 'string') return result.video_url;
-  const data = result.data as { video?: { url?: string } } | undefined;
-  if (data?.video?.url) return data.video.url;
-  return null;
-}

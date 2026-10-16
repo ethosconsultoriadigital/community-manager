@@ -20,7 +20,7 @@ function getApiBase(): string {
 }
 
 /** Polling UI: fal multi-escena / lip-sync puede superar 10–15 min. */
-const DEFAULT_VIDEO_POLL_TIMEOUT_MS = 25 * 60 * 1000;
+const DEFAULT_VIDEO_POLL_TIMEOUT_MS = 50 * 60 * 1000;
 const DEFAULT_VIDEO_POLL_INTERVAL_MS = 4000;
 
 export class ApiError extends Error {
@@ -175,7 +175,7 @@ async function pollVideoJob<TResult>(options: {
   );
 }
 
-/** Polling de job de avatar (BullMQ). Timeout por defecto ~25 min. */
+/** Polling de job de avatar (BullMQ). Timeout por defecto ~50 min (2 esperas fal). */
 export async function pollAvatarJob(
   generationId: string,
   options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },
@@ -190,7 +190,7 @@ export async function pollAvatarJob(
   });
 }
 
-/** Polling de job de Reel (BullMQ). Timeout por defecto ~25 min. */
+/** Polling de job de Reel (BullMQ). Timeout por defecto ~50 min (2 esperas fal). */
 export async function pollReelJob(
   generationId: string,
   options?: { intervalMs?: number; timeoutMs?: number; token?: string | null },

@@ -54,4 +54,21 @@ describe('HybridVideoProvider', () => {
     expect(fal.generateVideo).not.toHaveBeenCalled();
     expect(result.provider).toBe('mock');
   });
+
+  it('en producción no cae a mock si falta FAL_KEY', async () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const hybrid = new HybridVideoProvider(
+        { get: () => undefined } as never,
+        { generateVideo: vi.fn() } as never,
+        { generateVideo: vi.fn() } as never,
+      );
+      await expect(hybrid.generateVideo({ prompt: 'hola', agencyId: 'a1' })).rejects.toThrow(
+        /FAL_KEY/,
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
 });

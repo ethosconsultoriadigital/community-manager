@@ -1258,8 +1258,9 @@ export default function ComposerPage() {
                 <div>
                   <h3 className="text-sm font-medium text-brand">Video / Reel con IA</h3>
                   <p className="text-xs text-muted">
-                    Reel 9:16 multi-escena con subtítulos y música propia (licenciada). Opcional:
-                    foto como keyframe de la 1.ª escena. Requiere saldo en fal.ai.
+                    Reel vertical 9:16 con subtítulos y música propia. En el plan de 512 MB el
+                    servidor usa como máximo 2 escenas. Opcional: foto de la 1.ª escena. Requiere
+                    FAL_KEY y saldo en fal.ai.
                   </p>
                 </div>
                 <textarea
@@ -1282,9 +1283,9 @@ export default function ComposerPage() {
                     }
                     className={inputClass}
                   >
-                    <option value={10}>Corto (~10 s, 2 escenas)</option>
-                    <option value={15}>Medio (~15 s, 3 escenas)</option>
-                    <option value={20}>Largo (~20 s, 4 escenas)</option>
+                    <option value={10}>Corto (2 escenas, ~12 s)</option>
+                    <option value={15}>Medio (2 escenas en 512 MB)</option>
+                    <option value={20}>Largo (2 escenas salvo más RAM)</option>
                   </select>
                 </div>
                 <div className="flex flex-wrap gap-4 text-xs text-muted">

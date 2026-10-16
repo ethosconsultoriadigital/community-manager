@@ -98,6 +98,9 @@ describe('ReelPipelineService', () => {
 
     expect(script.buildReelScript).toHaveBeenCalled();
     expect(image.generateImage).toHaveBeenCalledTimes(1);
+    expect(image.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({ imageSize: '720x1280' }),
+    );
     expect(video.generateVideo).toHaveBeenCalledTimes(2);
     expect(composition.downloadClipToFile).toHaveBeenCalledTimes(2);
     expect(composition.concatClips).toHaveBeenCalledWith(

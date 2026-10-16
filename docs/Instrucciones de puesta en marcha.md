@@ -472,16 +472,18 @@ El flujo de media del Composer **no depende de Canva**. Opciones:
 IMAGE_API_KEY=sk-...
 IMAGE_MODEL=gpt-image-2
 OPENAI_API_KEY=sk-...   # guion de escenas del Reel + copy
-FAL_KEY=...   # Reels IA; sin ella usa mock de video
+FAL_KEY=...   # Reels y lip-sync. En producción, sin ella el Reel/avatar responden error (el mock solo corre en local/test).
+# FAL_IMAGE_TO_VIDEO_MODEL=fal-ai/minimax/hailuo-02/standard/image-to-video
+# FAL_VIDEO_RESOLUTION=768P
 # REEL_MULTI_SCENE=true
-# REEL_SCENE_COUNT=2
+# REEL_MAX_SCENES=2
 ```
 
-Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador de **imagen** / **guion** usa **mock**.
-Sin `FAL_KEY`, el generador de **Reel** usa un MP4 de muestra (mock).
+Sin `IMAGE_API_KEY` / `OPENAI_API_KEY`, el generador de **imagen** / **guion** usa **mock** (también en local).
+En **producción**, sin `FAL_KEY` el Reel y el avatar no usan un MP4 de prueba: la API devuelve un error pidiendo la clave.
 La clave de imágenes debe ser de **OpenAI** (no Anthropic `sk-ant-…`).
 `dall-e-3` ya no existe en la API (retirado mayo 2026); usa `gpt-image-2`.
-Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe ejecutarse el postinstall de pnpm).
+Reels y avatares necesitan el binario **ffmpeg** (`ffmpeg-static`; en Render debe ejecutarse el postinstall de pnpm). Si no está, define `FFMPEG_PATH`.
 
 ### Prueba manual (imagen)
 
@@ -495,13 +497,13 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 1. Migración `schema_generation_kind_video.sql` aplicada
 2. Composer → **Reel (video)** → brief (± foto como keyframe 1.ª escena) → **Generar Reel**
 3. Encola job BullMQ; el front hace polling a `GET /generations/reel/:id` (varios minutos; no cuelga el HTTP de Render)
-4. Pipeline: guion (LLM) → keyframe por escena → i2v (fal) → concat 9:16 + subtítulos + música
-5. Espera máxima por clip fal: `FAL_QUEUE_MAX_WAIT_MS` (default 20 min). Antes cortaba a ~4 min con «tardó demasiado»
-6. Con `FAL_KEY` real el MP4 se guarda en storage; sin clave verás mensaje de mock
-7. `REEL_MULTI_SCENE=false` vuelve al modo de 1 clip; menos escenas = más rápido
-8. `REEL_MAX_SCENES=2` (default) limita RAM; en Render free/512MB no subir a 3–4
-9. Si Render dice *exceeded its memory limit*: sube el plan de RAM (≥1 GB) o usa 1 escena
-10. Requiere Redis (`REDIS_URL`) en la API
+4. Pipeline: guion (LLM) → keyframe 720×1280 → i2v Hailuo 02 → concat 720×1280 + subtítulos + música → R2
+5. Espera máxima por clip fal: `FAL_QUEUE_MAX_WAIT_MS` (default 20 min). El worker y el polling aguantan ~50 min (dos clips)
+6. Con `FAL_KEY` el MP4 se guarda en R2 (stream + ContentLength). En producción, sin clave, error claro
+7. `REEL_MULTI_SCENE=false` vuelve al modo de 1 clip
+8. `REEL_MAX_SCENES=2` (default) limita RAM; en Render 512MB no subir a 3–4. `REEL_MAX_SCENES=1` si sigue el OOM
+9. Si Render dice *exceeded its memory limit*: sube el plan a ≥1 GB, baja a 1 escena, o `FAL_VIDEO_RESOLUTION=512P`
+10. Requiere Redis (`REDIS_URL`). Si Redis falla al encolar, la generación queda `failed` (no se queda en processing)
 
 ### Prueba manual (Avatar / personaje)
 
@@ -509,9 +511,9 @@ Reels multi-escena requieren binario **ffmpeg** (`ffmpeg-static`; en Render debe
 2. Composer → IA → **Avatar** → subir imagen del personaje (estilizado, no foto realista)
 3. Brief + caption + destinos → **Generar avatar** (encola job BullMQ; el front hace polling a `GET /generations/avatar/:id`)
 4. Requiere Redis (`REDIS_URL`) en la API; la petición HTTP ya no espera el vídeo completo (evita timeout de Render)
-5. Sin `ELEVENLABS_API_KEY` / `FAL_KEY` usa mocks; con claves reales gasta créditos TTS + lip-sync
-6. Lip-sync default: `fal-ai/sync-lipsync/v3/image-to-video` (cartoon/ilustración). Si Render tiene `FAL_LIPSYNC_MODEL=fal-ai/sadtalker`, cámbialo o bórralo (SadTalker falla con caras 3D)
-7. Redis lento (`execution timed out` / Missing lock): revisar plan Redis; la API ya usa concurrency 1 y locks largos
+5. En producción hacen falta `ELEVENLABS_API_KEY` y `FAL_KEY` (si faltan, error en español, no un tono/video de prueba). En local, sin claves, sigue el mock
+6. Lip-sync: `fal-ai/sync-lipsync/v3/image-to-video`. Si Render tiene `FAL_LIPSYNC_MODEL=fal-ai/sadtalker`, el código lo ignora. Bórralo igual para no confundir
+7. Redis lento (`execution timed out` / Missing lock): el lock del worker de video es 50 min y se renueva cada 30 s. Si un job se quedó en processing más de 55 min, el siguiente GET lo marca failed
 
 > **Nota:** el código Canva (OAuth/editor) sigue en el backend por compatibilidad, pero el Composer principal ya no lo usa.
 

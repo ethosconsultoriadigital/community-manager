@@ -4,7 +4,7 @@ import { LLM_PROVIDER } from '../ai.tokens';
 import type { LlmProvider } from '../interfaces/llm-provider.interface';
 import type { ReelScript } from './reel-script.types';
 
-const MIN_SCENES = 2;
+const MIN_SCENES = 1;
 const MAX_SCENES = 4;
 const DEFAULT_SCENES = 2;
 

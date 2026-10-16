@@ -1,17 +1,20 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { downloadUrlToFile } from '../download-to-file';
+import { FFMPEG_MISSING_MESSAGE, findFfmpegBinary } from './ffmpeg-bin';
 import {
   getMusicTrack,
   resolveMusicTrackId,
   type LicensedMusicTrack,
 } from './licensed-music';
 
-const OUT_W = 1080;
-const OUT_H = 1920;
+/** 9:16 a 720p: subir a 1080×1920 dispara el pico de RAM en Render 512 MB. */
+const OUT_W = 720;
+const OUT_H = 1280;
 
 export type SubtitleCue = {
   startSeconds: number;
@@ -96,12 +99,22 @@ export class VideoCompositionService {
           await this.burnSubtitles(ffmpeg, silentPath, srtPath, subtitledPath);
           videoPath = subtitledPath;
         } catch (err) {
-          burned = false;
           this.logger.warn(
-            `No se pudieron quemar subtítulos; se continúa sin ellos: ${
+            `Filtro subtitles no disponible (${
               err instanceof Error ? err.message : err
-            }`,
+            }); se prueba drawtext`,
           );
+          try {
+            await this.burnDrawtext(ffmpeg, silentPath, input.subtitles, subtitledPath);
+            videoPath = subtitledPath;
+          } catch (drawErr) {
+            burned = false;
+            this.logger.warn(
+              `No se pudieron quemar subtítulos; se continúa sin ellos: ${
+                drawErr instanceof Error ? drawErr.message : drawErr
+              }`,
+            );
+          }
         }
       }
 
@@ -227,12 +240,7 @@ export class VideoCompositionService {
         '-vf',
         this.scalePadFilter(),
         '-an',
-        '-c:v',
-        'libx264',
-        '-pix_fmt',
-        'yuv420p',
-        '-movflags',
-        '+faststart',
+        ...this.videoEncodeArgs(),
         outPath,
       ]);
       return;
@@ -246,12 +254,7 @@ export class VideoCompositionService {
       '-map',
       '[outv]',
       '-an',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      '-movflags',
-      '+faststart',
+      ...this.videoEncodeArgs(),
       outPath,
     );
     await this.runFfmpeg(ffmpeg, args);
@@ -274,12 +277,40 @@ export class VideoCompositionService {
       '-vf',
       `subtitles='${escaped}':force_style='${style}'`,
       '-an',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      '-movflags',
-      '+faststart',
+      ...this.videoEncodeArgs(),
+      outPath,
+    ]);
+  }
+
+  /** Si el binario no trae libass, drawtext quema el texto con una fuente del sistema. */
+  private async burnDrawtext(
+    ffmpeg: string,
+    videoPath: string,
+    cues: SubtitleCue[],
+    outPath: string,
+  ): Promise<void> {
+    const font = subtitleFontFile();
+    const filters = cues
+      .filter((cue) => cue.text.trim() && cue.endSeconds > cue.startSeconds)
+      .slice(0, 8)
+      .map((cue) => {
+        const text = escapeDrawtext(cue.text);
+        const start = Math.max(0, cue.startSeconds).toFixed(2);
+        const end = Math.max(cue.startSeconds + 0.2, cue.endSeconds).toFixed(2);
+        const fontPart = font ? `fontfile='${escapeDrawtext(font)}':` : '';
+        return `drawtext=${fontPart}text='${text}':fontsize=28:fontcolor=white:borderw=2:bordercolor=black:x=(w-text_w)/2:y=h-140:enable='between(t,${start},${end})'`;
+      });
+    if (!filters.length) {
+      throw new BadRequestException('No hay subtítulos para quemar');
+    }
+    await this.runFfmpeg(ffmpeg, [
+      '-y',
+      '-i',
+      videoPath,
+      '-vf',
+      filters.join(','),
+      '-an',
+      ...this.videoEncodeArgs(),
       outPath,
     ]);
   }
@@ -376,8 +407,25 @@ export class VideoCompositionService {
     return Number.isFinite(total) && total > 0 ? total : 5;
   }
 
+  private videoEncodeArgs(): string[] {
+    return [
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '28',
+      '-x264-params',
+      'ref=1:bframes=0',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+    ];
+  }
+
   private scalePadFilter(): string {
-    return `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30`;
+    return `scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=decrease,pad=${OUT_W}:${OUT_H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24`;
   }
 
   private buildConcatFilter(n: number): string {
@@ -392,16 +440,9 @@ export class VideoCompositionService {
   }
 
   private async resolveFfmpegPath(): Promise<string> {
-    try {
-      const mod = await import('ffmpeg-static');
-      const path = (mod as { default?: string | null }).default ?? (mod as unknown as string);
-      if (typeof path === 'string' && path.length > 0) return path;
-    } catch {
-      /* fall through */
-    }
-    throw new BadRequestException(
-      'ffmpeg no disponible (ffmpeg-static). Revisa la instalación en el servidor.',
-    );
+    const path = await findFfmpegBinary();
+    if (path) return path;
+    throw new BadRequestException(FFMPEG_MISSING_MESSAGE);
   }
 
   private runFfmpeg(bin: string, args: string[]): Promise<void> {
@@ -411,16 +452,22 @@ export class VideoCompositionService {
       const child = spawn(bin, lowMemArgs, { windowsHide: true });
       let stderr = '';
       child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
+        stderr = tailText(stderr + chunk.toString());
       });
-      child.on('error', (err) => reject(err));
+      child.on('error', (err) => {
+        reject(
+          new BadRequestException(
+            `ffmpeg no arrancó (${err instanceof Error ? err.message : err}). ${FFMPEG_MISSING_MESSAGE}`,
+          ),
+        );
+      });
       child.on('close', (code) => {
         if (code === 0) resolve();
         else {
           this.logger.warn(`ffmpeg exit ${code}: ${stderr.slice(-1200)}`);
           reject(
             new BadRequestException(
-              `ffmpeg falló al componer el Reel (código ${code})`,
+              `ffmpeg falló al componer el Reel (código ${code}): ${stderr.slice(-240)}`,
             ),
           );
         }
@@ -434,7 +481,7 @@ export class VideoCompositionService {
       const child = spawn(bin, lowMemArgs, { windowsHide: true });
       let stderr = '';
       child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
+        stderr = tailText(stderr + chunk.toString());
       });
       child.on('error', reject);
       child.on('close', () => resolve(stderr));
@@ -446,9 +493,9 @@ export class VideoCompositionService {
     const out = [...args];
     const yIdx = out.indexOf('-y');
     if (yIdx >= 0) {
-      out.splice(yIdx + 1, 0, '-threads', '1');
+      out.splice(yIdx + 1, 0, '-threads', '1', '-filter_threads', '1');
     } else {
-      out.unshift('-threads', '1');
+      out.unshift('-threads', '1', '-filter_threads', '1');
     }
     return out;
   }
@@ -465,6 +512,30 @@ function formatSrtTime(seconds: number): string {
 
 function pad(n: number, w: number): string {
   return String(n).padStart(w, '0');
+}
+
+function tailText(value: string): string {
+  return value.length > 8000 ? value.slice(-8000) : value;
+}
+
+function subtitleFontFile(): string | null {
+  const candidates = [
+    process.env.SUBTITLE_FONT?.trim(),
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    '/usr/share/fonts/TTF/DejaVuSans.ttf',
+  ].filter((value): value is string => Boolean(value));
+  return candidates.find((file) => existsSync(file)) ?? null;
+}
+
+function escapeDrawtext(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, '')
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '\\%')
+    .replace(/\n/g, ' ')
+    .slice(0, 70);
 }
 
 function musicFrequencies(

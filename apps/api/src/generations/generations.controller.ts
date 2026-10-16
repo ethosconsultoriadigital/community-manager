@@ -168,7 +168,20 @@ export class GenerationsController {
         user.id,
         body,
       );
-      await this.reelQueue.enqueue(user.agencyId, started.generationId);
+      try {
+        await this.reelQueue.enqueue(user.agencyId, started.generationId);
+      } catch (enqueueError) {
+        const detail =
+          enqueueError instanceof Error ? enqueueError.message : 'Redis no respondió';
+        await this.generation.failOpenGeneration(
+          user.agencyId,
+          started.generationId,
+          `No se pudo encolar el Reel: ${detail}`,
+        );
+        throw new BadRequestException(
+          `No se pudo encolar el Reel. Revisa REDIS_URL. ${detail}`,
+        );
+      }
       return started;
     } catch (error) {
       if (error instanceof PostsValidationError) {
@@ -214,7 +227,20 @@ export class GenerationsController {
         user.id,
         body,
       );
-      await this.avatarQueue.enqueue(user.agencyId, started.generationId);
+      try {
+        await this.avatarQueue.enqueue(user.agencyId, started.generationId);
+      } catch (enqueueError) {
+        const detail =
+          enqueueError instanceof Error ? enqueueError.message : 'Redis no respondió';
+        await this.generation.failOpenGeneration(
+          user.agencyId,
+          started.generationId,
+          `No se pudo encolar el avatar: ${detail}`,
+        );
+        throw new BadRequestException(
+          `No se pudo encolar el avatar. Revisa REDIS_URL. ${detail}`,
+        );
+      }
       return started;
     } catch (error) {
       if (error instanceof PostsValidationError) {

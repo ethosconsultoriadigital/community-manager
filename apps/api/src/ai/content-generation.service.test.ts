@@ -436,4 +436,46 @@ describe('ContentGenerationService', () => {
       }),
     );
   });
+
+  it('si el pipeline de Reel falla, guarda el error y el payload del job', async () => {
+    const mocks = createImageMocks();
+    mocks.generations.findById.mockResolvedValue({
+      id: 'gen-video',
+      kind: 'video',
+      status: 'processing',
+      output: { job: { brief: 'x', caption: 'y', socialAccountIds: ['sa1'], clientId: 'c' } },
+    });
+    mocks.reelPipeline.generate.mockRejectedValue(new Error('fal no devolvió URL de video'));
+    const service = buildService(mocks);
+
+    await expect(service.processReelJob('agency-1', 'gen-video')).rejects.toThrow(
+      /fal no devolvió/,
+    );
+    expect(mocks.generations.updateStatus).toHaveBeenCalledWith(
+      'agency-1',
+      'gen-video',
+      'failed',
+      expect.objectContaining({
+        output: expect.objectContaining({
+          error: 'fal no devolvió URL de video',
+          job: expect.any(Object),
+        }),
+      }),
+    );
+  });
+
+  it('un Reel en processing más de 55 min se marca fallido al consultar', async () => {
+    const mocks = createImageMocks();
+    mocks.generations.findById.mockResolvedValue({
+      id: 'gen-video',
+      kind: 'video',
+      status: 'processing',
+      created_at: new Date(Date.now() - 60 * 60 * 1000),
+      output: { job: { brief: 'x' } },
+    });
+    const service = buildService(mocks);
+    const status = await service.getReelJobStatus('agency-1', 'gen-video');
+    expect(status.status).toBe('failed');
+    expect(status.error).toMatch(/interrumpió/);
+  });
 });

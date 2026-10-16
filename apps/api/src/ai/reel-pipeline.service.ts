@@ -97,7 +97,7 @@ export class ReelPipelineService {
         caption: input.caption,
         hashtags: input.hashtags,
         referenceText: input.referenceText,
-        imageSize: '1024x1792',
+        imageSize: '720x1280',
         agencyId: input.agencyId,
       });
       referenceImageUrl = keyframe.url;
@@ -200,7 +200,7 @@ export class ReelPipelineService {
             caption: input.caption,
             hashtags: input.hashtags,
             referenceText: input.referenceText,
-            imageSize: '1024x1792',
+            imageSize: '720x1280',
             agencyId: input.agencyId,
           });
           keyframeUrl = keyframe.url;

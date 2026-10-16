@@ -40,9 +40,9 @@ describe('ScriptService', () => {
     expect(script.musicSuggestion).toBe('acoustic');
   });
 
-  it('clampa sceneCount entre 2 y 4', () => {
+  it('clampa sceneCount entre 1 y 4 (1 escena cabe en 512 MB)', () => {
     const service = new ScriptService({ get: () => undefined } as never, {} as never);
-    expect(service.resolveSceneCount(1)).toBe(2);
+    expect(service.resolveSceneCount(1)).toBe(1);
     expect(service.resolveSceneCount(9)).toBe(4);
   });
 });
