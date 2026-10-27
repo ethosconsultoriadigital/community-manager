@@ -26,6 +26,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
+import { AabSheetWriteBackService } from '../content-sources/aab-sheet-writeback.service';
 import { PublishQueueService } from '../jobs/publish-queue.service';
 import { MAX_VIDEO_BYTES } from '../media/media.constants';
 import { MediaValidationError } from '../media/media-validation';
@@ -76,6 +77,7 @@ export class PostsController {
     private readonly mediaUpload: MediaUploadService,
     private readonly clientAccess: ClientAccessService,
     private readonly approvalsParrilla: ApprovalsParrillaService,
+    private readonly aabWriteBack: AabSheetWriteBackService,
   ) {}
 
   @Post()
@@ -255,6 +257,11 @@ export class PostsController {
 
     const post = await this.posts.markRejected(user.agencyId, id);
     if (!post) throw new NotFoundException('Post no encontrado');
+    try {
+      await this.aabWriteBack.notifyFromPost(user.agencyId, id);
+    } catch {
+      // El rechazo ya quedó. El siguiente sync reintenta el sheet.
+    }
     return post;
   }
 

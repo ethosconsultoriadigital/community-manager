@@ -144,4 +144,68 @@ describe('IngestionService filters', () => {
       expect.objectContaining({ status: 'new', preservePromotion: false }),
     );
   });
+
+  it('AAB entra sin url_radarmex, score ni fecha y no reabre un item ya promovido', async () => {
+    const source = {
+      id: 'source-1',
+      client_id: 'client-1',
+      type: 'news_radar',
+      is_active: true,
+      min_score: 0.7,
+      config: { columnMap: 'aab', spreadsheetId: 'sheet-aab', sheetName: 'Noticias' },
+    };
+    const contentSources = { findById: vi.fn().mockResolvedValue(source) };
+    const upsert = vi.fn().mockResolvedValue({ id: 'i1', status: 'published', external_id: 'n1' });
+    const sourceItems = {
+      findByDedupHash: vi.fn().mockResolvedValue(null),
+      findByExternalId: vi.fn().mockResolvedValue({
+        id: 'i1',
+        external_id: 'n1',
+        post_id: 'post-1',
+        status: 'published',
+      }),
+      upsert,
+      findBySource: vi.fn().mockResolvedValue([]),
+    };
+    const sheet = {
+      fetchRows: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            external_id: 'n1',
+            flagged_publish: true,
+            title: 'Ya promovida',
+            article_url: 'https://blog.example/n1',
+            copy_threads: 'Hilo',
+          },
+          {
+            external_id: 'n2',
+            flagged_publish: false,
+            title: 'Todavía no',
+          },
+        ],
+      }),
+    };
+    const service = new IngestionService(
+      contentSources as never,
+      sourceItems as never,
+      sheet as never,
+    );
+
+    const result = await service.ingest('agency-1', 'source-1');
+
+    expect(result.ingested).toBe(0);
+    expect(result.notFlagged).toBe(1);
+    expect(result.skippedNoRadarmexUrl).toBe(0);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(upsert).toHaveBeenCalledWith(
+      'agency-1',
+      expect.objectContaining({
+        externalId: 'n1',
+        sourceUrl: 'https://blog.example/n1',
+        copyThreads: 'Hilo',
+        status: 'published',
+        preservePromotion: true,
+      }),
+    );
+  });
 });

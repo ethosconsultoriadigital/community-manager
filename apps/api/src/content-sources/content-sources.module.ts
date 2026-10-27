@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MediaModule } from '../media/media.module';
+import { AabSheetWriteBackService } from './aab-sheet-writeback.service';
 import { AutoPromoteService } from './auto-promote.service';
 import { SHEET_INGEST_PROVIDER } from './content-sources.tokens';
 import {
@@ -21,6 +22,7 @@ import { RadarSyncService } from './radar-sync.service';
     IngestionService,
     PromoteItemService,
     AutoPromoteService,
+    AabSheetWriteBackService,
     RadarSyncService,
     PurgeInvalidPendingService,
     GoogleSheetsIngestProvider,
@@ -28,6 +30,6 @@ import { RadarSyncService } from './radar-sync.service';
     HybridSheetIngestProvider,
     { provide: SHEET_INGEST_PROVIDER, useExisting: HybridSheetIngestProvider },
   ],
-  exports: [RadarSyncService, IngestionService, AutoPromoteService],
+  exports: [RadarSyncService, IngestionService, AutoPromoteService, AabSheetWriteBackService],
 })
 export class ContentSourcesModule {}

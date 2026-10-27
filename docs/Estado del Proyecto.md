@@ -3,7 +3,26 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-16 (fal opt-in: Seedance, LTX, Kling, voces)
+**Última actualización:** 2026-10-27 (Radar AAB, mapa `aab`)
+
+---
+
+## 2026-10-27 — Hoja AAB Radar Tech en el radar ✅
+
+**RadarMex no cambia** si la fuente sigue con `columnMap` vacío o `radarmex`: mismos filtros, Threads con `post_x`, primera cuenta activa por red.
+
+**AAB (`config.columnMap = aab`):**
+- Entran filas con `estado = Listo para redes` y `estado_redes` vacío o `Pendiente`. Las cuatro redes usan su columna (`post_threads` es nueva; `post_linkedin` se ignora).
+- Enlace del caption: `url_blog` o, si no hay, `url_original`. La portada `imagen_aab_url` se baja por Drive y se guarda en R2; si falla, el post sigue sin imagen.
+- `config.socialAccountIds` limita las cuentas. Si no está, el comportamiento de siempre. En la página Radar, AAB obliga a marcar cuentas.
+- Al crear posts: `estado_redes = En aprobación`. Al cerrar: `Publicado`, `Error` u `Omitido`. Solo se escriben `estado_redes` y `fecha_redes` (hora de Ciudad de México). Si la escritura falla, se reintenta en el sync; la publicación no se cae.
+- Una fila ya promovida no vuelve a crear posts. El id no depende del número de fila.
+
+**Migración:** `schema_aab_radar.sql` (`copy_threads`, `sheet_status`, `sheet_status_written`, `source_item_posts`). **No se aplica sola en el deploy.** Hay que correr `pnpm migrate` contra Neon antes o en cuanto salga la API: si el cliente Prisma ya pide esas columnas y la tabla no las tiene, RadarMex también falla al leer items.
+
+**Variable nueva:** ninguna. Sigue `GOOGLE_SERVICE_ACCOUNT_JSON`. En el proyecto de Google Cloud tiene que estar habilitada la API de Drive (además de Sheets).
+
+**Criterio:** ✅ tests de mapa, filtro, allowlist, enlace y estado; ⏳ Amed crea la fuente en Radar y sincroniza.
 
 ---
 

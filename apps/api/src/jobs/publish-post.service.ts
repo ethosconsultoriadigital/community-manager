@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApprovalsRepository, PostsRepository, SocialAccountsRepository } from '@cm/db';
 import { buildPublishMessage, decryptToken } from '@cm/shared';
+import { AabSheetWriteBackService } from '../content-sources/aab-sheet-writeback.service';
 import { PlatformPublisherRegistry } from '../platforms/platform-publisher.registry';
 import type { PublishPlatform } from '../platforms/platform-publisher.interface';
 
@@ -21,6 +22,7 @@ export class PublishPostService {
     private readonly approvals: ApprovalsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
     private readonly publishers: PlatformPublisherRegistry,
+    private readonly aabWriteBack: AabSheetWriteBackService,
   ) {}
 
   async publishPost(data: PublishPostJobData): Promise<void> {
@@ -53,6 +55,13 @@ export class PublishPostService {
     }
 
     await this.posts.refreshAggregateStatus(agencyId, postId);
+    try {
+      await this.aabWriteBack.notifyFromPost(agencyId, postId);
+    } catch (err) {
+      this.logger.warn(
+        `Write-back AAB tras publicar ${postId}: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 
   private async publishTarget(

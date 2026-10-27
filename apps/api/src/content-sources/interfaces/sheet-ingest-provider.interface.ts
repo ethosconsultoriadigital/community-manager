@@ -12,6 +12,7 @@ export type SheetRow = {
   image_url?: string;
   copy_facebook?: string;
   copy_instagram?: string;
+  copy_threads?: string;
   copy_x?: string;
   hashtags?: string[];
   flagged_publish?: boolean;
@@ -19,6 +20,8 @@ export type SheetRow = {
   article_url?: string;
   /** fecha_publicacion del Sheet */
   published_at?: string;
+  /** Fila 1-based del sheet en esta lectura. No se persiste. */
+  sheet_row?: number;
 };
 
 export type IngestSheetInput = {

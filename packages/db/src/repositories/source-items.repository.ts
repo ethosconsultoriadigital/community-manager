@@ -24,6 +24,7 @@ export type UpsertSourceItemData = {
   imageUrl?: string | null;
   copyFacebook?: string | null;
   copyInstagram?: string | null;
+  copyThreads?: string | null;
   copyX?: string | null;
   hashtags?: string[];
   flaggedPublish?: boolean;
@@ -79,18 +80,85 @@ export class SourceItemsRepository {
     });
   }
 
-  findPromotable(agencyId: string, sourceId: string) {
+  findPromotable(
+    agencyId: string,
+    sourceId: string,
+    options?: { requireSourceUrl?: boolean },
+  ) {
     const statuses: item_status[] = ['new', 'pending_approval', 'approved'];
+    const requireSourceUrl = options?.requireSourceUrl !== false;
     return this.prisma.source_items.findMany({
       where: scopedWhere(agencyId, {
         source_id: sourceId,
         post_id: null,
         flagged_publish: true,
         status: { in: statuses },
-        NOT: { OR: [{ source_url: null }, { source_url: '' }] },
+        ...(requireSourceUrl
+          ? { NOT: { OR: [{ source_url: null }, { source_url: '' }] } }
+          : {}),
       }),
       orderBy: { created_at: 'desc' },
     });
+  }
+
+  findLinkedForSource(agencyId: string, sourceId: string) {
+    return this.prisma.source_items.findMany({
+      where: scopedWhere(agencyId, {
+        source_id: sourceId,
+        OR: [
+          { post_id: { not: null } },
+          { source_item_posts: { some: { agency_id: agencyId } } },
+        ],
+      }),
+    });
+  }
+
+  async findByLinkedPost(agencyId: string, postId: string) {
+    const link = await this.prisma.source_item_posts.findFirst({
+      where: { agency_id: agencyId, post_id: postId },
+      select: { source_item_id: true },
+    });
+    if (link) return this.findById(agencyId, link.source_item_id);
+    return this.prisma.source_items.findFirst({
+      where: scopedWhere(agencyId, { post_id: postId }),
+      include: { content_sources: true },
+    });
+  }
+
+  async listAabPostViews(agencyId: string, itemId: string) {
+    const links = await this.prisma.source_item_posts.findMany({
+      where: { agency_id: agencyId, source_item_id: itemId },
+      include: {
+        posts: {
+          include: { approvals: { orderBy: { created_at: 'desc' }, take: 1 } },
+        },
+      },
+    });
+    if (links.length > 0) {
+      return links.map((link) => ({
+        status: link.posts.status,
+        approvalStatus: link.posts.approvals[0]?.status ?? null,
+      }));
+    }
+
+    const item = await this.findById(agencyId, itemId);
+    if (!item?.post_id) return [];
+    const post = await this.prisma.posts.findFirst({
+      where: scopedWhere(agencyId, { id: item.post_id }),
+      include: { approvals: { orderBy: { created_at: 'desc' }, take: 1 } },
+    });
+    if (!post) return [];
+    return [{ status: post.status, approvalStatus: post.approvals[0]?.status ?? null }];
+  }
+
+  async recordSheetWrite(agencyId: string, id: string, status: string, written: boolean) {
+    const result = await this.prisma.source_items.updateMany({
+      where: scopedWhere(agencyId, { id }),
+      data: written
+        ? { sheet_status: status, sheet_status_written: status }
+        : { sheet_status: status },
+    });
+    return result.count > 0;
   }
 
   async upsert(agencyId: string, data: UpsertSourceItemData) {
@@ -130,6 +198,7 @@ export class SourceItemsRepository {
         image_url: data.imageUrl,
         copy_facebook: data.copyFacebook,
         copy_instagram: data.copyInstagram,
+        copy_threads: data.copyThreads,
         copy_x: data.copyX,
         hashtags: data.hashtags ?? [],
         flagged_publish: data.flaggedPublish ?? false,
@@ -167,6 +236,35 @@ export class SourceItemsRepository {
       data: { post_id: postId, status: 'published' },
     });
     return result.count > 0;
+  }
+
+  /** Enlaza todos los posts de una fila (AAB). El primero queda en post_id, como antes. */
+  async linkPosts(agencyId: string, id: string, postIds: string[]) {
+    const unique = [...new Set(postIds)].filter(Boolean);
+    if (!unique.length) return false;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.source_items.updateMany({
+        where: scopedWhere(agencyId, { id }),
+        data: { post_id: unique[0], status: 'published' },
+      });
+      if (result.count === 0) return 0;
+      for (const postId of unique) {
+        await tx.source_item_posts.upsert({
+          where: {
+            source_item_id_post_id: { source_item_id: id, post_id: postId },
+          },
+          create: {
+            agency_id: agencyId,
+            source_item_id: id,
+            post_id: postId,
+          },
+          update: {},
+        });
+      }
+      return result.count;
+    });
+    return updated > 0;
   }
 
   /**
@@ -223,6 +321,7 @@ export class SourceItemsRepository {
       image_url: data.imageUrl,
       copy_facebook: data.copyFacebook,
       copy_instagram: data.copyInstagram,
+      copy_threads: data.copyThreads,
       copy_x: data.copyX,
       hashtags: data.hashtags ?? [],
       flagged_publish: data.flaggedPublish ?? false,

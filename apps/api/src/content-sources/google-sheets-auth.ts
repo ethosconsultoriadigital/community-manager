@@ -6,7 +6,15 @@ type ServiceAccountJson = {
   token_uri?: string;
 };
 
-const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+/**
+ * spreadsheets (lectura y escritura) para poder marcar estado_redes en AAB.
+ * La lectura de RadarMex sigue igual: el permiso real lo da el share del Sheet.
+ * drive.readonly baja la portada (imagen_aab_url) a R2.
+ */
+export const GOOGLE_API_SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive.readonly',
+].join(' ');
 
 export function parseServiceAccountJson(raw: string): ServiceAccountJson {
   const parsed = JSON.parse(raw) as ServiceAccountJson;
@@ -20,7 +28,7 @@ export async function getGoogleAccessToken(sa: ServiceAccountJson): Promise<stri
   const key = await importPKCS8(sa.private_key.replace(/\\n/g, '\n'), 'RS256');
   const now = Math.floor(Date.now() / 1000);
   const assertion = await new SignJWT({
-    scope: SHEETS_SCOPE,
+    scope: GOOGLE_API_SCOPES,
   })
     .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
     .setIssuer(sa.client_email)
@@ -91,4 +99,70 @@ export async function resolveSheetTitleByGid(
     throw new Error(`No se encontró pestaña con gid=${gid}`);
   }
   return title;
+}
+
+/** Nombre de pestaña: sheetName, si no gid, si no Sheet1. Igual que la ingesta. */
+export async function resolveSheetTitle(
+  accessToken: string,
+  spreadsheetId: string,
+  config: Record<string, unknown>,
+): Promise<string> {
+  let sheetTitle = typeof config.sheetName === 'string' ? config.sheetName.trim() : '';
+  const gid = config.gid != null ? String(config.gid).trim() : '';
+  if (!sheetTitle && gid) {
+    sheetTitle = await resolveSheetTitleByGid(accessToken, spreadsheetId, gid);
+  }
+  if (!sheetTitle) sheetTitle = 'Sheet1';
+  return sheetTitle;
+}
+
+export async function batchUpdateSheetValues(
+  accessToken: string,
+  spreadsheetId: string,
+  data: Array<{ range: string; values: string[][] }>,
+): Promise<void> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ valueInputOption: 'RAW', data }),
+  });
+  const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+  if (!res.ok) {
+    throw new Error(json.error?.message ?? `Sheets update HTTP ${res.status}`);
+  }
+}
+
+export async function downloadDriveFile(
+  accessToken: string,
+  fileId: string,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=mimeType,name`;
+  const metaRes = await fetch(metaUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const meta = (await metaRes.json()) as { mimeType?: string; error?: { message?: string } };
+  if (!metaRes.ok) {
+    throw new Error(meta.error?.message ?? `Drive metadata HTTP ${metaRes.status}`);
+  }
+  const mimeType = meta.mimeType ?? '';
+  if (!mimeType.startsWith('image/')) {
+    throw new Error(`El archivo de Drive no es imagen (${mimeType || 'sin tipo'})`);
+  }
+
+  const mediaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+  const mediaRes = await fetch(mediaUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!mediaRes.ok) {
+    throw new Error(`Drive media HTTP ${mediaRes.status}`);
+  }
+  const buffer = Buffer.from(await mediaRes.arrayBuffer());
+  if (buffer.length < 100) {
+    throw new Error('Imagen vacía o demasiado pequeña');
+  }
+  return { buffer, mimeType };
 }

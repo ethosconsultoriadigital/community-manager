@@ -19,6 +19,10 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
     getPublisher: vi.fn().mockReturnValue(metaPublish),
   };
   const config = { get: vi.fn().mockReturnValue(ENCRYPTION_KEY) };
+  const aabSheets = {
+    notifyFromPost: vi.fn().mockResolvedValue(undefined),
+    ...(overrides.aabSheets as Record<string, unknown> | undefined),
+  };
 
   const service = new PublishPostService(
     config as never,
@@ -26,9 +30,10 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
     approvals as never,
     socialAccounts as never,
     publishers as never,
+    aabSheets as never,
   );
 
-  return { service, posts, socialAccounts, metaPublish, publishers };
+  return { service, posts, socialAccounts, metaPublish, publishers, aabSheets };
 }
 
 function encryptedToken(plain = 'page-token') {
@@ -332,5 +337,33 @@ describe('PublishPostService', () => {
         videoUrl: 'https://cdn.example.com/a.mp4',
       }),
     );
+  });
+
+  it('si el write-back del sheet falla, la publicación no falla', async () => {
+    const notifyFromPost = vi.fn().mockRejectedValue(new Error('sheet caído'));
+    const { service, posts, socialAccounts, metaPublish, aabSheets } = createService({
+      aabSheets: { notifyFromPost },
+    });
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Hola',
+      hashtags: [],
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa1' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa1',
+      platform: 'facebook',
+      external_account_id: 'page-1',
+      access_token_enc: encryptedToken(),
+      is_active: true,
+    });
+    metaPublish.publish.mockResolvedValue({ platformPostId: 'fb-123' });
+
+    await expect(service.publishPost({ agencyId: 'a1', postId: 'post-1' })).resolves.toBeUndefined();
+    expect(posts.refreshAggregateStatus).toHaveBeenCalledWith('a1', 'post-1');
+    expect(aabSheets.notifyFromPost).toHaveBeenCalledWith('a1', 'post-1');
   });
 });

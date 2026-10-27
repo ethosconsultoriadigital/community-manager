@@ -9,8 +9,23 @@ import type {
   ContentSource,
   GoogleSheetStatus,
   RadarSyncResult,
+  SocialAccount,
   SourceItem,
 } from '@/lib/types';
+
+type ColumnMap = 'radarmex' | 'aab';
+
+const PLATFORM_LABEL: Record<string, string> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  threads: 'Threads',
+  x: 'X',
+  tiktok: 'TikTok',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+};
+
+const PLATFORM_ORDER = ['facebook', 'instagram', 'threads', 'x', 'tiktok', 'linkedin', 'youtube'];
 
 function parseSpreadsheetId(input: string): string {
   const trimmed = input.trim();
@@ -60,6 +75,10 @@ export default function RadarPage() {
   const [onlyToday, setOnlyToday] = useState(true);
   const [dateFrom, setDateFrom] = useState(todayLocalIso());
   const [dateTo, setDateTo] = useState(todayLocalIso());
+  const [columnMap, setColumnMap] = useState<ColumnMap>('radarmex');
+  const [sheetName, setSheetName] = useState('');
+  const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
 
   const clientSources = useMemo(
     () => sources.filter((s) => s.client_id === clientId),
@@ -81,12 +100,24 @@ export default function RadarPage() {
       const t = todayLocalIso();
       setDateFrom(t);
       setDateTo(t);
+      setColumnMap('radarmex');
+      setSheetName('');
+      setAccountIds([]);
       return;
     }
     const cfg = source.config ?? {};
+    const map: ColumnMap = cfg.columnMap === 'aab' ? 'aab' : 'radarmex';
     setName(source.name);
     setSheetInput(typeof cfg.spreadsheetId === 'string' ? String(cfg.spreadsheetId) : '');
-    setGidInput(cfg.gid != null ? String(cfg.gid) : '1413170342');
+    setColumnMap(map);
+    setSheetName(typeof cfg.sheetName === 'string' ? cfg.sheetName : '');
+    const gidValue = cfg.gid != null ? String(cfg.gid) : '';
+    setGidInput(gidValue !== '' ? gidValue : map === 'aab' ? '' : '1413170342');
+    setAccountIds(
+      Array.isArray(cfg.socialAccountIds)
+        ? cfg.socialAccountIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    );
     if (source.min_score != null) setMinScore(String(source.min_score));
     const from = typeof cfg.dateFrom === 'string' ? cfg.dateFrom : '';
     const to = typeof cfg.dateTo === 'string' ? cfg.dateTo : '';
@@ -132,6 +163,16 @@ export default function RadarPage() {
   }, [clientsLoading, load]);
 
   useEffect(() => {
+    if (!clientId) {
+      setAccounts([]);
+      return;
+    }
+    apiFetch<SocialAccount[]>(`/social-accounts?clientId=${clientId}`)
+      .then(setAccounts)
+      .catch(() => setAccounts([]));
+  }, [clientId]);
+
+  useEffect(() => {
     if (isNewSource) {
       fillFormFromSource(null);
       setItems([]);
@@ -154,15 +195,28 @@ export default function RadarPage() {
   function buildConfig() {
     const spreadsheetId = parseSpreadsheetId(sheetInput);
     const gid = parseGid(gidInput);
+    const tab = sheetName.trim();
     if (!spreadsheetId) throw new ApiError('Indica el ID o URL del Google Sheet', 400);
+    if (!gid && !tab) throw new ApiError('Indica el gid o el nombre de la pestaña', 400);
+    if (columnMap === 'aab' && accountIds.length === 0) {
+      throw new ApiError(
+        'Marca las cuentas de AAB. Sin marcas se usaría la primera cuenta de cada red (puede ser RadarMex).',
+        400,
+      );
+    }
     const t = todayLocalIso();
-    return {
+    const config: Record<string, unknown> = {
       spreadsheetId,
-      gid,
-      columnMap: 'radarmex',
-      dateFrom: onlyToday ? t : dateFrom,
-      dateTo: onlyToday ? t : dateTo,
+      columnMap,
     };
+    if (gid) config.gid = gid;
+    if (tab) config.sheetName = tab;
+    if (columnMap !== 'aab') {
+      config.dateFrom = onlyToday ? t : dateFrom;
+      config.dateTo = onlyToday ? t : dateTo;
+    }
+    if (accountIds.length > 0) config.socialAccountIds = accountIds;
+    return config;
   }
 
   async function handleSaveSource(e: FormEvent) {
@@ -318,9 +372,9 @@ export default function RadarPage() {
         title="Conectar fuente"
         description={
           <>
-            Solo entran a Aprobaciones noticias con <strong>url_radarmex</strong> y{' '}
-            <strong>fecha_publicacion</strong> en el rango (por defecto: hoy). Puedes conectar
-            varios Sheets por cliente.
+            RadarMex entra con <strong>url_radarmex</strong> y <strong>fecha_publicacion</strong> en
+            el rango. AAB entra con estado <strong>Listo para redes</strong> y estado_redes vacío o
+            Pendiente. Nada se publica sin aprobación.
           </>
         }
       />
@@ -429,12 +483,45 @@ export default function RadarPage() {
             />
           </label>
           <label className="block text-sm">
+            <span className="mb-1 block text-muted">Mapa de columnas</span>
+            <select
+              value={columnMap}
+              onChange={(e) => {
+                const next: ColumnMap = e.target.value === 'aab' ? 'aab' : 'radarmex';
+                setColumnMap(next);
+                if (next === 'aab') {
+                  if (!sheetName.trim()) setSheetName('Noticias');
+                  if (gidInput.trim() === '1413170342') setGidInput('');
+                  if ((isNewSource || !activeSource) && name === 'Radar Sheet') {
+                    setName('AAB Radar Tech');
+                  }
+                }
+              }}
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm"
+            >
+              <option value="radarmex">RadarMex</option>
+              <option value="aab">AAB Radar Tech</option>
+            </select>
+          </label>
+          <label className="block text-sm">
             <span className="mb-1 block text-muted">URL o ID del Spreadsheet</span>
             <input
               value={sheetInput}
               onChange={(e) => setSheetInput(e.target.value)}
+              placeholder={
+                columnMap === 'aab' ? '1pIKJvBSssXSxtZbR0O3-0UZKJ01bdLa-6rGKWujaQYA' : undefined
+              }
               className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm"
               required
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Nombre de la pestaña</span>
+            <input
+              value={sheetName}
+              onChange={(e) => setSheetName(e.target.value)}
+              placeholder={columnMap === 'aab' ? 'Noticias' : 'Opcional si indicas el gid'}
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm"
             />
           </label>
           <label className="block text-sm">
@@ -442,10 +529,11 @@ export default function RadarPage() {
             <input
               value={gidInput}
               onChange={(e) => setGidInput(e.target.value)}
+              placeholder="Opcional si indicas el nombre"
               className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-sm"
-              required
             />
           </label>
+          {columnMap !== 'aab' && (
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Score mínimo</span>
             <input
@@ -458,7 +546,60 @@ export default function RadarPage() {
               className="w-full max-w-[8rem] rounded-md border border-line-strong bg-white px-3 py-2 text-sm"
             />
           </label>
+          )}
 
+          <fieldset className="space-y-2 rounded-md border border-line p-3">
+            <legend className="px-1 text-xs font-medium text-muted">
+              Cuentas que puede usar esta fuente
+            </legend>
+            <p className="text-xs text-muted">
+              Sin marcas se usa la primera cuenta activa de cada red. En AAB hay que marcar solo
+              las cuentas de AAB: una red sin cuenta marcada no genera post.
+            </p>
+            {columnMap === 'aab' && accountIds.length === 0 && (
+              <p className="text-xs text-amber-700">
+                Marca las cuentas de AAB antes de guardar. Si no, Facebook e Instagram de este
+                cliente podrían salir en las cuentas de RadarMex.
+              </p>
+            )}
+            {accounts.length === 0 ? (
+              <p className="text-xs text-muted">Este cliente no tiene cuentas conectadas.</p>
+            ) : (
+              <ul className="space-y-1">
+                {[...accounts]
+                  .sort((a, b) => {
+                    const ia = PLATFORM_ORDER.indexOf(a.platform);
+                    const ib = PLATFORM_ORDER.indexOf(b.platform);
+                    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                  })
+                  .map((account) => (
+                    <li key={account.id}>
+                      <label className="flex items-center gap-2 text-sm text-ink">
+                        <input
+                          type="checkbox"
+                          checked={accountIds.includes(account.id)}
+                          onChange={(e) => {
+                            setAccountIds((prev) =>
+                              e.target.checked
+                                ? [...prev, account.id]
+                                : prev.filter((id) => id !== account.id),
+                            );
+                          }}
+                        />
+                        <span>
+                          {PLATFORM_LABEL[account.platform] ?? account.platform}
+                          {' · '}
+                          {account.username || account.external_account_id}
+                          {account.is_active === false ? ' (inactiva)' : ''}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </fieldset>
+
+          {columnMap !== 'aab' && (
           <fieldset className="space-y-2 rounded-md border border-line p-3">
             <legend className="px-1 text-xs font-medium text-muted">
               Fecha de publicación (columna fecha_publicacion)
@@ -503,6 +644,7 @@ export default function RadarPage() {
               </div>
             )}
           </fieldset>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <button

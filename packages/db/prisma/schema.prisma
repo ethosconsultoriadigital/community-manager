@@ -24,6 +24,7 @@ model agencies {
   posts                   posts[]
   social_accounts         social_accounts[]
   source_items            source_items[]
+  source_item_posts       source_item_posts[]
   user_client_assignments user_client_assignments[]
   users                   users[]
 }
@@ -165,6 +166,7 @@ model posts {
   content_sources   content_sources? @relation(fields: [content_source_id], references: [id], onUpdate: NoAction)
   users             users?           @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   source_items      source_items[]
+  source_item_posts source_item_posts[]
 
   @@index([client_id], map: "idx_posts_client")
   @@index([status, scheduled_at], map: "idx_posts_due")
@@ -221,22 +223,40 @@ model source_items {
   copy_facebook    String?
   copy_instagram   String?
   copy_x           String?
+  copy_threads     String?
   hashtags         String[]
   flagged_publish  Boolean         @default(false)
   dedup_hash       String?
   status           item_status     @default(new)
   post_id          String?         @db.Uuid
+  sheet_status     String?
+  sheet_status_written String?
   created_at       DateTime        @default(now()) @db.Timestamptz(6)
   agencies         agencies        @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   clients          clients         @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   posts            posts?          @relation(fields: [post_id], references: [id], onUpdate: NoAction)
   content_sources  content_sources @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  source_item_posts source_item_posts[]
 
   @@unique([source_id, external_id])
   @@index([dedup_hash], map: "idx_items_dedup")
   @@index([sentiment_score], map: "idx_items_score")
   @@index([source_id], map: "idx_items_source")
   @@index([status], map: "idx_items_status")
+}
+
+model source_item_posts {
+  source_item_id String       @db.Uuid
+  post_id        String       @db.Uuid
+  agency_id      String       @db.Uuid
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  agencies       agencies     @relation(fields: [agency_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  posts          posts        @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  source_items   source_items @relation(fields: [source_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([source_item_id, post_id])
+  @@index([post_id], map: "idx_source_item_posts_post")
+  @@index([agency_id], map: "idx_source_item_posts_agency")
 }
 
 model users {

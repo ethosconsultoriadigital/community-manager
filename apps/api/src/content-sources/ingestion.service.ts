@@ -8,6 +8,7 @@ import {
   computeDedupHash,
 } from './mocks/mock-sheet-ingest.provider';
 import type { SheetIngestProvider, SheetRow } from './interfaces/sheet-ingest-provider.interface';
+import { resolveSheetProfile, type SheetProfile } from './map-sheet-rows';
 import {
   calendarDateInTz,
   isDateInRange,
@@ -55,7 +56,11 @@ export function rowPassesFilters(
   minScore: number | null,
   dateFrom: string,
   dateTo: string,
+  profile: SheetProfile = 'radarmex',
 ): RowFilterReason {
+  if (profile === 'aab') {
+    return row.flagged_publish ? 'ok' : 'not_flagged';
+  }
   if (!row.flagged_publish) return 'not_flagged';
 
   if (!row.article_url?.trim()) return 'no_radarmex_url';
@@ -101,6 +106,7 @@ export class IngestionService {
     const { rows } = await this.sheet.fetchRows({ config });
     const minScore = source.min_score != null ? Number(source.min_score) : 0.7;
     const { dateFrom, dateTo } = resolveDateRange(config);
+    const profile = resolveSheetProfile(config.columnMap);
 
     let ingested = 0;
     let duplicates = 0;
@@ -110,7 +116,7 @@ export class IngestionService {
     let skippedOutOfDateRange = 0;
 
     for (const row of rows) {
-      const filter = rowPassesFilters(row, minScore, dateFrom, dateTo);
+      const filter = rowPassesFilters(row, minScore, dateFrom, dateTo, profile);
       if (filter === 'not_flagged') {
         notFlagged += 1;
         continue;
@@ -174,6 +180,7 @@ export class IngestionService {
         imageUrl: row.image_url,
         copyFacebook: row.copy_facebook,
         copyInstagram: row.copy_instagram,
+        copyThreads: row.copy_threads,
         copyX: row.copy_x,
         hashtags: row.hashtags ?? [],
         flaggedPublish: row.flagged_publish ?? false,

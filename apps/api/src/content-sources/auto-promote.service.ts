@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApprovalsRepository,
+  ContentSourcesRepository,
   MediaAssetsRepository,
   PostsRepository,
   SocialAccountsRepository,
@@ -8,6 +10,13 @@ import {
 } from '@cm/db';
 import { buildRadarCaption } from '@cm/shared';
 import { MediaStorageService } from '../media/media-storage.service';
+import { isGoogleDriveFileUrl, parseDriveFileId } from './aab-columns';
+import {
+  downloadDriveFile,
+  getGoogleAccessToken,
+  parseServiceAccountJson,
+} from './google-sheets-auth';
+import { resolveSheetProfile, type SheetProfile } from './map-sheet-rows';
 
 export type AutoPromoteResult = {
   itemsConsidered: number;
@@ -25,6 +34,25 @@ function buildCaption(parts: {
   url?: string | null;
 }): string {
   return buildRadarCaption(parts);
+}
+
+function readConfig(config: unknown): Record<string, unknown> {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return {};
+  return config as Record<string, unknown>;
+}
+
+/** null = sin lista (primera cuenta activa de cada red, como RadarMex). */
+export function readSocialAccountAllowlist(config: Record<string, unknown>): string[] | null {
+  if (!Object.prototype.hasOwnProperty.call(config, 'socialAccountIds')) return null;
+  if (!Array.isArray(config.socialAccountIds)) return null;
+  return [
+    ...new Set(
+      config.socialAccountIds
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function guessExtension(contentType: string, url: string): string {
@@ -47,6 +75,8 @@ export class AutoPromoteService {
     private readonly approvals: ApprovalsRepository,
     private readonly socialAccounts: SocialAccountsRepository,
     private readonly mediaStorage: MediaStorageService,
+    private readonly contentSources: ContentSourcesRepository,
+    private readonly config: ConfigService,
   ) {}
 
   async promoteSource(
@@ -54,7 +84,13 @@ export class AutoPromoteService {
     userId: string | null,
     sourceId: string,
   ): Promise<AutoPromoteResult> {
-    const items = await this.sourceItems.findPromotable(agencyId, sourceId);
+    const source = await this.contentSources.findById(agencyId, sourceId);
+    const config = readConfig(source?.config);
+    const columnMap = resolveSheetProfile(config.columnMap);
+    const allowlist = readSocialAccountAllowlist(config);
+    const items = await this.sourceItems.findPromotable(agencyId, sourceId, {
+      requireSourceUrl: columnMap !== 'aab',
+    });
     const result: AutoPromoteResult = {
       itemsConsidered: items.length,
       postsCreated: 0,
@@ -66,7 +102,13 @@ export class AutoPromoteService {
 
     for (const item of items) {
       try {
-        const created = await this.promoteItemPlatforms(agencyId, userId, item);
+        const created = await this.promoteItemPlatforms(
+          agencyId,
+          userId,
+          item,
+          columnMap,
+          allowlist,
+        );
         result.postsCreated += created.postIds.length;
         result.postIds.push(...created.postIds);
         result.skippedNoAccount += created.skippedNoAccount;
@@ -85,6 +127,8 @@ export class AutoPromoteService {
     agencyId: string,
     userId: string | null,
     item: Awaited<ReturnType<SourceItemsRepository['findPromotable']>>[number],
+    columnMap: SheetProfile,
+    allowlist: string[] | null,
   ) {
     const accounts = await this.socialAccounts.findByAgency(agencyId, item.client_id);
     const active = accounts.filter((a) => a.is_active);
@@ -96,10 +140,13 @@ export class AutoPromoteService {
     }> = [
       { platform: 'facebook', copy: item.copy_facebook },
       { platform: 'instagram', copy: item.copy_instagram },
-      // Threads: mismo formato corto que X (columna post_x del Sheet)
+      // RadarMex: Threads reutiliza post_x. AAB tiene columna post_threads.
       {
         platform: 'threads',
-        copy: item.copy_x?.trim() || item.copy_facebook?.trim() || item.copy_instagram,
+        copy:
+          columnMap === 'aab'
+            ? item.copy_threads
+            : item.copy_x?.trim() || item.copy_facebook?.trim() || item.copy_instagram,
       },
       // X: solo columna post_x (texto corto)
       { platform: 'x', copy: item.copy_x },
@@ -111,14 +158,7 @@ export class AutoPromoteService {
     let storageUrl: string | null = null;
 
     if (item.image_url) {
-      try {
-        storageUrl = await this.downloadToStorage(agencyId, item.image_url);
-      } catch (err) {
-        this.logger.warn(
-          `No se pudo copiar imagen de ${item.external_id}: ${err instanceof Error ? err.message : err}`,
-        );
-        storageUrl = item.image_url;
-      }
+      storageUrl = await this.resolveStorageUrl(agencyId, item.image_url, item.external_id);
     }
 
     for (const { platform, copy } of platforms) {
@@ -127,7 +167,9 @@ export class AutoPromoteService {
         skippedNoCopy += 1;
         continue;
       }
-      const account = active.find((a) => a.platform === platform);
+      const account = active.find(
+        (a) => a.platform === platform && (allowlist === null || allowlist.includes(a.id)),
+      );
       if (!account) {
         skippedNoAccount += 1;
         continue;
@@ -136,7 +178,7 @@ export class AutoPromoteService {
       const caption = buildCaption({
         copy: text,
         hashtags: item.hashtags ?? [],
-        // item.source_url solo guarda url_radarmex tras la ingesta
+        // RadarMex: url_radarmex. AAB: url_blog o, si no hay, url_original.
         url: item.source_url?.trim() || null,
       });
 
@@ -167,10 +209,57 @@ export class AutoPromoteService {
     }
 
     if (postIds.length > 0) {
-      await this.sourceItems.linkPost(agencyId, item.id, postIds[0]);
+      if (columnMap === 'aab') {
+        await this.sourceItems.linkPosts(agencyId, item.id, postIds);
+      } else {
+        await this.sourceItems.linkPost(agencyId, item.id, postIds[0]);
+      }
     }
 
     return { postIds, skippedNoAccount, skippedNoCopy };
+  }
+
+  private async resolveStorageUrl(
+    agencyId: string,
+    imageUrl: string,
+    externalId: string,
+  ): Promise<string | null> {
+    if (isGoogleDriveFileUrl(imageUrl)) {
+      try {
+        return await this.downloadDriveToStorage(agencyId, imageUrl);
+      } catch (err) {
+        this.logger.warn(
+          `No se pudo copiar imagen de Drive de ${externalId}: ${err instanceof Error ? err.message : err}`,
+        );
+        return null;
+      }
+    }
+
+    try {
+      return await this.downloadToStorage(agencyId, imageUrl);
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo copiar imagen de ${externalId}: ${err instanceof Error ? err.message : err}`,
+      );
+      return imageUrl;
+    }
+  }
+
+  private async downloadDriveToStorage(agencyId: string, imageUrl: string): Promise<string> {
+    const fileId = parseDriveFileId(imageUrl);
+    if (!fileId) throw new Error('URL de Drive sin id de archivo');
+    const saRaw = this.config.get<string>('GOOGLE_SERVICE_ACCOUNT_JSON')?.trim();
+    if (!saRaw) throw new Error('Falta GOOGLE_SERVICE_ACCOUNT_JSON para leer Drive');
+    const token = await getGoogleAccessToken(parseServiceAccountJson(saRaw));
+    const { buffer, mimeType } = await downloadDriveFile(token, fileId);
+    const extension = guessExtension(mimeType, imageUrl);
+    const stored = await this.mediaStorage.save({
+      agencyId,
+      buffer,
+      extension,
+      contentType: mimeType.split(';')[0],
+    });
+    return stored.storageUrl;
   }
 
   private async downloadToStorage(agencyId: string, imageUrl: string): Promise<string> {

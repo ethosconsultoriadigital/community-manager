@@ -240,6 +240,21 @@ Sync automático: cada 15 min (`RADAR_SYNC_CRON`) si `RADAR_SYNC_ENABLED=true`.
 
 Ejemplo Radarmex: spreadsheet `1r0R3caLAVIpYJaFIQef1YiERNLzSXH8PJmIfL6Q9hAo`, gid `1413170342`.
 
+### AAB Radar Tech (mismo pipeline, mapa `aab`)
+
+1. Migración `schema_aab_radar.sql` (`pnpm migrate`). El deploy de Render **no** la aplica. Sin ella, la API nueva no puede leer `source_items` y RadarMex también se rompe.
+2. En Google Cloud, habilita la **Drive API** en el mismo proyecto de la service account (Sheets ya estaba). No hay variable nueva.
+3. La cuenta `cm-radar-sheets@community-manager-506918.iam.gserviceaccount.com` debe ser **Editor** de la hoja AAB y **Viewer** de la carpeta de portadas. RadarMex puede seguir en solo lectura.
+4. En la web → **Radar**, cliente **Ethos Consultoría Digital** → **+ Otro Sheet**:
+   - Nombre: `AAB Radar Tech`
+   - Mapa: **AAB Radar Tech**
+   - Spreadsheet: `1pIKJvBSssXSxtZbR0O3-0UZKJ01bdLa-6rGKWujaQYA`
+   - Pestaña: `Noticias` (el gid puede ir vacío)
+   - Marca solo las cuentas de AAB (Facebook / Instagram). Threads y X, si no hay cuenta, se omiten.
+5. Guardar → **Sincronizar esta fuente**. Los posts quedan en Aprobaciones. La hoja pasa a `estado_redes = En aprobación`.
+6. Al aprobar y publicar (o rechazar) todos los posts de la fila, el siguiente cierre escribe `Publicado`, `Error` u `Omitido` y `fecha_redes`.
+7. Para volver atrás: borra esa fuente o pon el mapa en RadarMex. No toques la fuente de RadarMex.
+
 ---
 
 ## 10. Probar OAuth Meta (Fase 3)
