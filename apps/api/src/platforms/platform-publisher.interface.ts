@@ -21,6 +21,11 @@ export type PublishTargetInput = {
   videoUrl?: string;
   videoFormat?: VideoFormat;
   alsoPublishAsStory?: boolean;
+  /**
+   * Imagen vertical ya lista para la story (AAB). Si viene, no se recorta
+   * ni se le superpone el caption del feed.
+   */
+  storyImageUrl?: string;
   /** Facebook Page / Place ID (también location_id en Instagram). */
   placeId?: string;
 };

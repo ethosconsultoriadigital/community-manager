@@ -61,6 +61,7 @@ describe('AutoPromoteService', () => {
     expect(posts.create.mock.calls[1][2].socialAccountIds).toEqual(['sa-ig']);
     expect(approvals.createPending).toHaveBeenCalledTimes(2);
     expect(sourceItems.linkPost).toHaveBeenCalledWith('agency-1', 'item-1', 'post-fb');
+    expect(posts.create.mock.calls[0][2].alsoPublishAsStory).toBeUndefined();
   });
 
   it('Threads usa copy_x (formato corto) y no el de Facebook', async () => {
@@ -322,5 +323,127 @@ describe('AutoPromoteService', () => {
     expect(posts.create.mock.calls[0][2].caption).toContain('Hilo propio');
     expect(posts.create.mock.calls[0][2].caption).not.toContain('Post de X');
     expect(posts.create.mock.calls[0][2].caption).not.toContain('Texto FB');
+  });
+
+  it('AAB con portada de historia adjunta esa imagen a FB e IG y no al resto', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'image/jpeg' },
+        arrayBuffer: async () => Uint8Array.from({ length: 160 }, () => 3).buffer,
+      }),
+    );
+    const item = {
+      id: 'item-1',
+      client_id: 'client-1',
+      source_id: 'source-1',
+      external_id: 'aab-1',
+      copy_facebook: 'Hola FB',
+      copy_instagram: 'Hola IG',
+      copy_threads: 'Hilo',
+      copy_x: 'Post X',
+      hashtags: [],
+      source_url: 'https://blog.example/n',
+      image_url: 'https://cdn.example.com/banner.jpg',
+      post_id: null,
+    };
+    const sourceItems = {
+      findPromotable: vi.fn().mockResolvedValue([item]),
+      linkPosts: vi.fn().mockResolvedValue(true),
+      readStoryImageUrl: vi.fn().mockResolvedValue('https://cdn.example.com/vertical.jpg'),
+    };
+    const posts = {
+      create: vi
+        .fn()
+        .mockResolvedValueOnce({ id: 'post-fb' })
+        .mockResolvedValueOnce({ id: 'post-ig' })
+        .mockResolvedValueOnce({ id: 'post-th' })
+        .mockResolvedValueOnce({ id: 'post-x' }),
+    };
+    const mediaAssets = { create: vi.fn().mockResolvedValue({}) };
+    const mediaStorage = { save: vi.fn().mockResolvedValue({ storageUrl: 'https://r2.example/story.jpg' }) };
+    const service = new AutoPromoteService(
+      sourceItems as never,
+      posts as never,
+      mediaAssets as never,
+      { createPending: vi.fn() } as never,
+      {
+        findByAgency: vi.fn().mockResolvedValue([
+          { id: 'sa-fb', platform: 'facebook', is_active: true },
+          { id: 'sa-ig', platform: 'instagram', is_active: true },
+          { id: 'sa-th', platform: 'threads', is_active: true },
+          { id: 'sa-x', platform: 'x', is_active: true },
+        ]),
+      } as never,
+      mediaStorage as never,
+      {
+        findById: vi.fn().mockResolvedValue({
+          config: { columnMap: 'aab', socialAccountIds: ['sa-fb', 'sa-ig', 'sa-th', 'sa-x'] },
+        }),
+      } as never,
+      { get: vi.fn() } as never,
+    );
+
+    try {
+      await service.promoteSource('agency-1', 'user-1', 'source-1');
+
+      expect(posts.create.mock.calls.map((call) => call[2].alsoPublishAsStory)).toEqual([
+        true,
+        true,
+        undefined,
+        undefined,
+      ]);
+      const storyAssets = mediaAssets.create.mock.calls.filter((call) => call[1].position === 100);
+      expect(storyAssets).toHaveLength(2);
+      expect(storyAssets[0][1]).toMatchObject({
+        postId: 'post-fb',
+        storageUrl: 'https://r2.example/story.jpg',
+        width: 1080,
+        height: 1920,
+      });
+      expect(storyAssets[1][1].postId).toBe('post-ig');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('AAB sin portada de historia no marca story', async () => {
+    const item = {
+      id: 'item-1',
+      client_id: 'client-1',
+      source_id: 'source-1',
+      external_id: 'aab-1',
+      copy_facebook: 'Hola FB',
+      hashtags: [],
+      source_url: 'https://blog.example/n',
+      image_url: null,
+      post_id: null,
+    };
+    const posts = { create: vi.fn().mockResolvedValue({ id: 'post-fb' }) };
+    const mediaAssets = { create: vi.fn() };
+    const service = new AutoPromoteService(
+      {
+        findPromotable: vi.fn().mockResolvedValue([item]),
+        linkPosts: vi.fn(),
+        readStoryImageUrl: vi.fn().mockResolvedValue(null),
+      } as never,
+      posts as never,
+      mediaAssets as never,
+      { createPending: vi.fn() } as never,
+      {
+        findByAgency: vi.fn().mockResolvedValue([
+          { id: 'sa-fb', platform: 'facebook', is_active: true },
+        ]),
+      } as never,
+      { save: vi.fn() } as never,
+      { findById: vi.fn().mockResolvedValue({ config: { columnMap: 'aab' } }) } as never,
+      { get: vi.fn() } as never,
+    );
+
+    await service.promoteSource('agency-1', null, 'source-1');
+
+    expect(posts.create.mock.calls[0][2].alsoPublishAsStory).toBeUndefined();
+    expect(mediaAssets.create).not.toHaveBeenCalled();
   });
 });

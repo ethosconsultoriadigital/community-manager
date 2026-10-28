@@ -238,7 +238,44 @@ export class SourceItemsRepository {
     return result.count > 0;
   }
 
-  /** Enlaza todos los posts de una fila (AAB). El primero queda en post_id, como antes. */
+  /**
+   * Lee url_portada_historia. Si la migración aún no está aplicada, devuelve null
+   * sin tumbar el resto de las consultas (Prisma no selecciona esta columna).
+   */
+  async readStoryImageUrl(agencyId: string, id: string): Promise<string | null> {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ story_image_url: string | null }>>`
+        SELECT story_image_url
+        FROM source_items
+        WHERE agency_id::text = ${agencyId} AND id::text = ${id}
+        LIMIT 1
+      `;
+      const value = rows[0]?.story_image_url?.trim();
+      return value || null;
+    } catch (error) {
+      if (isMissingStoryImageColumn(error)) return null;
+      throw error;
+    }
+  }
+
+  async saveStoryImageUrl(
+    agencyId: string,
+    id: string,
+    url: string | null,
+  ): Promise<'ok' | 'unavailable'> {
+    try {
+      await this.prisma.$executeRaw`
+        UPDATE source_items
+        SET story_image_url = ${url}
+        WHERE agency_id::text = ${agencyId} AND id::text = ${id}
+      `;
+      return 'ok';
+    } catch (error) {
+      if (isMissingStoryImageColumn(error)) return 'unavailable';
+      throw error;
+    }
+  }
+
   async linkPosts(agencyId: string, id: string, postIds: string[]) {
     const unique = [...new Set(postIds)].filter(Boolean);
     if (!unique.length) return false;
@@ -332,4 +369,12 @@ export class SourceItemsRepository {
       content_sources: { connect: { id: data.sourceId } },
     };
   }
+}
+
+function isMissingStoryImageColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const known = error as { code?: string; message?: string; meta?: { code?: string; message?: string } };
+  if (known.meta?.code === '42703' || known.code === '42703') return true;
+  const message = `${known.message ?? ''} ${known.meta?.message ?? ''}`;
+  return message.includes('42703') || (message.includes('story_image_url') && message.includes('does not exist'));
 }

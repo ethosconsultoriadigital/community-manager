@@ -17,6 +17,7 @@ export const AAB_COLUMN_MAP: Record<string, string> = {
   postx: 'copy_x',
   hashtags: 'hashtags',
   imagenaaburl: 'image_url',
+  urlportadahistoria: 'story_image_url',
   urlblog: 'article_url',
   urloriginal: 'source_url',
   estado: 'estado',

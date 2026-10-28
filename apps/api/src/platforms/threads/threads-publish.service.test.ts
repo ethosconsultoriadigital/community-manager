@@ -62,4 +62,28 @@ describe('ThreadsPublishService', () => {
     });
     expect(result.storyStatus).toBe('skipped');
   });
+
+  it('recorta un texto largo a 500 puntos de código y publica igual', async () => {
+    const threads = {
+      createTextContainer: vi.fn().mockResolvedValue({ id: 'c1' }),
+      createImageContainer: vi.fn(),
+      createVideoContainer: vi.fn(),
+      waitForContainer: vi.fn(),
+      publishContainer: vi.fn().mockResolvedValue({ id: 'p1' }),
+    };
+    const service = new ThreadsPublishService(threads as never);
+    const link = 'https://blog.example/nota';
+    const message = `Primera frase. ${'Z'.repeat(600)}\n\n${link}`;
+    const result = await service.publish({
+      platform: 'threads',
+      externalAccountId: 'u1',
+      accessToken: 'tok',
+      message,
+    });
+    const sent = threads.createTextContainer.mock.calls[0][2] as string;
+    expect([...sent].length).toBeLessThanOrEqual(500);
+    expect(sent).toContain(link);
+    expect(sent).toContain('…');
+    expect(result.platformPostId).toBe('p1');
+  });
 });

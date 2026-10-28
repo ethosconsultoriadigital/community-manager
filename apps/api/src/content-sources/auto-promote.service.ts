@@ -17,6 +17,8 @@ import {
   parseServiceAccountJson,
 } from './google-sheets-auth';
 import { resolveSheetProfile, type SheetProfile } from './map-sheet-rows';
+import { SUPPLIED_STORY_POSITION } from '../platforms/meta/story-asset';
+import { trimThreadsText } from '../platforms/threads/trim-threads-text';
 
 export type AutoPromoteResult = {
   itemsConsidered: number;
@@ -156,9 +158,22 @@ export class AutoPromoteService {
     let skippedNoCopy = 0;
     const postIds: string[] = [];
     let storageUrl: string | null = null;
+    let storyStorageUrl: string | null = null;
 
     if (item.image_url) {
       storageUrl = await this.resolveStorageUrl(agencyId, item.image_url, item.external_id);
+    }
+
+    if (columnMap === 'aab') {
+      const rawStory = await this.sourceItems.readStoryImageUrl?.(agencyId, item.id);
+      if (rawStory) {
+        storyStorageUrl = await this.downloadImageOrNull(agencyId, rawStory, item.external_id);
+        if (!storyStorageUrl) {
+          this.logger.warn(
+            `Portada de historia no disponible para ${item.external_id}; Facebook e Instagram salen sin story`,
+          );
+        }
+      }
     }
 
     for (const { platform, copy } of platforms) {
@@ -175,12 +190,17 @@ export class AutoPromoteService {
         continue;
       }
 
-      const caption = buildCaption({
+      const rawCaption = buildCaption({
         copy: text,
         hashtags: item.hashtags ?? [],
         // RadarMex: url_radarmex. AAB: url_blog o, si no hay, url_original.
         url: item.source_url?.trim() || null,
       });
+      const caption = platform === 'threads' ? trimThreadsText(rawCaption) : rawCaption;
+      const withStory =
+        columnMap === 'aab' &&
+        (platform === 'facebook' || platform === 'instagram') &&
+        Boolean(storyStorageUrl);
 
       const post = await this.posts.create(
         agencyId,
@@ -191,6 +211,7 @@ export class AutoPromoteService {
           hashtags: item.hashtags ?? [],
           socialAccountIds: [account.id],
           contentSourceId: item.source_id,
+          ...(withStory ? { alsoPublishAsStory: true } : {}),
         },
         'pending_approval',
       );
@@ -201,6 +222,18 @@ export class AutoPromoteService {
           type: 'image',
           source: 'upload',
           storageUrl,
+        });
+      }
+
+      if (withStory && storyStorageUrl) {
+        await this.mediaAssets.create(agencyId, {
+          postId: post.id,
+          type: 'image',
+          source: 'upload',
+          storageUrl: storyStorageUrl,
+          width: 1080,
+          height: 1920,
+          position: SUPPLIED_STORY_POSITION,
         });
       }
 
@@ -217,6 +250,24 @@ export class AutoPromoteService {
     }
 
     return { postIds, skippedNoAccount, skippedNoCopy };
+  }
+
+  private async downloadImageOrNull(
+    agencyId: string,
+    imageUrl: string,
+    externalId: string,
+  ): Promise<string | null> {
+    try {
+      if (isGoogleDriveFileUrl(imageUrl)) {
+        return await this.downloadDriveToStorage(agencyId, imageUrl);
+      }
+      return await this.downloadToStorage(agencyId, imageUrl);
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo copiar imagen de ${externalId}: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
   }
 
   private async resolveStorageUrl(

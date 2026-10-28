@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   ContentSourcesRepository,
   SourceItemsRepository,
@@ -80,6 +80,9 @@ export function rowPassesFilters(
 
 @Injectable()
 export class IngestionService {
+  private readonly logger = new Logger(IngestionService.name);
+  private warnedMissingStoryColumn = false;
+
   constructor(
     private readonly contentSources: ContentSourcesRepository,
     private readonly sourceItems: SourceItemsRepository,
@@ -189,6 +192,10 @@ export class IngestionService {
         preservePromotion: alreadyPromoted,
       });
 
+      if (profile === 'aab') {
+        await this.persistStoryImage(agencyId, item.id, row.story_image_url);
+      }
+
       if (item.status === 'duplicate') {
         duplicates += 1;
       } else if (!existingByExternal) {
@@ -211,5 +218,21 @@ export class IngestionService {
       dateTo,
       items,
     };
+  }
+
+  private async persistStoryImage(
+    agencyId: string,
+    itemId: string,
+    storyImageUrl: string | undefined,
+  ): Promise<void> {
+    const save = this.sourceItems.saveStoryImageUrl?.bind(this.sourceItems);
+    if (!save) return;
+    const result = await save(agencyId, itemId, storyImageUrl?.trim() || null);
+    if (result === 'unavailable' && !this.warnedMissingStoryColumn) {
+      this.warnedMissingStoryColumn = true;
+      this.logger.warn(
+        'Falta source_items.story_image_url (schema_aab_story_image.sql). La story de AAB se omite hasta aplicar la migración.',
+      );
+    }
   }
 }

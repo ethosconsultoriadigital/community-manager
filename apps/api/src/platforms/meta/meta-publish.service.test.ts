@@ -255,4 +255,41 @@ describe('MetaPublishService', () => {
     expect(result.storyStatus).toBe('skipped');
     expect(result.platformPostId).toBe('fb-text-1');
   });
+
+  it('usa la imagen vertical de story tal cual, sin recortar el banner', async () => {
+    const meta = {
+      createInstagramMedia: vi.fn().mockResolvedValue({ id: 'container-feed' }),
+      createInstagramStoryImageMedia: vi.fn().mockResolvedValue({ id: 'container-story' }),
+      waitForInstagramContainer: vi.fn().mockResolvedValue(undefined),
+      publishInstagramMedia: vi
+        .fn()
+        .mockResolvedValueOnce({ id: 'ig-feed-1' })
+        .mockResolvedValueOnce({ id: 'ig-story-1' }),
+    };
+    const storyComposer = createStoryComposer();
+    const service = createService(meta, storyComposer);
+    const banner = 'https://cdn.example.com/banner.jpg';
+    const vertical = 'https://cdn.example.com/story-1080x1920.jpg';
+
+    await service.publish({
+      platform: 'instagram',
+      externalAccountId: 'ig-1',
+      accessToken: 'token',
+      agencyId: 'agency-1',
+      message: 'Texto del feed que no debe pintarse sobre la story',
+      imageUrl: banner,
+      storyImageUrl: vertical,
+      alsoPublishAsStory: true,
+    });
+
+    expect(storyComposer.composeStoryImage).not.toHaveBeenCalled();
+    expect(meta.createInstagramMedia).toHaveBeenCalledWith(
+      'ig-1',
+      'token',
+      banner,
+      'Texto del feed que no debe pintarse sobre la story',
+      undefined,
+    );
+    expect(meta.createInstagramStoryImageMedia).toHaveBeenCalledWith('ig-1', 'token', vertical);
+  });
 });

@@ -124,6 +124,7 @@ function buildAabRow(raw: Record<string, string>, sheetRow: number): SheetRow | 
     summary: raw.summary || undefined,
     category: raw.category || undefined,
     image_url: decodeHtmlEntities(raw.image_url) || undefined,
+    story_image_url: decodeHtmlEntities(raw.story_image_url) || undefined,
     copy_facebook: raw.copy_facebook || undefined,
     copy_instagram: raw.copy_instagram || undefined,
     copy_threads: raw.copy_threads || undefined,

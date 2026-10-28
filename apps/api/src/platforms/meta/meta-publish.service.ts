@@ -270,6 +270,9 @@ export class MetaPublishService implements PlatformPublisher {
   }
 
   private async resolveStoryImageUrl(input: PublishTargetInput): Promise<string | undefined> {
+    const supplied = input.storyImageUrl?.trim();
+    if (supplied) return supplied;
+
     if (!input.imageUrl || !input.message.trim() || !input.agencyId) {
       return input.imageUrl;
     }

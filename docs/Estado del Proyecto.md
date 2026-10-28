@@ -3,7 +3,21 @@
 > Bitácora de ejecución: qué se implementó, cuándo y en qué estado quedó cada fase.
 > La spec de construcción está en `PROMPT_CURSOR_community_manager.md`; la visión de producto en `CONTEXTO_PRODUCTO.md`.
 
-**Última actualización:** 2026-10-27 (Radar AAB, mapa `aab`)
+**Última actualización:** 2026-10-28 (AAB story vertical y tope de Threads)
+
+---
+
+## 2026-10-28 — Story vertical de AAB y tope de Threads ✅
+
+**RadarMex no cambia.** Sin `url_portada_historia` no hay story automática, y el mapa `radarmex` no lee esa columna.
+
+**AAB:** la columna `url_portada_historia` (Drive o URL pública, 1080×1920) se guarda en `source_items.story_image_url`. En Facebook e Instagram, si la imagen se baja a R2, el post sale con story usando esa imagen tal cual (sin recorte ni texto encima). Si la celda está vacía o la descarga falla, el post de feed se crea **sin** story. Threads y X no llevan story.
+
+**Migración:** `schema_aab_story_image.sql`. No se aplica en el deploy. La API no pide la columna en las consultas normales: si falta, la story se omite y RadarMex sigue. Hay que correr `pnpm migrate` para que las stories empiecen a guardarse. Los posts ya creados antes de la migración no se rehacen.
+
+**Threads (todas las fuentes y posts manuales):** si el texto pasa de 500 puntos de código, se corta en la última frase que cabe, se añade `…` y se conserva el enlace. No falla la publicación por longitud.
+
+**Criterio:** ✅ mapa, decisión de story y recorte; ⏳ aplicar la migración y sincronizar una fila AAB con portada de historia.
 
 ---
 

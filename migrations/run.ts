@@ -21,6 +21,7 @@ const MIGRATIONS = [
   'schema_tiktok_oauth.sql',
   'schema_generation_kind_avatar_video.sql',
   'schema_aab_radar.sql',
+  'schema_aab_story_image.sql',
 ] as const;
 
 config({ path: join(__dirname, '..', '.env') });

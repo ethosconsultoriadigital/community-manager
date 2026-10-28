@@ -5,6 +5,7 @@ import type {
   PublishTargetInput,
 } from '../platform-publisher.interface';
 import { ThreadsApiClient } from './threads-api.client';
+import { trimThreadsText } from './trim-threads-text';
 
 @Injectable()
 export class ThreadsPublishService implements PlatformPublisher {
@@ -19,7 +20,7 @@ export class ThreadsPublishService implements PlatformPublisher {
 
     const userId = input.externalAccountId;
     const token = input.accessToken;
-    const text = input.message?.trim() || ' ';
+    const text = trimThreadsText(input.message ?? '') || ' ';
 
     let container: { id: string };
     if (input.videoUrl) {

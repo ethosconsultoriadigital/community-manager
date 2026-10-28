@@ -225,4 +225,26 @@ describe('radarmex-columns + mapTableToSheetRows', () => {
       { range: "'Noticias'!E2", values: [['27/10/2026 00:10']] },
     ]);
   });
+
+  it('mapea url_portada_historia y la omite si la celda está vacía', () => {
+    const headers = ['titulo', 'url_original', 'estado', 'estado_redes', 'url_portada_historia'];
+    const rows = mapTableToSheetRows(
+      [
+        headers,
+        [
+          'Nota',
+          'https://origen.example/a',
+          'Listo para redes',
+          '',
+          'https://drive.google.com/file/d/STORY1/view',
+        ],
+        ['Sin foto', 'https://origen.example/b', 'Listo para redes', 'Pendiente', ''],
+      ],
+      AAB_COLUMN_MAP,
+      { profile: 'aab' },
+    );
+    expect(rows[0].story_image_url).toBe('https://drive.google.com/file/d/STORY1/view');
+    expect(rows[0].flagged_publish).toBe(true);
+    expect(rows[1].story_image_url).toBeUndefined();
+  });
 });

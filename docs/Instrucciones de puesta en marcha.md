@@ -253,7 +253,8 @@ Ejemplo Radarmex: spreadsheet `1r0R3caLAVIpYJaFIQef1YiERNLzSXH8PJmIfL6Q9hAo`, gi
    - Marca solo las cuentas de AAB (Facebook / Instagram). Threads y X, si no hay cuenta, se omiten.
 5. Guardar → **Sincronizar esta fuente**. Los posts quedan en Aprobaciones. La hoja pasa a `estado_redes = En aprobación`.
 6. Al aprobar y publicar (o rechazar) todos los posts de la fila, el siguiente cierre escribe `Publicado`, `Error` u `Omitido` y `fecha_redes`.
-7. Para volver atrás: borra esa fuente o pon el mapa en RadarMex. No toques la fuente de RadarMex.
+7. Portada de historia: aplica `schema_aab_story_image.sql` (`pnpm migrate`). La columna `url_portada_historia` de la pestaña Noticias, si tiene imagen, publica story en Facebook e Instagram con esa vertical. Sin la migración o sin imagen, el post sale igual pero sin story.
+8. Para volver atrás: borra esa fuente o pon el mapa en RadarMex. No toques la fuente de RadarMex.
 
 ---
 

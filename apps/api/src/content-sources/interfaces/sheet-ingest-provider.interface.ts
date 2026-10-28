@@ -20,6 +20,8 @@ export type SheetRow = {
   article_url?: string;
   /** fecha_publicacion del Sheet */
   published_at?: string;
+  /** url_portada_historia de AAB. No se usa en RadarMex. */
+  story_image_url?: string;
   /** Fila 1-based del sheet en esta lectura. No se persiste. */
   sheet_row?: number;
 };
