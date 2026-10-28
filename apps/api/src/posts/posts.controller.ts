@@ -27,6 +27,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CurrentUser } from '../common/current-user.decorator';
 import { AabSheetWriteBackService } from '../content-sources/aab-sheet-writeback.service';
+import { AAB_NO_STORY_IMAGE_MESSAGE, isSuppliedStoryAsset } from '../platforms/meta/story-asset';
 import { PublishQueueService } from '../jobs/publish-queue.service';
 import { MAX_VIDEO_BYTES } from '../media/media.constants';
 import { MediaValidationError } from '../media/media-validation';
@@ -153,7 +154,14 @@ export class PostsController {
     @Param('id') id: string,
     @Body() body: UpdatePostDto,
   ) {
-    await this.getPostOrThrow(user, id);
+    const existing = await this.getPostOrThrow(user, id);
+    if (
+      body.alsoPublishAsStory === true &&
+      !existing.media_assets?.some((asset) => isSuppliedStoryAsset(asset)) &&
+      (await this.aabWriteBack.isAabPost(user.agencyId, id))
+    ) {
+      throw new BadRequestException(AAB_NO_STORY_IMAGE_MESSAGE);
+    }
     try {
       const post = await this.posts.update(user.agencyId, id, body);
       if (!post) throw new NotFoundException('Post no encontrado');

@@ -37,6 +37,17 @@ export class AabSheetWriteBackService {
     private readonly config: ConfigService,
   ) {}
 
+  /** true si el post viene de una fuente con mapa 'aab'. Ante error responde false. */
+  async isAabPost(agencyId: string, postId: string): Promise<boolean> {
+    try {
+      const item = await this.sourceItems.findByLinkedPost(agencyId, postId);
+      return Boolean(item && isAabConfig(item.content_sources?.config));
+    } catch (err) {
+      this.logger.warn(`No se pudo saber si ${postId} es AAB: ${errMsg(err)}`);
+      return false;
+    }
+  }
+
   async notifyFromPost(agencyId: string, postId: string): Promise<void> {
     try {
       const item = await this.sourceItems.findByLinkedPost(agencyId, postId);

@@ -21,6 +21,7 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
   const config = { get: vi.fn().mockReturnValue(ENCRYPTION_KEY) };
   const aabSheets = {
     notifyFromPost: vi.fn().mockResolvedValue(undefined),
+    isAabPost: vi.fn().mockResolvedValue(false),
     ...(overrides.aabSheets as Record<string, unknown> | undefined),
   };
 
@@ -365,5 +366,71 @@ describe('PublishPostService', () => {
     await expect(service.publishPost({ agencyId: 'a1', postId: 'post-1' })).resolves.toBeUndefined();
     expect(posts.refreshAggregateStatus).toHaveBeenCalledWith('a1', 'post-1');
     expect(aabSheets.notifyFromPost).toHaveBeenCalledWith('a1', 'post-1');
+  });
+
+  describe('historias AAB', () => {
+    function aabPost(mediaAssets: unknown[]) {
+      return {
+        id: 'post-aab',
+        status: 'scheduled',
+        caption: 'Destaca <strong>Engage+</strong> &amp; más',
+        hashtags: [],
+        also_publish_as_story: true,
+        approvals: [{ id: 'ap1', status: 'approved' }],
+        media_assets: mediaAssets,
+        post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa1' }],
+      };
+    }
+
+    function setup(isAab: boolean, mediaAssets: unknown[]) {
+      const ctx = createService({
+        aabSheets: { isAabPost: vi.fn().mockResolvedValue(isAab) },
+      });
+      ctx.posts.findForPublish.mockResolvedValue(aabPost(mediaAssets));
+      ctx.socialAccounts.findByIdWithToken.mockResolvedValue({
+        id: 'sa1',
+        platform: 'facebook',
+        external_account_id: 'page-1',
+        access_token_enc: encryptedToken(),
+        is_active: true,
+      });
+      ctx.metaPublish.publish.mockResolvedValue({ platformPostId: 'fb-1' });
+      return ctx;
+    }
+
+    const banner = { type: 'image', storage_url: 'https://r2/banner.png', position: 0 };
+    const portada = { type: 'image', storage_url: 'https://r2/portada.png', position: 100 };
+
+    it('sin portada no pide story aunque tenga + Story y no usa el banner', async () => {
+      const { service, posts, metaPublish } = setup(true, [banner]);
+      await service.publishPost({ agencyId: 'a1', postId: 'post-aab' });
+      const input = metaPublish.publish.mock.calls[0][0];
+      expect(input.alsoPublishAsStory).toBe(false);
+      expect(input.storyImageUrl).toBeUndefined();
+      expect(input.imageUrl).toBe('https://r2/banner.png');
+      expect(input.message).toBe('Destaca Engage+ & más');
+      expect(posts.updateTargetStatus).toHaveBeenLastCalledWith(
+        'a1',
+        'post-aab',
+        't1',
+        expect.objectContaining({ status: 'published', storyStatus: 'skipped' }),
+      );
+    });
+
+    it('con portada publica story con url_portada_historia', async () => {
+      const { service, metaPublish } = setup(true, [banner, portada]);
+      await service.publishPost({ agencyId: 'a1', postId: 'post-aab' });
+      const input = metaPublish.publish.mock.calls[0][0];
+      expect(input.alsoPublishAsStory).toBe(true);
+      expect(input.storyImageUrl).toBe('https://r2/portada.png');
+    });
+
+    it('fuente no AAB conserva el + Story y el texto tal cual', async () => {
+      const { service, metaPublish } = setup(false, [banner]);
+      await service.publishPost({ agencyId: 'a1', postId: 'post-aab' });
+      const input = metaPublish.publish.mock.calls[0][0];
+      expect(input.alsoPublishAsStory).toBe(true);
+      expect(input.message).toContain('<strong>');
+    });
   });
 });

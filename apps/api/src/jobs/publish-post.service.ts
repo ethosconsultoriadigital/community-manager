@@ -4,7 +4,11 @@ import { ApprovalsRepository, PostsRepository, SocialAccountsRepository } from '
 import { buildPublishMessage, decryptToken } from '@cm/shared';
 import { AabSheetWriteBackService } from '../content-sources/aab-sheet-writeback.service';
 import { PlatformPublisherRegistry } from '../platforms/platform-publisher.registry';
-import { isSuppliedStoryAsset } from '../platforms/meta/story-asset';
+import {
+  AAB_NO_STORY_IMAGE_MESSAGE,
+  isSuppliedStoryAsset,
+  stripHtmlTags,
+} from '../platforms/meta/story-asset';
 import type { PublishPlatform } from '../platforms/platform-publisher.interface';
 
 export type PublishPostJobData = {
@@ -92,9 +96,14 @@ export class PublishPostService {
         account.access_token_enc,
         this.requireEncryptionKey(),
       );
-      const message = this.buildMessage(post.caption, post.hashtags);
+      const isAab = await this.aabWriteBack.isAabPost(agencyId, postId);
+      const rawMessage = this.buildMessage(post.caption, post.hashtags);
+      const message = isAab ? stripHtmlTags(rawMessage) : rawMessage;
       const feedAssets = post.media_assets.filter((asset) => !isSuppliedStoryAsset(asset));
       const storyAsset = post.media_assets.find((asset) => isSuppliedStoryAsset(asset));
+      // AAB: la historia solo usa url_portada_historia. Sin ella no hay historia, aunque pidan "+ Story".
+      const requestedStory = Boolean(post.also_publish_as_story);
+      const aabStoryBlocked = isAab && requestedStory && !storyAsset?.storage_url;
       const imageAssets = feedAssets.filter((m) => m.type === 'image');
       const primaryMedia = feedAssets[0];
       const imageUrl = primaryMedia?.type === 'image' ? primaryMedia.storage_url : undefined;
@@ -128,7 +137,7 @@ export class PublishPostService {
         storyImageUrl: storyAsset?.storage_url,
         videoUrl,
         videoFormat: videoUrl ? videoFormat : undefined,
-        alsoPublishAsStory: Boolean(post.also_publish_as_story),
+        alsoPublishAsStory: requestedStory && !aabStoryBlocked,
         placeId: post.place_id ?? undefined,
       });
 
@@ -137,8 +146,10 @@ export class PublishPostService {
         platformPostId: result.platformPostId,
         errorMessage: null,
         storyPlatformPostId: result.storyPlatformPostId ?? null,
-        storyStatus: result.storyStatus ?? null,
-        storyErrorMessage: result.storyErrorMessage ?? null,
+        storyStatus: aabStoryBlocked ? 'skipped' : (result.storyStatus ?? null),
+        storyErrorMessage: aabStoryBlocked
+          ? AAB_NO_STORY_IMAGE_MESSAGE
+          : (result.storyErrorMessage ?? null),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido';
