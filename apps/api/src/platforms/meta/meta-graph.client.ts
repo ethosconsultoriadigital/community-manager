@@ -10,6 +10,8 @@ import {
 export class MetaGraphClient {
   private readonly logger = new Logger(MetaGraphClient.name);
   private readonly graphBase = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
+  /** Esperas entre reintentos de media_publish cuando la media aún no está lista. */
+  mediaPublishRetryDelaysMs: number[] = [5000, 10000, 20000];
 
   constructor(private readonly config: ConfigService) {}
 
@@ -286,10 +288,23 @@ export class MetaGraphClient {
       creation_id: creationId,
       access_token: accessToken,
     });
-    return this.postJson<{ id: string }>(
-      `${this.graphBase}/${igUserId}/media_publish`,
-      params,
-    );
+    // Aunque el contenedor ya diga FINISHED, Instagram a veces responde
+    // "Media ID is not available" (9007) unos segundos. Se reintenta solo ese caso.
+    const delays = this.mediaPublishRetryDelaysMs;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.postJson<{ id: string }>(
+          `${this.graphBase}/${igUserId}/media_publish`,
+          params,
+        );
+      } catch (error) {
+        if (attempt >= delays.length || !isMediaNotReadyError(error)) throw error;
+        this.logger.warn(
+          `media_publish: media aún no disponible; reintento ${attempt + 1}/${delays.length} en ${delays[attempt]} ms`,
+        );
+        await this.sleep(delays[attempt]);
+      }
+    }
   }
 
   async waitForInstagramContainer(
@@ -490,10 +505,12 @@ export class MetaGraphClient {
 
   private async getJson<T>(url: string): Promise<T> {
     const response = await fetch(url);
-    const body = (await response.json()) as T & { error?: { message: string } };
+    const body = (await response.json()) as T & { error?: GraphErrorBody };
     if (!response.ok || body.error) {
-      this.logger.error('Error en Graph API (sin exponer tokens)');
-      throw new Error(body.error?.message ?? `Graph API error ${response.status}`);
+      this.logger.error(
+        `Error en Graph API (sin exponer tokens) ${describeEndpoint(url)} ${describeGraphError(body.error)}`,
+      );
+      throw toGraphError(body.error, response.status);
     }
     return body;
   }
@@ -504,11 +521,52 @@ export class MetaGraphClient {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString(),
     });
-    const body = (await response.json()) as T & { error?: { message: string } };
+    const body = (await response.json()) as T & { error?: GraphErrorBody };
     if (!response.ok || body.error) {
-      this.logger.error('Error en Graph API publish (sin exponer tokens)');
-      throw new Error(body.error?.message ?? `Graph API error ${response.status}`);
+      this.logger.error(
+        `Error en Graph API publish (sin exponer tokens) ${describeEndpoint(url)} ${describeGraphError(body.error)}`,
+      );
+      throw toGraphError(body.error, response.status);
     }
     return body;
   }
+}
+
+type GraphErrorBody = {
+  message?: string;
+  code?: number;
+  error_subcode?: number;
+  fbtrace_id?: string;
+};
+
+export type GraphError = Error & { code?: number; subcode?: number };
+
+function toGraphError(error: GraphErrorBody | undefined, status: number): GraphError {
+  const err = new Error(error?.message ?? `Graph API error ${status}`) as GraphError;
+  if (typeof error?.code === 'number') err.code = error.code;
+  if (typeof error?.error_subcode === 'number') err.subcode = error.error_subcode;
+  return err;
+}
+
+/** Solo el último segmento del path (p. ej. media_publish), nunca la query con el token. */
+function describeEndpoint(url: string): string {
+  try {
+    const path = new URL(url).pathname.split('/').filter(Boolean);
+    return `[${path[path.length - 1] ?? ''}]`;
+  } catch {
+    return '';
+  }
+}
+
+function describeGraphError(error: GraphErrorBody | undefined): string {
+  if (!error) return '';
+  return `code=${error.code ?? '-'} subcode=${error.error_subcode ?? '-'} trace=${error.fbtrace_id ?? '-'}: ${error.message ?? ''}`;
+}
+
+/** Error 9007 / 2207027: el contenedor existe pero Instagram aún no lo deja publicar. */
+export function isMediaNotReadyError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const { code, subcode } = error as GraphError;
+  if (code === 9007 || subcode === 2207027) return true;
+  return /media id is not available|not ready for publishing/i.test(error.message);
 }

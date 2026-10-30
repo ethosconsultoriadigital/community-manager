@@ -10,6 +10,8 @@ import {
 export class ThreadsApiClient {
   private readonly logger = new Logger(ThreadsApiClient.name);
   private readonly graphBase = `https://graph.threads.net/${THREADS_API_VERSION}`;
+  /** Esperas entre reintentos de threads_publish cuando el contenedor aún no está listo. */
+  publishRetryDelaysMs: number[] = [5000, 10000, 20000];
 
   constructor(private readonly config: ConfigService) {}
 
@@ -154,10 +156,24 @@ export class ThreadsApiClient {
       creation_id: creationId,
       access_token: accessToken,
     });
-    return this.postForm<{ id: string }>(
-      `${this.graphBase}/${userId}/threads_publish`,
-      params,
-    );
+    // Meta recomienda esperar tras crear el contenedor: aunque diga FINISHED,
+    // threads_publish a veces responde "The requested resource does not exist"
+    // (code 24 / 4279009) unos segundos. Se reintenta solo ese caso.
+    const delays = this.publishRetryDelaysMs;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.postForm<{ id: string }>(
+          `${this.graphBase}/${userId}/threads_publish`,
+          params,
+        );
+      } catch (error) {
+        if (attempt >= delays.length || !isThreadsMediaNotReadyError(error)) throw error;
+        this.logger.warn(
+          `threads_publish: contenedor aún no disponible; reintento ${attempt + 1}/${delays.length} en ${delays[attempt]} ms`,
+        );
+        await new Promise((r) => setTimeout(r, delays[attempt]));
+      }
+    }
   }
 
   private requireConfig(key: string): string {
@@ -169,12 +185,17 @@ export class ThreadsApiClient {
   private async getJson<T>(url: string): Promise<T> {
     const res = await fetch(url);
     const body = (await res.json().catch(() => ({}))) as T & {
-      error?: { message?: string };
+      error?: { message?: string; code?: number; error_subcode?: number };
     };
     if (!res.ok) {
       const msg = body.error?.message ?? `HTTP ${res.status}`;
-      this.logger.warn(`Threads GET falló: ${msg}`);
-      throw new Error(msg);
+      this.logger.warn(
+        `Threads GET falló ${describeEndpoint(url)} code=${body.error?.code ?? '-'} subcode=${body.error?.error_subcode ?? '-'}: ${msg}`,
+      );
+      const err = new Error(msg) as ThreadsError;
+      if (typeof body.error?.code === 'number') err.code = body.error.code;
+      if (typeof body.error?.error_subcode === 'number') err.subcode = body.error.error_subcode;
+      throw err;
     }
     return body;
   }
@@ -186,13 +207,38 @@ export class ThreadsApiClient {
       body: params.toString(),
     });
     const body = (await res.json().catch(() => ({}))) as T & {
-      error?: { message?: string };
+      error?: { message?: string; code?: number; error_subcode?: number };
     };
     if (!res.ok) {
       const msg = body.error?.message ?? `HTTP ${res.status}`;
-      this.logger.warn(`Threads POST falló: ${msg}`);
-      throw new Error(msg);
+      this.logger.warn(
+        `Threads POST falló ${describeEndpoint(url)} code=${body.error?.code ?? '-'} subcode=${body.error?.error_subcode ?? '-'}: ${msg}`,
+      );
+      const err = new Error(msg) as ThreadsError;
+      if (typeof body.error?.code === 'number') err.code = body.error.code;
+      if (typeof body.error?.error_subcode === 'number') err.subcode = body.error.error_subcode;
+      throw err;
     }
     return body;
   }
+}
+
+type ThreadsError = Error & { code?: number; subcode?: number };
+
+/** Solo el último segmento del path (p. ej. threads_publish), nunca la query con el token. */
+function describeEndpoint(url: string): string {
+  try {
+    const path = new URL(url).pathname.split('/').filter(Boolean);
+    return `[${path[path.length - 1] ?? ''}]`;
+  } catch {
+    return '';
+  }
+}
+
+/** Contenedor creado pero aún no visible para threads_publish. */
+export function isThreadsMediaNotReadyError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const { subcode } = error as ThreadsError;
+  if (subcode === 4279009) return true;
+  return /requested resource does not exist|media not found/i.test(error.message);
 }
