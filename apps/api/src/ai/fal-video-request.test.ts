@@ -122,3 +122,16 @@ describe('extractFalVideoUrl', () => {
     ).toBe('https://cdn/b.mp4');
   });
 });
+
+describe('buildFalVideoBody duración (tope 10 s)', () => {
+  it('Seedance pide 10 s para 1 escena y 5 s para 2', () => {
+    expect(buildFalVideoBody(SEEDANCE_I2V_MODEL, 'p', 'https://img', 10).duration).toBe('10');
+    expect(buildFalVideoBody(SEEDANCE_I2V_MODEL, 'p', 'https://img', 5).duration).toBe('5');
+    expect(buildFalVideoBody(SEEDANCE_I2V_MODEL, 'p', 'https://img').duration).toBe('5');
+  });
+
+  it('Hailuo solo admite 6 o 10', () => {
+    expect(buildFalVideoBody(HAILUO_I2V_MODEL, 'p', 'https://img', 10).duration).toBe('10');
+    expect(buildFalVideoBody(HAILUO_I2V_MODEL, 'p', 'https://img', 5).duration).toBe('6');
+  });
+});

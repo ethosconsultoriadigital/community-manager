@@ -173,4 +173,110 @@ describe('ReelPipelineService', () => {
     expect(result.multiScene).toBe(false);
     expect(video.generateVideo).toHaveBeenCalledTimes(1);
   });
+
+  describe('tope de 10 s', () => {
+    function build(configValues: Record<string, string> = {}) {
+      const config = {
+        get: (key: string) => ({ REEL_MULTI_SCENE: 'true', ...configValues })[key],
+      };
+      const script = {
+        buildReelScript: vi.fn(async ({ sceneCount }: { sceneCount: number }) => ({
+          scenes: Array.from({ length: sceneCount }, (_, i) => ({
+            id: String(i + 1),
+            visualPrompt: `v${i}`,
+            motionPrompt: `m${i}`,
+            subtitle: `s${i}`,
+            durationHintSeconds: 5,
+          })),
+        })),
+      };
+      const composition = {
+        concatClips: vi.fn().mockResolvedValue({
+          outPath: '/tmp/out.mp4',
+          workDir: '/tmp/compose',
+          width: 720,
+          height: 1280,
+          burnedSubtitles: true,
+          durationSeconds: 10,
+        }),
+        downloadClipToFile: vi.fn().mockResolvedValue(undefined),
+        probeClipDurationFromPath: vi.fn().mockResolvedValue(10),
+        cleanupWorkDir: vi.fn().mockResolvedValue(undefined),
+      };
+      const mediaStorage = {
+        saveFromFile: vi.fn().mockResolvedValue({ storageUrl: 'https://s/f.mp4', storageKey: 'k' }),
+      };
+      const image = {
+        generateImage: vi.fn().mockResolvedValue({ url: 'https://img/k.png', provider: 'openai' }),
+      };
+      const video = {
+        generateVideo: vi.fn().mockResolvedValue({ url: 'https://v/c.mp4', provider: 'fal', model: 'seedance' }),
+      };
+      const service = new ReelPipelineService(
+        config as never,
+        script as never,
+        composition as never,
+        mediaStorage as never,
+        image as never,
+        video as never,
+      );
+      return { service, script, composition, image, video };
+    }
+
+    it('por defecto: 1 escena de 10 s (1 keyframe + 1 clip)', async () => {
+      const { service, image, video, composition } = build();
+      const result = await service.generate({ agencyId: 'a', brief: 'b', caption: 'c' });
+      expect(result.sceneCount).toBe(1);
+      expect(image.generateImage).toHaveBeenCalledTimes(1);
+      expect(video.generateVideo).toHaveBeenCalledTimes(1);
+      expect(video.generateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 10 }),
+      );
+      expect(composition.concatClips).toHaveBeenCalledWith(
+        expect.objectContaining({ maxDurationSeconds: 10 }),
+      );
+    });
+
+    it('2 escenas → 2 clips de 5 s; pedir 20 s o 4 escenas no pasa de 10 s', async () => {
+      const { service, video, composition } = build({ REEL_MAX_SCENES: '4' });
+      const result = await service.generate({
+        agencyId: 'a',
+        brief: 'b',
+        caption: 'c',
+        sceneCount: 4,
+        targetDurationSeconds: 20,
+      });
+      expect(result.sceneCount).toBe(2);
+      expect(video.generateVideo).toHaveBeenCalledTimes(2);
+      for (const call of video.generateVideo.mock.calls) {
+        expect(call[0].durationSeconds).toBe(5);
+      }
+      expect(composition.concatClips).toHaveBeenCalledWith(
+        expect.objectContaining({ maxDurationSeconds: 10 }),
+      );
+    });
+
+    it('REEL_SCENE_COUNT=2 de Render se respeta como default (2×5 s)', async () => {
+      const { service } = build({ REEL_SCENE_COUNT: '2' });
+      expect(service.resolveSceneCount({ agencyId: 'a', brief: 'b', caption: 'c' })).toBe(2);
+    });
+
+    it('modo single clip pide 10 s y recorta a 10 s', async () => {
+      const { service, video, composition } = build({ REEL_MULTI_SCENE: 'false' });
+      await service.generate({ agencyId: 'a', brief: 'b', caption: 'c', targetDurationSeconds: 15 });
+      expect(video.generateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ durationSeconds: 10 }),
+      );
+      expect(composition.concatClips).toHaveBeenCalledWith(
+        expect.objectContaining({ maxDurationSeconds: 10 }),
+      );
+    });
+
+    it('subtítulos no pasan del tope', () => {
+      const { service } = build();
+      const cues = service.buildSubtitleCues(['a', 'b', 'c'], [6, 6, 6], 'cap', true, 10);
+      expect(cues).toHaveLength(2);
+      expect(Math.max(...cues.map((c) => c.endSeconds))).toBeLessThanOrEqual(10);
+    });
+  });
 });

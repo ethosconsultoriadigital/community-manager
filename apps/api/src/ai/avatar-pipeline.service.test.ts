@@ -85,7 +85,10 @@ describe('AvatarPipelineService', () => {
       }),
     );
     expect(composition.concatClips).toHaveBeenCalledWith(
-      expect.objectContaining({ keepOnDisk: true }),
+      expect.objectContaining({ keepOnDisk: true, keepClipAudio: true, maxDurationSeconds: 10 }),
+    );
+    expect(script.buildAvatarScript).toHaveBeenCalledWith(
+      expect.objectContaining({ targetSeconds: 10 }),
     );
     expect(mediaStorage.saveFromFile).toHaveBeenCalled();
     expect(result.url).toBe('https://storage.local/avatar.mp4');

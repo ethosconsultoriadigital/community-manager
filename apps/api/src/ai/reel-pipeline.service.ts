@@ -8,7 +8,11 @@ import { IMAGE_PROVIDER, VIDEO_PROVIDER } from './ai.tokens';
 import type { ImageProvider } from './interfaces/image-provider.interface';
 import type { VideoProvider } from './interfaces/video-provider.interface';
 import { ScriptService } from './script/script.service';
-import { sceneCountFromTargetDuration } from './video-composition/licensed-music';
+import {
+  capVideoSeconds,
+  clipSecondsForScenes,
+  maxScenesForDuration,
+} from './video-duration';
 import {
   VideoCompositionService,
   type SubtitleCue,
@@ -22,8 +26,9 @@ export type ReelPipelineInput = {
   referenceText?: string;
   /** Foto manual: keyframe de la primera escena (estilo/ancla). */
   referenceImageUrl?: string;
+  /** 1 escena de 10 s (default, más barato) o 2 de 5 s. */
   sceneCount?: number;
-  /** Duración objetivo en segundos → nº de escenas. */
+  /** Duración total en segundos; nunca pasa de VIDEO_MAX_SECONDS (10). */
   targetDurationSeconds?: number;
   musicTrackId?: string;
   withMusic?: boolean;
@@ -72,24 +77,33 @@ export class ReelPipelineService {
     return true;
   }
 
-  /** Tope de escenas (default 2) para no OOM en Render 512MB. */
+  /** Tope de escenas: REEL_MAX_SCENES (default 2, 512 MB) y que cada una dure ≥5 s dentro del tope. */
   private maxScenes(): number {
     const raw = Number(this.config.get<string>('REEL_MAX_SCENES') ?? '2');
-    if (!Number.isFinite(raw)) return 2;
-    return Math.min(4, Math.max(1, Math.round(raw)));
+    const fromEnv = Number.isFinite(raw) ? Math.min(4, Math.max(1, Math.round(raw))) : 2;
+    return Math.min(fromEnv, maxScenesForDuration());
   }
 
-  private resolveSceneCount(input: ReelPipelineInput): number | undefined {
+  /** Default 1 escena (un solo keyframe + un clip = lo más barato), o REEL_SCENE_COUNT. */
+  resolveSceneCount(input: ReelPipelineInput): number {
     const max = this.maxScenes();
-    const fromInput =
-      input.sceneCount != null
+    const fromEnv = Number(this.config.get<string>('REEL_SCENE_COUNT') ?? '');
+    const requested =
+      input.sceneCount != null && Number.isFinite(input.sceneCount) && input.sceneCount > 0
         ? input.sceneCount
-        : sceneCountFromTargetDuration(input.targetDurationSeconds);
-    if (fromInput == null) return max;
-    return Math.min(max, fromInput);
+        : Number.isFinite(fromEnv) && fromEnv > 0
+          ? fromEnv
+          : 1;
+    return Math.min(max, Math.max(1, Math.round(requested)));
+  }
+
+  /** Duración total del Reel (≤ VIDEO_MAX_SECONDS). */
+  totalSeconds(input: ReelPipelineInput): number {
+    return capVideoSeconds(input.targetDurationSeconds);
   }
 
   private async generateSingle(input: ReelPipelineInput): Promise<ReelPipelineResult> {
+    const total = this.totalSeconds(input);
     let referenceImageUrl = input.referenceImageUrl?.trim();
     if (!referenceImageUrl) {
       const keyframe = await this.image.generateImage({
@@ -111,13 +125,17 @@ export class ReelPipelineService {
       referenceText: input.referenceText,
       referenceImageUrl,
       agencyId: input.agencyId,
+      durationSeconds: total,
     });
 
     const workDir = await mkdtemp(join(tmpdir(), 'cm-reel-pipe-'));
     try {
       const clipPath = join(workDir, 'clip-0.mp4');
       await this.composition.downloadClipToFile(generated.url, clipPath);
-      const duration = await this.composition.probeClipDurationFromPath(clipPath);
+      const duration = Math.min(
+        total,
+        await this.composition.probeClipDurationFromPath(clipPath),
+      );
       const subtitleText = input.caption.trim().slice(0, 72);
       const subtitles: SubtitleCue[] =
         input.withSubtitles === false || !subtitleText
@@ -137,6 +155,7 @@ export class ReelPipelineService {
         withMusic: input.withMusic !== false,
         musicTrackId: input.musicTrackId,
         musicSuggestion: 'upbeat light',
+        maxDurationSeconds: total,
         keepOnDisk: true,
       });
       if (!composed.outPath) {
@@ -171,6 +190,7 @@ export class ReelPipelineService {
   }
 
   private async generateMultiScene(input: ReelPipelineInput): Promise<ReelPipelineResult> {
+    const total = this.totalSeconds(input);
     const script = await this.script.buildReelScript({
       brief: input.brief,
       caption: input.caption,
@@ -178,7 +198,10 @@ export class ReelPipelineService {
       sceneCount: this.resolveSceneCount(input),
     });
 
-    this.logger.log(`Guion Reel: ${script.scenes.length} escenas (max=${this.maxScenes()})`);
+    const clipSeconds = clipSecondsForScenes(script.scenes.length, total);
+    this.logger.log(
+      `Guion Reel: ${script.scenes.length} escenas x ${clipSeconds}s (max=${this.maxScenes()}, tope ${total}s)`,
+    );
 
     const workDir = await mkdtemp(join(tmpdir(), 'cm-reel-pipe-'));
     const clipPaths: string[] = [];
@@ -213,6 +236,7 @@ export class ReelPipelineService {
           hashtags: input.hashtags,
           referenceImageUrl: keyframeUrl,
           agencyId: input.agencyId,
+          durationSeconds: clipSeconds,
         });
         sceneModels.push(clip.model ?? 'unknown');
         lastProvider = clip.provider ?? 'unknown';
@@ -222,7 +246,7 @@ export class ReelPipelineService {
         await this.composition.downloadClipToFile(clip.url, clipPath);
         clipPaths.push(clipPath);
         const dur = await this.composition.probeClipDurationFromPath(clipPath);
-        sceneDurations.push(dur > 0 ? dur : scene.durationHintSeconds || 5);
+        sceneDurations.push(dur > 0 ? dur : clipSeconds);
         this.logger.log(`Escena ${scene.id}: clip en disco (${clip.model}, ${dur.toFixed(1)}s)`);
       }
 
@@ -231,6 +255,7 @@ export class ReelPipelineService {
         sceneDurations,
         input.caption,
         input.withSubtitles !== false,
+        total,
       );
 
       const composed = await this.composition.concatClips({
@@ -240,6 +265,7 @@ export class ReelPipelineService {
         withMusic: input.withMusic !== false,
         musicTrackId: input.musicTrackId,
         musicSuggestion: script.musicSuggestion,
+        maxDurationSeconds: total,
         keepOnDisk: true,
       });
       if (!composed.outPath) {
@@ -279,11 +305,13 @@ export class ReelPipelineService {
     durations: number[],
     captionFallback: string,
     enabled: boolean,
+    maxSeconds = Number.POSITIVE_INFINITY,
   ): SubtitleCue[] {
     if (!enabled) return [];
     const cues: SubtitleCue[] = [];
     let t = 0;
     for (let i = 0; i < durations.length; i++) {
+      if (t + 0.15 >= maxSeconds - 0.3) break;
       const dur = durations[i] ?? 5;
       const text =
         (sceneSubtitles[i] ?? '').trim() ||
@@ -291,7 +319,7 @@ export class ReelPipelineService {
       if (text) {
         cues.push({
           startSeconds: t + 0.15,
-          endSeconds: t + Math.max(0.8, dur - 0.2),
+          endSeconds: Math.min(maxSeconds - 0.1, t + Math.max(0.8, dur - 0.2)),
           text,
         });
       }

@@ -9,6 +9,8 @@ export type GenerateVideoInput = {
   referenceImageUrl?: string;
   /** Necesario para guardar el MP4 en storage propio. */
   agencyId: string;
+  /** Segundos del clip pedido al modelo (el total del video no pasa de VIDEO_MAX_SECONDS). */
+  durationSeconds?: number;
 };
 
 export type GenerateVideoResult = {

@@ -11,6 +11,7 @@ import type { TtsProvider } from './interfaces/tts-provider.interface';
 import { ScriptService } from './script/script.service';
 import type { SubtitleCue } from './video-composition/video-composition.service';
 import { VideoCompositionService } from './video-composition/video-composition.service';
+import { capVideoSeconds } from './video-duration';
 
 export type AvatarPipelineInput = {
   agencyId: string;
@@ -21,6 +22,7 @@ export type AvatarPipelineInput = {
   /** Override del personaje (si no, clients.brand.characterImageUrl). */
   characterImageUrl?: string;
   voiceId?: string;
+  /** Segundos máximos del monólogo; nunca pasa de VIDEO_MAX_SECONDS (10). */
   targetSeconds?: number;
   musicTrackId?: string;
   withMusic?: boolean;
@@ -68,11 +70,12 @@ export class AvatarPipelineService {
       );
     }
 
+    const maxSeconds = capVideoSeconds(input.targetSeconds);
     const avatarScript = await this.script.buildAvatarScript({
       brief: input.brief,
       caption: input.caption,
       referenceText: input.referenceText,
-      targetSeconds: input.targetSeconds ?? 20,
+      targetSeconds: maxSeconds,
     });
     this.logger.log(
       `Avatar guion: ${avatarScript.spokenText.length} chars, ${avatarScript.subtitleLines.length} líneas`,
@@ -99,7 +102,10 @@ export class AvatarPipelineService {
     try {
       const clipPath = join(workDir, 'clip.mp4');
       await this.composition.downloadClipToFile(animated.url, clipPath);
-      const duration = await this.composition.probeClipDurationFromPath(clipPath);
+      const duration = Math.min(
+        maxSeconds,
+        await this.composition.probeClipDurationFromPath(clipPath),
+      );
       const subtitles = this.buildSubtitleCues(
         avatarScript.subtitleLines,
         duration,
@@ -114,6 +120,9 @@ export class AvatarPipelineService {
         musicTrackId: input.musicTrackId,
         musicSuggestion: avatarScript.musicSuggestion,
         musicVolume: 0.12,
+        // La voz viene en el clip del lip-sync: se conserva y se recorta al tope.
+        keepClipAudio: true,
+        maxDurationSeconds: maxSeconds,
         keepOnDisk: true,
       });
       if (!composed.outPath) {

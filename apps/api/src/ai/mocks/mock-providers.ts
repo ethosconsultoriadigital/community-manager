@@ -53,7 +53,7 @@ export class MockLlmProvider implements LlmProvider {
   async generateReelScript(
     input: GenerateReelScriptInput,
   ): Promise<GenerateReelScriptResult> {
-    const n = Math.min(4, Math.max(2, Math.round(input.sceneCount) || 2));
+    const n = Math.min(4, Math.max(1, Math.round(input.sceneCount) || 1));
     const topic = input.brief.trim() || 'producto';
     return {
       scenes: Array.from({ length: n }, (_, i) => ({

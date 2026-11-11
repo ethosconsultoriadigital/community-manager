@@ -78,14 +78,15 @@ export default function ComposerPage() {
   const [reelStillPreview, setReelStillPreview] = useState<string | null>(null);
   const [reelPreviewUrl, setReelPreviewUrl] = useState<string | null>(null);
   /** Duración objetivo del Reel IA (~5s por escena). */
-  const [reelTargetDuration, setReelTargetDuration] = useState<10 | 15 | 20>(15);
+  /** Todos los videos duran máx. 10 s: 1 escena de 10 s (más barato) o 2 de 5 s. */
+  const [reelSceneCount, setReelSceneCount] = useState<1 | 2>(1);
   const [reelWithMusic, setReelWithMusic] = useState(true);
   const [reelWithSubtitles, setReelWithSubtitles] = useState(true);
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(null);
   const [characterFileName, setCharacterFileName] = useState<string | null>(null);
   const [uploadingCharacter, setUploadingCharacter] = useState(false);
-  const [avatarTargetSeconds, setAvatarTargetSeconds] = useState(20);
+  const [avatarTargetSeconds, setAvatarTargetSeconds] = useState(10);
   const [avatarWithMusic, setAvatarWithMusic] = useState(true);
   const [avatarWithSubtitles, setAvatarWithSubtitles] = useState(true);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
@@ -802,7 +803,8 @@ export default function ComposerPage() {
           caption: caption.trim(),
           hashtags: parseHashtags(),
           socialAccountIds: selectedAccounts,
-          targetDurationSeconds: reelTargetDuration,
+          targetDurationSeconds: 10,
+          sceneCount: reelSceneCount,
           withMusic: reelWithMusic,
           withSubtitles: reelWithSubtitles,
           ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
@@ -1340,9 +1342,8 @@ export default function ComposerPage() {
                 <div>
                   <h3 className="text-sm font-medium text-brand">Video / Reel con IA</h3>
                   <p className="text-xs text-muted">
-                    Reel vertical 9:16 con subtítulos y música propia. En el plan de 512 MB el
-                    servidor usa como máximo 2 escenas. Opcional: foto de la 1.ª escena. Requiere
-                    FAL_KEY y saldo en fal.ai.
+                    Reel vertical 9:16 de máx. 10 s con subtítulos y música propia. Opcional:
+                    foto de la 1.ª escena. Requiere FAL_KEY y saldo en fal.ai.
                   </p>
                 </div>
                 <textarea
@@ -1354,20 +1355,17 @@ export default function ComposerPage() {
                 />
                 <div>
                   <label htmlFor="reel-duration" className="mb-1 block text-xs text-muted">
-                    Duración aproximada
+                    Duración (máx. 10 s)
                   </label>
                   <select
                     id="reel-duration"
-                    value={reelTargetDuration}
+                    value={reelSceneCount}
                     disabled={generatingReel || submitting}
-                    onChange={(e) =>
-                      setReelTargetDuration(Number(e.target.value) as 10 | 15 | 20)
-                    }
+                    onChange={(e) => setReelSceneCount(Number(e.target.value) as 1 | 2)}
                     className={inputClass}
                   >
-                    <option value={10}>Corto (2 escenas, ~12 s)</option>
-                    <option value={15}>Medio (2 escenas en 512 MB)</option>
-                    <option value={20}>Largo (2 escenas salvo más RAM)</option>
+                    <option value={1}>10 s · 1 escena (más barato)</option>
+                    <option value={2}>10 s · 2 escenas de 5 s</option>
                   </select>
                 </div>
                 <div className="flex flex-wrap gap-4 text-xs text-muted">
@@ -1500,7 +1498,7 @@ export default function ComposerPage() {
               </div>
               <div>
                 <label htmlFor="avatar-duration" className="mb-1 block text-xs text-muted">
-                  Duración del monólogo (~)
+                  Duración del monólogo (máx. 10 s)
                 </label>
                 <select
                   id="avatar-duration"
@@ -1509,9 +1507,9 @@ export default function ComposerPage() {
                   onChange={(e) => setAvatarTargetSeconds(Number(e.target.value))}
                   className={inputClass}
                 >
-                  <option value={15}>~15 s</option>
-                  <option value={20}>~20 s</option>
-                  <option value={30}>~30 s</option>
+                  <option value={6}>~6 s</option>
+                  <option value={8}>~8 s</option>
+                  <option value={10}>~10 s (máx.)</option>
                 </select>
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-muted">

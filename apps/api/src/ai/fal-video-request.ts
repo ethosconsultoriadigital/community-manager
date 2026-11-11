@@ -62,6 +62,8 @@ export function buildFalVideoBody(
   model: string,
   prompt: string,
   imageUrl?: string,
+  /** Segundos del clip (tope global VIDEO_MAX_SECONDS=10). Default 5. */
+  durationSeconds?: number,
 ): Record<string, unknown> {
   const text = prompt.trim().slice(0, 2000);
   const image = imageUrl?.trim();
@@ -72,7 +74,7 @@ export function buildFalVideoBody(
       prompt: text,
       aspect_ratio: '9:16',
       resolution: seedanceResolution(),
-      duration: '5',
+      duration: seedanceDuration(durationSeconds),
     };
     if (image) body.image_url = image;
     return body;
@@ -97,11 +99,19 @@ export function buildFalVideoBody(
   if (image) body.image_url = image;
 
   if (id.includes('hailuo') && id.includes('/standard/')) {
-    body.duration = '6';
+    // Solo admite 6 o 10: 10 s solo si el clip ocupa todo el tope; el ffmpeg recorta al tope.
+    body.duration = (durationSeconds ?? 0) >= 8 ? '10' : '6';
     const resolution = process.env.FAL_VIDEO_RESOLUTION?.trim() || '768P';
     body.resolution = resolution === '512P' ? '512P' : '768P';
   }
   return body;
+}
+
+/** Seedance admite "2"…"12" s; se cobra por segundo. */
+function seedanceDuration(seconds?: number): string {
+  const n = Number(seconds);
+  if (!Number.isFinite(n) || n <= 0) return '5';
+  return String(Math.min(12, Math.max(2, Math.round(n))));
 }
 
 /** Seedance: 480p | 720p | 1080p, en minúsculas. 720p equilibra coste y el 9:16 final. */

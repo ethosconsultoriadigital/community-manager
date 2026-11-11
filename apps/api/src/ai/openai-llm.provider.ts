@@ -11,6 +11,12 @@ import type {
   GenerateReportNarrativeResult,
   LlmProvider,
 } from './interfaces/llm-provider.interface';
+import {
+  capVideoSeconds,
+  clipSecondsForScenes,
+  maxSpokenWords,
+  videoMaxSeconds,
+} from './video-duration';
 
 type ChatCompletionResponse = {
   choices?: Array<{ message?: { content?: string } }>;
@@ -47,18 +53,21 @@ export class OpenAiLlmProvider implements LlmProvider {
   async generateReelScript(
     input: GenerateReelScriptInput,
   ): Promise<GenerateReelScriptResult> {
-    const n = Math.min(4, Math.max(2, Math.round(input.sceneCount) || 2));
+    const n = Math.min(4, Math.max(1, Math.round(input.sceneCount) || 1));
+    const total = videoMaxSeconds();
+    const perScene = clipSecondsForScenes(n, total);
     const prompt = [
       'Eres guionista de Reels verticales 9:16 para redes sociales.',
+      `El video completo dura como máximo ${total} segundos: una sola idea clara con buena intención, sin relleno.`,
       `Tema / brief: ${input.brief}`,
       input.caption ? `Caption del post: ${input.caption}` : '',
       input.referenceText
         ? `Material de referencia (resumir en escenas, NO inventar logos): ${input.referenceText.slice(0, 2000)}`
         : '',
-      `Genera exactamente ${n} escenas cortas (~5s cada una).`,
-      'Cada escena necesita: visualPrompt (keyframe fotográfico sin texto ni logos), motionPrompt (movimiento de cámara/sujeto para image-to-video), subtitle (frase corta opcional), durationHintSeconds (4-8).',
+      `Genera exactamente ${n} ${n === 1 ? 'escena' : 'escenas'} de ~${perScene}s cada una.`,
+      `Cada escena necesita: visualPrompt (keyframe fotográfico sin texto ni logos), motionPrompt (movimiento de cámara/sujeto para image-to-video), subtitle (frase corta opcional, máx. 8 palabras), durationHintSeconds (${perScene}).`,
       'Responde JSON estricto:',
-      '{"scenes":[{"id":"1","visualPrompt":"...","motionPrompt":"...","subtitle":"...","durationHintSeconds":5}],"musicSuggestion":"estilo musical breve"}',
+      `{"scenes":[{"id":"1","visualPrompt":"...","motionPrompt":"...","subtitle":"...","durationHintSeconds":${perScene}}],"musicSuggestion":"estilo musical breve"}`,
     ]
       .filter(Boolean)
       .join('\n');
@@ -79,7 +88,8 @@ export class OpenAiLlmProvider implements LlmProvider {
   async generateAvatarScript(
     input: GenerateAvatarScriptInput,
   ): Promise<GenerateAvatarScriptResult> {
-    const seconds = Math.min(45, Math.max(12, Math.round(input.targetSeconds ?? 20)));
+    const seconds = capVideoSeconds(input.targetSeconds);
+    const maxWords = maxSpokenWords(seconds);
     const prompt = [
       'Eres guionista de un personaje estilizado (robot/mascota) que habla a cámara en un Reel vertical.',
       'NO es un presentador humano realista. Tono cercano, claro, en español.',
@@ -88,7 +98,8 @@ export class OpenAiLlmProvider implements LlmProvider {
       input.referenceText
         ? `Material de referencia (resumir, no citar logos): ${input.referenceText.slice(0, 1500)}`
         : '',
-      `El monólogo debe durar ~${seconds} segundos al hablar (~2.5 palabras/segundo).`,
+      `El monólogo dura como máximo ${seconds} segundos al hablar: máximo ${maxWords} palabras en total, 1 o 2 frases con un mensaje claro y una llamada a la acción breve.`,
+      'subtitleLines: 2 o 3 frases cortas que juntas repitan el monólogo.',
       'Responde JSON estricto:',
       '{"spokenText":"monólogo completo para TTS","subtitleLines":["frase1","frase2"],"musicSuggestion":"estilo breve"}',
     ]

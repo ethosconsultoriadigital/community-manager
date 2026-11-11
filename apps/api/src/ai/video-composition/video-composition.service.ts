@@ -35,6 +35,16 @@ export type ConcatClipsInput = {
   withMusic?: boolean;
   musicVolume?: number;
   /**
+   * Tope duro de duración (s): ffmpeg recorta video y audio aquí.
+   * Los pipelines pasan VIDEO_MAX_SECONDS (10).
+   */
+  maxDurationSeconds?: number;
+  /**
+   * Conserva el audio del clip (voz del avatar) y lo mezcla con la música.
+   * Solo con un clip; si el clip no trae audio se comporta como antes.
+   */
+  keepClipAudio?: boolean;
+  /**
    * Si true, no lee el MP4 a memoria: devuelve outPath + workDir
    * (el caller debe cleanupWorkDir).
    */
@@ -86,8 +96,12 @@ export class VideoCompositionService {
         }
       }
 
+      const maxDuration =
+        Number.isFinite(input.maxDurationSeconds) && (input.maxDurationSeconds ?? 0) > 0
+          ? Number(input.maxDurationSeconds)
+          : undefined;
       const silentPath = join(workDir, 'silent.mp4');
-      await this.concatVideoOnly(ffmpeg, inputs, silentPath);
+      await this.concatVideoOnly(ffmpeg, inputs, silentPath, maxDuration);
 
       let videoPath = silentPath;
       let burned = burnSubtitles;
@@ -122,17 +136,29 @@ export class VideoCompositionService {
       let musicTrackId: string | undefined;
       const outPath = join(workDir, 'out.mp4');
 
+      const voicePath =
+        input.keepClipAudio && inputs.length === 1 && (await this.hasAudioStream(ffmpeg, inputs[0]))
+          ? inputs[0]
+          : undefined;
+      let musicPath: string | undefined;
+      let volume = input.musicVolume ?? 0.22;
+
       if (withMusic) {
         musicTrackId = resolveMusicTrackId(input.musicSuggestion, input.musicTrackId);
         const track = getMusicTrack(musicTrackId);
-        const musicPath = join(workDir, 'bed.m4a');
+        musicPath = join(workDir, 'bed.m4a');
         await this.generateMusicBed(
           ffmpeg,
           track,
           Math.max(duration + 0.5, 2),
           musicPath,
         );
-        const volume = input.musicVolume ?? 0.22;
+        volume = input.musicVolume ?? 0.22;
+      }
+
+      if (voicePath) {
+        await this.muxVoice(ffmpeg, videoPath, voicePath, musicPath, volume, duration, outPath);
+      } else if (musicPath) {
         await this.muxMusic(ffmpeg, videoPath, musicPath, volume, duration, outPath);
       } else {
         await this.copyVideo(ffmpeg, videoPath, outPath);
@@ -231,7 +257,9 @@ export class VideoCompositionService {
     ffmpeg: string,
     inputs: string[],
     outPath: string,
+    maxDurationSeconds?: number,
   ): Promise<void> {
+    const limit = maxDurationSeconds ? ['-t', maxDurationSeconds.toFixed(2)] : [];
     if (inputs.length === 1) {
       await this.runFfmpeg(ffmpeg, [
         '-y',
@@ -240,6 +268,7 @@ export class VideoCompositionService {
         '-vf',
         this.scalePadFilter(),
         '-an',
+        ...limit,
         ...this.videoEncodeArgs(),
         outPath,
       ]);
@@ -254,6 +283,7 @@ export class VideoCompositionService {
       '-map',
       '[outv]',
       '-an',
+      ...limit,
       ...this.videoEncodeArgs(),
       outPath,
     );
@@ -377,6 +407,74 @@ export class VideoCompositionService {
       '+faststart',
       outPath,
     ]);
+  }
+
+  /**
+   * Voz del clip (avatar) + música opcional, recortado a `duration`.
+   * Si la mezcla falla, se deja solo la voz: nunca se pierde lo que dice el avatar.
+   */
+  private async muxVoice(
+    ffmpeg: string,
+    videoPath: string,
+    voicePath: string,
+    musicPath: string | undefined,
+    volume: number,
+    duration: number,
+    outPath: string,
+  ): Promise<void> {
+    const d = duration.toFixed(2);
+    const fadeStart = Math.max(0, duration - 0.3).toFixed(2);
+    const voiceChain = `[1:a]aresample=44100,atrim=0:${d},asetpts=PTS-STARTPTS,afade=t=out:st=${fadeStart}:d=0.3`;
+    const tail = ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-t', d, '-movflags', '+faststart', outPath];
+    const voiceOnly = async () =>
+      this.runFfmpeg(ffmpeg, [
+        '-y',
+        '-i',
+        videoPath,
+        '-i',
+        voicePath,
+        '-filter_complex',
+        `${voiceChain}[a]`,
+        '-map',
+        '0:v:0',
+        '-map',
+        '[a]',
+        ...tail,
+      ]);
+    if (!musicPath) {
+      await voiceOnly();
+      return;
+    }
+    const vol = Math.min(1, Math.max(0.05, volume));
+    const bedFade = Math.max(0, duration - 1.2).toFixed(2);
+    try {
+      await this.runFfmpeg(ffmpeg, [
+        '-y',
+        '-i',
+        videoPath,
+        '-i',
+        voicePath,
+        '-i',
+        musicPath,
+        '-filter_complex',
+        `${voiceChain}[voice];[2:a]aresample=44100,volume=${vol},afade=t=out:st=${bedFade}:d=1.2[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]`,
+        '-map',
+        '0:v:0',
+        '-map',
+        '[a]',
+        ...tail,
+      ]);
+    } catch (err) {
+      this.logger.warn(
+        `Mezcla voz+música falló (${err instanceof Error ? err.message : err}); se deja solo la voz`,
+      );
+      await voiceOnly();
+    }
+  }
+
+  private async hasAudioStream(ffmpeg: string, path: string): Promise<boolean> {
+    const stderr = await this.runFfmpegCapture(ffmpeg, ['-i', path]);
+    return /Stream #\d+:\d+.*Audio:/.test(stderr);
   }
 
   private async copyVideo(

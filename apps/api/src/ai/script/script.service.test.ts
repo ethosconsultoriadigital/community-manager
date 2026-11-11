@@ -46,3 +46,38 @@ describe('ScriptService', () => {
     expect(service.resolveSceneCount(9)).toBe(4);
   });
 });
+
+describe('ScriptService avatar (máx. 10 s)', () => {
+  it('pide ≤10 s al LLM aunque lleguen 30 y recorta el monólogo a ~26 palabras', async () => {
+    const longText = Array.from({ length: 60 }, (_, i) => `palabra${i}`).join(' ');
+    const llm = {
+      generateAvatarScript: vi.fn().mockResolvedValue({
+        spokenText: longText,
+        subtitleLines: ['línea larga 1', 'línea larga 2'],
+        musicSuggestion: 'acoustic',
+      }),
+    };
+    const service = new ScriptService({ get: () => undefined } as never, llm as never);
+    const out = await service.buildAvatarScript({ brief: 'Promo', targetSeconds: 30 });
+    expect(llm.generateAvatarScript).toHaveBeenCalledWith(
+      expect.objectContaining({ targetSeconds: 10 }),
+    );
+    expect(out.spokenText.split(/\s+/).length).toBeLessThanOrEqual(26);
+    // Subtítulos rehechos con el texto recortado (no los del texto largo).
+    expect(out.subtitleLines.join(' ')).not.toContain('línea larga');
+    expect(out.subtitleLines.length).toBeLessThanOrEqual(4);
+  });
+
+  it('respeta un monólogo corto y sus subtítulos', async () => {
+    const llm = {
+      generateAvatarScript: vi.fn().mockResolvedValue({
+        spokenText: 'Hola, soy Robi. Visítanos hoy.',
+        subtitleLines: ['Hola, soy Robi.', 'Visítanos hoy.'],
+      }),
+    };
+    const service = new ScriptService({ get: () => undefined } as never, llm as never);
+    const out = await service.buildAvatarScript({ brief: 'Promo' });
+    expect(out.spokenText).toBe('Hola, soy Robi. Visítanos hoy.');
+    expect(out.subtitleLines).toEqual(['Hola, soy Robi.', 'Visítanos hoy.']);
+  });
+});

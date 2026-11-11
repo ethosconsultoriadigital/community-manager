@@ -67,6 +67,7 @@ export class FalVideoProvider implements VideoProvider {
       model,
       prompt,
       hasImage ? input.referenceImageUrl!.trim() : undefined,
+      input.durationSeconds,
     );
 
     const result = await runFalQueueJob({

@@ -107,4 +107,78 @@ describe('VideoCompositionService', () => {
     expect(srt).toContain('00:00:00,000 --> 00:00:01,500');
     expect(srt).toContain('Promo');
   });
+
+  it('recorta a 10 s y conserva la voz del clip del avatar', async () => {
+    const ffmpeg = await resolveFfmpeg();
+    if (!ffmpeg) {
+      console.warn('ffmpeg-static no disponible; se omite test de tope de 10 s');
+      return;
+    }
+    const dir = await mkdtemp(join(tmpdir(), 'cm-comp-10s-'));
+    try {
+      const clip = join(dir, 'avatar.mp4');
+      await run(ffmpeg, [
+        '-y',
+        '-f', 'lavfi', '-i', 'color=c=green:s=360x640:d=14',
+        '-f', 'lavfi', '-i', 'sine=frequency=440:duration=14',
+        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest',
+        clip,
+      ]);
+      const service = new VideoCompositionService();
+      const withMusic = await service.concatClips({
+        clipPaths: [clip],
+        withMusic: true,
+        musicTrackId: 'upbeat-light',
+        keepClipAudio: true,
+        maxDurationSeconds: 10,
+        keepOnDisk: true,
+      });
+      expect(withMusic.durationSeconds).toBeLessThanOrEqual(10.1);
+      const probe = await new Promise<string>((resolve, reject) => {
+        const child = spawn(ffmpeg, ['-i', withMusic.outPath!], { windowsHide: true });
+        let err = '';
+        child.stderr.on('data', (c: Buffer) => {
+          err += c.toString();
+        });
+        child.on('error', reject);
+        child.on('close', () => resolve(err));
+      });
+      expect(probe).toMatch(/Audio:/);
+      const match = probe.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      expect(match).toBeTruthy();
+      expect(Number(match![3]) + Number(match![2]) * 60).toBeLessThanOrEqual(10.1);
+      await service.cleanupWorkDir(withMusic.workDir);
+
+      const voiceOnly = await service.concatClips({
+        clipPaths: [clip],
+        withMusic: false,
+        keepClipAudio: true,
+        maxDurationSeconds: 10,
+        keepOnDisk: true,
+      });
+      const probeVoice = await new Promise<string>((resolve, reject) => {
+        const child = spawn(ffmpeg, ['-i', voiceOnly.outPath!], { windowsHide: true });
+        let err = '';
+        child.stderr.on('data', (c: Buffer) => {
+          err += c.toString();
+        });
+        child.on('error', reject);
+        child.on('close', () => resolve(err));
+      });
+      // Sin música, antes salía mudo: ahora la voz del avatar se conserva.
+      expect(probeVoice).toMatch(/Audio:/);
+      await service.cleanupWorkDir(voiceOnly.workDir);
+
+      const reel = await service.concatClips({
+        clipPaths: [clip, clip],
+        withMusic: false,
+        maxDurationSeconds: 10,
+        keepOnDisk: true,
+      });
+      expect(reel.durationSeconds).toBeLessThanOrEqual(10.1);
+      await service.cleanupWorkDir(reel.workDir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 120000);
 });

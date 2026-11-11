@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { LLM_PROVIDER } from '../ai.tokens';
 import type { LlmProvider } from '../interfaces/llm-provider.interface';
 import type { ReelScript } from './reel-script.types';
+import { capVideoSeconds, maxSpokenWords, trimSpokenText } from '../video-duration';
 
 const MIN_SCENES = 1;
 const MAX_SCENES = 4;
@@ -87,11 +88,13 @@ export class ScriptService {
     subtitleLines: string[];
     musicSuggestion?: string;
   }> {
+    const seconds = capVideoSeconds(input.targetSeconds);
+    const maxWords = maxSpokenWords(seconds);
     const result = await this.llm.generateAvatarScript({
       brief: input.brief.trim(),
       caption: input.caption?.trim(),
       referenceText: input.referenceText?.trim(),
-      targetSeconds: input.targetSeconds,
+      targetSeconds: seconds,
     });
     let spokenText = (result.spokenText ?? '').trim();
     if (!spokenText) {
@@ -99,16 +102,16 @@ export class ScriptService {
         input.caption?.trim() ?? ''
       }`.trim();
     }
+    // Tope duro: el monólogo cabe en ~10 s aunque el LLM se pase.
+    const trimmed = trimSpokenText(spokenText, maxWords);
+    const wasTrimmed = trimmed !== spokenText.split(/\s+/).filter(Boolean).join(' ');
+    spokenText = trimmed;
     const subtitleLines =
-      result.subtitleLines?.length > 0
-        ? result.subtitleLines
-        : spokenText
-            .split(/(?<=[.!?])\s+/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .slice(0, 6);
+      !wasTrimmed && result.subtitleLines?.length > 0
+        ? result.subtitleLines.slice(0, 4)
+        : splitSubtitleLines(spokenText);
     return {
-      spokenText: spokenText.slice(0, 2500),
+      spokenText,
       subtitleLines,
       musicSuggestion: result.musicSuggestion?.trim() || 'upbeat light',
     };
@@ -125,4 +128,16 @@ export class ScriptService {
     }));
     return { scenes, musicSuggestion: 'upbeat light corporate' };
   }
+}
+
+/** Frases del monólogo para subtítulos (≤8 palabras por línea, máx. 4 líneas). */
+export function splitSubtitleLines(text: string): string[] {
+  const lines: string[] = [];
+  for (const sentence of text.split(/(?<=[.!?…])\s+/)) {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    for (let i = 0; i < words.length; i += 8) {
+      lines.push(words.slice(i, i + 8).join(' '));
+    }
+  }
+  return lines.filter(Boolean).slice(0, 4);
 }
