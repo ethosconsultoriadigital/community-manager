@@ -21,6 +21,7 @@ import { ReelPipelineService } from './reel-pipeline.service';
 import { AvatarPipelineService } from './avatar-pipeline.service';
 import { STALE_VIDEO_JOB_MS } from '../jobs/video-job-options';
 import { friendlyFalError } from './fal-queue';
+import { headlineFromCaption } from './composition/overlay-text';
 
 export type GenerateFromBriefInput = {
   clientId: string;
@@ -329,7 +330,7 @@ export class ContentGenerationService {
       ...(input.composeFields ?? {}),
     };
     if (!fields.title?.trim()) {
-      fields.title = input.caption.trim().slice(0, 120);
+      fields.title = headlineFromCaption(input.caption);
     }
 
     const composed = await this.composition.compose({

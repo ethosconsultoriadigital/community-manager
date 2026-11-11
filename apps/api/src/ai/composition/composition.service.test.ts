@@ -273,7 +273,8 @@ describe('CompositionService', () => {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < outW; x++) {
         const o = (y * outW + x) * 4;
-        if (data[o]! < 30 && data[o + 1]! < 40 && data[o + 2]! < 55) {
+        // El logo se pega tal cual: se busca su color exacto (la sombra del texto también es oscura).
+        if (data[o] === 12 && data[o + 1] === 18 && data[o + 2] === 32) {
           hits++;
           if (x < minX) minX = x;
           if (y < minY) minY = y;

@@ -459,3 +459,68 @@ function relativeLuminanceFast(r: number, g: number, b: number): number {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+
+/**
+ * Elige dónde va el bloque de texto (título): abajo, arriba o en los tercios.
+ * Evita piel (caras), letras ya presentes, zonas muy cargadas o muy brillantes
+ * y el rectángulo del logo si ya está fijo. No cambia la lógica del logo.
+ */
+export function chooseTextBand(input: {
+  image: RgbImage;
+  canvasWidth: number;
+  canvasHeight: number;
+  blockWidth: number;
+  blockHeight: number;
+  left: number;
+  margin: number;
+  avoid?: PixelRect[];
+}): { top: number; index: number } {
+  const canvasWidth = Math.max(1, input.canvasWidth);
+  const canvasHeight = Math.max(1, input.canvasHeight);
+  const blockHeight = Math.max(1, Math.min(input.blockHeight, canvasHeight));
+  const maps = buildMaps(input.image);
+  const medianL = medianLuminance(maps.simpleL);
+  const scaleX = input.image.width / canvasWidth;
+  const scaleY = input.image.height / canvasHeight;
+  const maxTop = Math.max(0, canvasHeight - blockHeight - input.margin);
+  const minTop = Math.min(maxTop, Math.max(0, input.margin));
+  // Orden = preferencia: abajo, arriba, tercio inferior, tercio superior.
+  const tops = [
+    maxTop,
+    minTop,
+    Math.round(canvasHeight * 0.66 - blockHeight / 2),
+    Math.round(canvasHeight * 0.24 - blockHeight / 2),
+  ].map((t) => clamp(t, minTop, maxTop));
+  const preference = [0, 0.1, 0.18, 0.22];
+
+  const scored = tops.map((top, index) => {
+    const rect = { x: input.left, y: top, width: input.blockWidth, height: blockHeight };
+    const stats = regionStats(
+      maps,
+      mapRect(rect, scaleX, scaleY, input.image.width, input.image.height),
+    );
+    const overlap = overlapRatio(rect, input.avoid ?? []);
+    return { top, index, overlap, ...stats };
+  });
+  const maxColor = Math.max(...scored.map((s) => s.colorVar), 1e-6);
+  const maxEdge = Math.max(...scored.map((s) => s.edge), 1e-6);
+
+  let best = scored[0]!;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const s of scored) {
+    const glare = s.meanL >= HIGHLIGHT_L ? Math.max(0, s.meanL - medianL) + 0.2 : 0;
+    const cost =
+      4 * s.skin +
+      4 * s.text +
+      0.35 * (s.colorVar / maxColor) +
+      0.35 * (s.edge / maxEdge) +
+      glare +
+      6 * s.overlap +
+      preference[s.index]!;
+    if (cost < bestCost - 1e-6) {
+      best = s;
+      bestCost = cost;
+    }
+  }
+  return { top: best.top, index: best.index };
+}
