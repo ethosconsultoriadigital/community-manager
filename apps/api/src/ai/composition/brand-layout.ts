@@ -2,6 +2,7 @@
  * Layout de marca en clients.brand (jsonb).
  * Validación ligera sin zod (evitar dependencia nueva).
  */
+import { parseBrandKit, type BrandKit } from './brand-kit';
 
 export type LogoAnchor =
   | 'top-left'
@@ -36,7 +37,8 @@ export type BrandLayout = {
   text: BrandTextField[];
 };
 
-export type ClientBrandConfig = {
+/** Kit de marca (colores, fuentes, web, CTA, plantilla): ver brand-kit.ts. */
+export type ClientBrandConfig = BrandKit & {
   logoUrl?: string;
   /** Imagen del personaje estilizado (avatar / “robocito”). */
   characterImageUrl?: string;
@@ -181,7 +183,7 @@ export function parseClientBrand(brand: unknown): ClientBrandConfig {
     };
   }
 
-  return { logoUrl, characterImageUrl, ttsVoiceId, fonts, layouts };
+  return { ...parseBrandKit(root), logoUrl, characterImageUrl, ttsVoiceId, fonts, layouts };
 }
 
 export type ResolvedBrandLayout = BrandLayout & {

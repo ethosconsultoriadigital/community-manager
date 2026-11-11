@@ -7,6 +7,12 @@ import { join } from 'node:path';
 import { downloadUrlToFile } from '../download-to-file';
 import { FFMPEG_MISSING_MESSAGE, findFfmpegBinary } from './ffmpeg-bin';
 import {
+  TEMPLATE_H,
+  TEMPLATE_W,
+  resolveTemplateFontsDir,
+  type AvatarTemplateLayers,
+} from './avatar-template';
+import {
   getMusicTrack,
   resolveMusicTrackId,
   type LicensedMusicTrack,
@@ -61,6 +67,22 @@ export type ConcatClipsResult = {
   durationSeconds?: number;
   musicTrackId?: string;
   burnedSubtitles: boolean;
+};
+
+export type ComposeAvatarTemplateInput = {
+  /** Clip limpio del lip-sync (sin subtítulos), con la voz. */
+  clipPath: string;
+  layers: AvatarTemplateLayers;
+  /** Contenido .ass (título, subtítulos, web, CTA). */
+  ass: string;
+  /** Segundos del avatar (ya recortados al tope). */
+  mainSeconds: number;
+  /** Segundos de la tarjeta final (0 = sin tarjeta). */
+  endCardSeconds: number;
+  musicTrackId?: string;
+  musicSuggestion?: string;
+  withMusic?: boolean;
+  musicVolume?: number;
 };
 
 /**
@@ -195,6 +217,148 @@ export class VideoCompositionService {
       if (!retainWorkDir) {
         await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
       }
+    }
+  }
+
+  /**
+   * Avatar con plantilla de marca en una sola pasada de ffmpeg (720p, 1 hilo):
+   * fondo + avatar enmascarado + capa de marca + tarjeta final + texto .ass.
+   * Luego la voz del clip (+ música) con muxVoice. Siempre deja el MP4 en disco:
+   * el caller debe cleanupWorkDir. Si algo falla lanza error (el caller vuelve
+   * a la composición clásica).
+   */
+  async composeAvatarTemplate(input: ComposeAvatarTemplateInput): Promise<ConcatClipsResult> {
+    const ffmpeg = await this.resolveFfmpegPath();
+    const fontsDir = resolveTemplateFontsDir();
+    if (!fontsDir) {
+      throw new BadRequestException('No se encontraron las fuentes de las plantillas (assets/fonts)');
+    }
+    const workDir = await mkdtemp(join(tmpdir(), 'cm-avatar-tpl-'));
+    let ok = false;
+    try {
+      const main = Math.max(0.5, input.mainSeconds);
+      const endD = input.endCardSeconds > 0 ? input.endCardSeconds : 0;
+      const total = main + endD;
+      const { layers } = input;
+      const bg = join(workDir, 'bg.png');
+      const fg = join(workDir, 'fg.png');
+      const mask = join(workDir, 'mask.png');
+      const end = join(workDir, 'end.png');
+      const assPath = join(workDir, 'subs.ass');
+      await Promise.all([
+        writeFile(bg, layers.background),
+        writeFile(fg, layers.foreground),
+        writeFile(mask, layers.mask),
+        writeFile(end, layers.endCard),
+        writeFile(assPath, input.ass, 'utf8'),
+      ]);
+
+      const m = main.toFixed(2);
+      const { x, y, w, h } = layers.card;
+      const parts: string[] = [];
+      parts.push(
+        `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,fps=24,trim=0:${m},setpts=PTS-STARTPTS,format=rgba[av0]`,
+      );
+      if (layers.blurBackground) {
+        parts.push('[av0]split[av][avb]');
+        parts.push(
+          `[avb]scale=${TEMPLATE_W}:${TEMPLATE_H}:force_original_aspect_ratio=increase,crop=${TEMPLATE_W}:${TEMPLATE_H},gblur=sigma=30,format=rgba[bgv]`,
+        );
+        parts.push(`[1:v]format=rgba,${still(m)}[tint]`);
+        parts.push('[bgv][tint]overlay=0:0:shortest=1[base]');
+      } else {
+        parts.push('[av0]null[av]');
+        parts.push(`[1:v]format=rgba,${still(m)}[base]`);
+      }
+      parts.push(`[3:v]scale=${w}:${h},format=gray,${still(m)}[m]`);
+      parts.push('[av][m]alphamerge[avm]');
+      parts.push(`[base][avm]overlay=${x}:${y}:shortest=1[c1]`);
+      parts.push(`[2:v]format=rgba,${still(m)}[fgl]`);
+      parts.push('[c1][fgl]overlay=0:0:shortest=1[c2]');
+      let last = 'c2';
+      if (layers.progressBar) {
+        const accent = '0x' + layers.progressBar.color.replace('#', '');
+        parts.push(
+          `color=c=${accent}:s=${TEMPLATE_W}x${layers.progressBar.height}:r=24:d=${m}[pb]`,
+          `[${last}][pb]overlay=x='-w+w*t/${m}':y=${layers.progressBar.y}:shortest=1[c3]`,
+        );
+        last = 'c3';
+      }
+      parts.push(`[${last}]format=yuv420p,setsar=1[mainv]`);
+      if (endD > 0) {
+        parts.push(
+          `[4:v]scale=${TEMPLATE_W}:${TEMPLATE_H},format=yuv420p,setsar=1,${still(endD.toFixed(2))},fade=t=in:st=0:d=0.35[endv]`,
+          '[mainv][endv]concat=n=2:v=1:a=0[cat]',
+        );
+      } else {
+        parts.push('[mainv]null[cat]');
+      }
+      parts.push(
+        `[cat]subtitles=filename='${escapeFilterPath(assPath)}':fontsdir='${escapeFilterPath(fontsDir)}'[v]`,
+      );
+
+      const videoPath = join(workDir, 'templated.mp4');
+      await this.runFfmpeg(ffmpeg, [
+        '-y',
+        // Hilos explícitos: 1 para decodificar/filtrar y 1 para x264 (pico de RAM ~185 MB).
+        '-threads',
+        '1',
+        '-filter_threads',
+        '1',
+        '-i',
+        input.clipPath,
+        // Imágenes de 1 cuadro: el filtro loop repite la misma referencia (poca RAM).
+        '-i',
+        bg,
+        '-i',
+        fg,
+        '-i',
+        mask,
+        '-i',
+        end,
+        '-filter_complex',
+        parts.join(';'),
+        '-map',
+        '[v]',
+        '-an',
+        '-t',
+        total.toFixed(2),
+        '-threads',
+        '1',
+        ...this.videoEncodeArgs(),
+        videoPath,
+      ]);
+
+      const duration = await this.probeDurationSeconds(ffmpeg, videoPath);
+      const outPath = join(workDir, 'out.mp4');
+      const withMusic = input.withMusic !== false;
+      let musicTrackId: string | undefined;
+      let musicPath: string | undefined;
+      const volume = input.musicVolume ?? 0.12;
+      if (withMusic) {
+        musicTrackId = resolveMusicTrackId(input.musicSuggestion, input.musicTrackId);
+        musicPath = join(workDir, 'bed.m4a');
+        await this.generateMusicBed(ffmpeg, getMusicTrack(musicTrackId), Math.max(duration + 0.5, 2), musicPath);
+      }
+      if (await this.hasAudioStream(ffmpeg, input.clipPath)) {
+        await this.muxVoice(ffmpeg, videoPath, input.clipPath, musicPath, volume, duration, outPath, true);
+      } else if (musicPath) {
+        await this.muxMusic(ffmpeg, videoPath, musicPath, volume, duration, outPath);
+      } else {
+        await this.copyVideo(ffmpeg, videoPath, outPath);
+      }
+      ok = true;
+      return {
+        outPath,
+        workDir,
+        width: TEMPLATE_W,
+        height: TEMPLATE_H,
+        durationSeconds: duration,
+        musicTrackId,
+        burnedSubtitles: true,
+      };
+    } finally {
+      if (!ok) await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 
@@ -421,10 +585,13 @@ export class VideoCompositionService {
     volume: number,
     duration: number,
     outPath: string,
+    /** Rellena con silencio si la voz es más corta que el video (tarjeta final). */
+    padVoice = false,
   ): Promise<void> {
     const d = duration.toFixed(2);
     const fadeStart = Math.max(0, duration - 0.3).toFixed(2);
-    const voiceChain = `[1:a]aresample=44100,atrim=0:${d},asetpts=PTS-STARTPTS,afade=t=out:st=${fadeStart}:d=0.3`;
+    const pad = padVoice ? 'apad,' : '';
+    const voiceChain = `[1:a]aresample=44100,${pad}atrim=0:${d},asetpts=PTS-STARTPTS,afade=t=out:st=${fadeStart}:d=0.3`;
     const tail = ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-t', d, '-movflags', '+faststart', outPath];
     const voiceOnly = async () =>
       this.runFfmpeg(ffmpeg, [
@@ -597,6 +764,16 @@ export class VideoCompositionService {
     }
     return out;
   }
+}
+
+/** Imagen fija → video de `seconds` a 24 fps sin volver a decodificar cada cuadro. */
+function still(seconds: string): string {
+  return `loop=loop=-1:size=1:start=0,setpts=N/(24*TB),fps=24,trim=duration=${seconds}`;
+}
+
+/** Ruta para opciones de filtro (subtitles/fontsdir): / y escape de : y '. */
+function escapeFilterPath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
 function formatSrtTime(seconds: number): string {

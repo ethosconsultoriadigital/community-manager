@@ -309,6 +309,40 @@ export async function apiUploadClientLogo(
   }>;
 }
 
+/** Variante de logo (fondo oscuro / claro) del Kit de marca. Se guarda tal cual. */
+export async function apiUploadClientLogoVariant(
+  clientId: string,
+  variant: 'dark' | 'light',
+  file: File,
+  token?: string | null,
+): Promise<{ brand: Record<string, unknown> }> {
+  const authToken = token ?? getStoredToken();
+  const form = new FormData();
+  form.append('file', file);
+
+  const headers = new Headers();
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+
+  const res = await fetch(`${getApiBase()}/clients/${clientId}/logo-variant/${variant}`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as { message?: unknown; error?: unknown };
+      message = readErrorMessage(body, message);
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  return res.json() as Promise<{ brand: Record<string, unknown> }>;
+}
+
 export async function apiUploadReference<T>(
   file: File,
   token?: string | null,

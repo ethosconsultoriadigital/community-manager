@@ -27,6 +27,12 @@ import {
   DEFAULT_POST_FEED_LAYOUT,
   parseClientBrand,
 } from '../ai/composition/brand-layout';
+import {
+  AVATAR_TEMPLATES,
+  BRAND_FONTS,
+  DEFAULT_AVATAR_TEMPLATE,
+  mergeBrandKitPatch,
+} from '../ai/composition/brand-kit';
 
 class CreateClientDto {
   name!: string;
@@ -75,6 +81,16 @@ export class ClientsController {
     return this.clients.findAll(user.agencyId);
   }
 
+  /** Opciones del Kit de marca (fuentes instaladas y plantillas de video). */
+  @Get('brand-kit/options')
+  brandKitOptions() {
+    return {
+      fonts: [...BRAND_FONTS],
+      videoTemplates: [...AVATAR_TEMPLATES],
+      defaultVideoTemplate: DEFAULT_AVATAR_TEMPLATE,
+    };
+  }
+
   @Get(':id')
   async findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.clientAccess.assertClientAccess(user, id);
@@ -94,6 +110,84 @@ export class ClientsController {
     const client = await this.clients.update(user.agencyId, id, body);
     if (!client) throw new NotFoundException('Cliente no encontrado');
     return client;
+  }
+
+  /**
+   * Kit de marca: colores, fuentes, web, CTA, usuario, variantes de logo y
+   * plantilla de video. Solo toca esos campos; logoUrl, layouts y personaje
+   * se conservan. '' o null borra un campo.
+   */
+  @Patch(':id/brand-kit')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  async updateBrandKit(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    await this.clientAccess.assertClientAccess(user, id);
+    const client = await this.clients.findById(user.agencyId, id);
+    if (!client) throw new NotFoundException('Cliente no encontrado');
+    let nextBrand: Record<string, unknown>;
+    try {
+      nextBrand = mergeBrandKitPatch(client.brand, body ?? {});
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : 'Kit de marca inválido');
+    }
+    const updated = await this.clients.update(user.agencyId, id, { brand: nextBrand });
+    if (!updated) throw new NotFoundException('Cliente no encontrado');
+    return { brand: updated.brand };
+  }
+
+  /**
+   * Variante del logo para fondo oscuro o claro (opcional, PNG transparente ideal).
+   * No reemplaza logoUrl: las plantillas de video usan la de fondo oscuro si existe.
+   */
+  @Post(':id/logo-variant/:variant')
+  @UseGuards(RolesGuard)
+  @Roles('manager', 'admin', 'owner')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadLogoVariant(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('variant') variant: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    await this.clientAccess.assertClientAccess(user, id);
+    const key = variant === 'dark' ? 'logoDarkUrl' : variant === 'light' ? 'logoLightUrl' : null;
+    if (!key) throw new BadRequestException('Variante de logo inválida (usa dark o light)');
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No se recibió ningún archivo de logo');
+    }
+    const mime = (file.mimetype || '').toLowerCase();
+    if (!LOGO_MIMES.has(mime)) {
+      throw new BadRequestException('El logo debe ser PNG, JPEG, WebP o GIF');
+    }
+    const client = await this.clients.findById(user.agencyId, id);
+    if (!client) throw new NotFoundException('Cliente no encontrado');
+    const ext =
+      mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : mime === 'image/gif' ? 'gif' : 'jpg';
+    // El archivo se guarda tal cual: no se recorta ni se procesa.
+    const stored = await this.mediaStorage.save({
+      agencyId: user.agencyId,
+      buffer: file.buffer,
+      extension: ext,
+      contentType: mime,
+    });
+    const nextBrand: Record<string, unknown> = {
+      ...(typeof client.brand === 'object' && client.brand && !Array.isArray(client.brand)
+        ? (client.brand as Record<string, unknown>)
+        : {}),
+      [key]: stored.storageUrl,
+    };
+    const updated = await this.clients.update(user.agencyId, id, { brand: nextBrand });
+    if (!updated) throw new NotFoundException('Cliente no encontrado');
+    return { [key]: stored.storageUrl, brand: updated.brand };
   }
 
   /**

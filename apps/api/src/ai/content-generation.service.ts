@@ -94,6 +94,8 @@ export type GenerateAvatarFromBriefInput = {
   withSubtitles?: boolean;
   placeId?: string | null;
   placeName?: string | null;
+  /** clasica | profesional | circulo | dividido (default: brand.videoTemplate o profesional). */
+  template?: string;
 };
 
 export type GenerateAvatarFromBriefResult = {
@@ -677,6 +679,7 @@ export class ContentGenerationService {
         musicTrackId: input.musicTrackId,
         withMusic: input.withMusic,
         withSubtitles: input.withSubtitles,
+        template: input.template,
       });
     } catch (error) {
       await this.failOpenGeneration(
@@ -741,6 +744,8 @@ export class ContentGenerationService {
         burnedSubtitles: generated.burnedSubtitles,
         durationSeconds: generated.durationSeconds,
         spokenTextPreview: generated.spokenTextPreview,
+        template: generated.template,
+        ...(generated.cleanClipUrl ? { cleanClipUrl: generated.cleanClipUrl } : {}),
         usedMock: generated.usedMock,
         postIds: createdPosts.map((p) => p.id),
       },

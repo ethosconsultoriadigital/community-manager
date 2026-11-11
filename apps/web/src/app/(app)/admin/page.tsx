@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BrandKitEditor } from '@/components/BrandKitEditor';
 import { PageHeader } from '@/components/PageTypography';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -35,6 +36,7 @@ export default function AdminPage() {
   const [busyClientId, setBusyClientId] = useState<string | null>(null);
 
   const [editingClientId, setEditingClientId] = useState<string | null>(null);
+  const [brandKitClientId, setBrandKitClientId] = useState<string | null>(null);
   const [editClientName, setEditClientName] = useState('');
 
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -471,6 +473,15 @@ export default function AdminPage() {
                         </button>
                         <button
                           type="button"
+                          onClick={() =>
+                            setBrandKitClientId((prev) => (prev === client.id ? null : client.id))
+                          }
+                          className="rounded border border-brand px-2 py-1 text-xs text-brand hover:bg-[#E7F3FF]"
+                        >
+                          {brandKitClientId === client.id ? 'Cerrar kit de marca' : 'Kit de marca'}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => connectMeta(client.id)}
                           disabled={connectingClientId === client.id}
                           className="rounded-md border border-brand px-3 py-1.5 text-xs text-brand hover:bg-[#E7F3FF] disabled:opacity-50"
@@ -480,6 +491,18 @@ export default function AdminPage() {
                       </>
                     )}
                   </div>
+                  {brandKitClientId === client.id && (
+                    <div className="w-full">
+                      <BrandKitEditor
+                        client={client}
+                        onSaved={(brand) =>
+                          setClients((prev) =>
+                            prev.map((c) => (c.id === client.id ? { ...c, brand } : c)),
+                          )
+                        }
+                      />
+                    </div>
+                  )}
                 </li>
               );
             })}

@@ -4,14 +4,37 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MediaStorageService } from '../media/media-storage.service';
-import { parseClientBrand } from './composition/brand-layout';
+import {
+  DEFAULT_AVATAR_TEMPLATE,
+  extractBrandColorsFromLogo,
+  normalizeAvatarTemplate,
+  resolveBrandColors,
+  displayWebsite,
+  type AvatarTemplate,
+  type BrandColors,
+} from './composition/brand-kit';
+import { parseClientBrand, type ClientBrandConfig } from './composition/brand-layout';
+import { headlineFromCaption } from './composition/overlay-text';
 import { LIPSYNC_PROVIDER, TTS_PROVIDER } from './ai.tokens';
 import type { LipSyncProvider } from './interfaces/lipsync-provider.interface';
 import type { TtsProvider } from './interfaces/tts-provider.interface';
 import { ScriptService } from './script/script.service';
-import type { SubtitleCue } from './video-composition/video-composition.service';
+import {
+  buildAvatarAss,
+  endCardSecondsFor,
+  renderAvatarTemplateLayers,
+  wordCuesFromLines,
+  type DesignedAvatarTemplate,
+} from './video-composition/avatar-template';
+import type {
+  ConcatClipsResult,
+  SubtitleCue,
+} from './video-composition/video-composition.service';
 import { VideoCompositionService } from './video-composition/video-composition.service';
 import { capVideoSeconds } from './video-duration';
+
+/** Título del video: corto, sin emojis (mismo criterio que la foto con logo). */
+const AVATAR_TITLE_MAX_CHARS = 60;
 
 export type AvatarPipelineInput = {
   agencyId: string;
@@ -27,6 +50,11 @@ export type AvatarPipelineInput = {
   musicTrackId?: string;
   withMusic?: boolean;
   withSubtitles?: boolean;
+  /**
+   * Plantilla de presentación: clasica (como antes) | profesional | circulo | dividido.
+   * Si no viene: clients.brand.videoTemplate y si no, profesional.
+   */
+  template?: string;
 };
 
 export type AvatarPipelineResult = {
@@ -41,6 +69,10 @@ export type AvatarPipelineResult = {
   burnedSubtitles: boolean;
   durationSeconds?: number;
   spokenTextPreview: string;
+  /** Plantilla que se aplicó de verdad ('clasica' si hubo que volver al diseño anterior). */
+  template: AvatarTemplate;
+  /** Clip limpio del lip-sync en R2 (sin subtítulos) para re-componer sin pagar fal. */
+  cleanClipUrl?: string;
 };
 
 @Injectable()
@@ -112,19 +144,54 @@ export class AvatarPipelineService {
         input.withSubtitles !== false,
       );
 
-      const composed = await this.composition.concatClips({
-        clipPaths: [clipPath],
-        subtitles,
-        burnSubtitles: input.withSubtitles !== false,
-        withMusic: input.withMusic !== false,
-        musicTrackId: input.musicTrackId,
-        musicSuggestion: avatarScript.musicSuggestion,
-        musicVolume: 0.12,
-        // La voz viene en el clip del lip-sync: se conserva y se recorta al tope.
-        keepClipAudio: true,
-        maxDurationSeconds: maxSeconds,
-        keepOnDisk: true,
-      });
+      // Clip limpio a R2 (aditivo: si falla, el avatar sigue igual).
+      const cleanClipUrl = await this.saveCleanClip(input.agencyId, clipPath);
+
+      const requested: AvatarTemplate =
+        normalizeAvatarTemplate(input.template) ?? brand.videoTemplate ?? DEFAULT_AVATAR_TEMPLATE;
+      let usedTemplate: AvatarTemplate = 'clasica';
+      let composed: ConcatClipsResult | null = null;
+      if (requested !== 'clasica') {
+        try {
+          composed = await this.composeWithTemplate({
+            template: requested,
+            agencyId: input.agencyId,
+            brand,
+            caption: input.caption,
+            clipPath,
+            mainSeconds: duration,
+            maxSeconds,
+            subtitles,
+            withMusic: input.withMusic !== false,
+            musicTrackId: input.musicTrackId,
+            musicSuggestion: avatarScript.musicSuggestion,
+          });
+          usedTemplate = requested;
+        } catch (err) {
+          this.logger.warn(
+            `Plantilla de avatar "${requested}" falló; se usa la composición clásica: ${
+              err instanceof Error ? err.message : err
+            }`,
+          );
+          composed = null;
+        }
+      }
+
+      if (!composed) {
+        composed = await this.composition.concatClips({
+          clipPaths: [clipPath],
+          subtitles,
+          burnSubtitles: input.withSubtitles !== false,
+          withMusic: input.withMusic !== false,
+          musicTrackId: input.musicTrackId,
+          musicSuggestion: avatarScript.musicSuggestion,
+          musicVolume: 0.12,
+          // La voz viene en el clip del lip-sync: se conserva y se recorta al tope.
+          keepClipAudio: true,
+          maxDurationSeconds: maxSeconds,
+          keepOnDisk: true,
+        });
+      }
       if (!composed.outPath) {
         throw new BadRequestException('Composición de avatar sin archivo de salida');
       }
@@ -149,10 +216,119 @@ export class AvatarPipelineService {
         burnedSubtitles: composed.burnedSubtitles,
         durationSeconds: composed.durationSeconds,
         spokenTextPreview: avatarScript.spokenText.slice(0, 160),
+        template: usedTemplate,
+        ...(cleanClipUrl ? { cleanClipUrl } : {}),
       };
     } finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  private async saveCleanClip(agencyId: string, clipPath: string): Promise<string | undefined> {
+    try {
+      const stored = await this.mediaStorage.saveFromFile({
+        agencyId,
+        filePath: clipPath,
+        extension: 'mp4',
+        contentType: 'video/mp4',
+      });
+      return stored?.storageUrl;
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo guardar el clip limpio del avatar (se sigue igual): ${
+          err instanceof Error ? err.message : err
+        }`,
+      );
+      return undefined;
+    }
+  }
+
+  /** Logo para fondo oscuro si existe; si no, el logo normal. Nunca se modifica. */
+  private async loadLogo(brand: ClientBrandConfig): Promise<Buffer | null> {
+    const url = brand.logoDarkUrl || brand.logoUrl;
+    if (!url) return null;
+    try {
+      const { buffer } = await this.mediaStorage.readBytesFromUrl(url);
+      return buffer?.length ? buffer : null;
+    } catch (err) {
+      this.logger.warn(
+        `No se pudo leer el logo para la plantilla (va sin logo): ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
+
+  private async brandColors(brand: ClientBrandConfig, logo: Buffer | null): Promise<BrandColors> {
+    const kit = brand.colors;
+    const complete = Boolean(kit?.dark && kit.primary && kit.accent);
+    let fromLogo: BrandColors | null = null;
+    if (!complete && logo) {
+      try {
+        fromLogo = await extractBrandColorsFromLogo(logo);
+      } catch {
+        fromLogo = null;
+      }
+    }
+    return resolveBrandColors(kit, fromLogo);
+  }
+
+  private async composeWithTemplate(input: {
+    template: DesignedAvatarTemplate;
+    agencyId: string;
+    brand: ClientBrandConfig;
+    caption: string;
+    clipPath: string;
+    mainSeconds: number;
+    maxSeconds: number;
+    subtitles: SubtitleCue[];
+    withMusic: boolean;
+    musicTrackId?: string;
+    musicSuggestion?: string;
+  }): Promise<ConcatClipsResult> {
+    const { brand } = input;
+    const logo = await this.loadLogo(brand);
+    const colors = await this.brandColors(brand, logo);
+    const website = displayWebsite(brand.website);
+    const title = headlineFromCaption(input.caption, AVATAR_TITLE_MAX_CHARS);
+    const layers = await renderAvatarTemplateLayers({
+      template: input.template,
+      colors,
+      logo,
+      title,
+      website,
+      ctaText: brand.ctaText,
+      fontTitle: brand.fontTitle,
+      fontBody: brand.fontBody,
+    });
+    const endCardSeconds = endCardSecondsFor(input.mainSeconds, input.maxSeconds);
+    const ass = buildAvatarAss({
+      template: input.template,
+      colors,
+      fontTitle: brand.fontTitle,
+      fontBody: brand.fontBody,
+      titleLines: layers.titleLines,
+      titleSize: layers.titleSize,
+      website,
+      ctaText: brand.ctaText,
+      words: wordCuesFromLines(input.subtitles),
+      mainSeconds: input.mainSeconds,
+      endCardSeconds,
+    });
+    const composed = await this.composition.composeAvatarTemplate({
+      clipPath: input.clipPath,
+      layers,
+      ass,
+      mainSeconds: input.mainSeconds,
+      endCardSeconds,
+      withMusic: input.withMusic,
+      musicTrackId: input.musicTrackId,
+      musicSuggestion: input.musicSuggestion,
+      musicVolume: 0.12,
+    });
+    if (!composed?.outPath) {
+      throw new Error('La plantilla no devolvió archivo de salida');
+    }
+    return composed;
   }
 
   buildSubtitleCues(

@@ -13,6 +13,11 @@ import {
   apiUploadReference,
   apiUploadStandaloneImage,
 } from '@/lib/api';
+import {
+  AVATAR_TEMPLATE_OPTIONS,
+  readVideoTemplate,
+  type AvatarTemplateValue,
+} from '@/lib/brand-kit';
 import { visualPresetChips } from '@/lib/platform-visual-hints';
 import { ClientScopeField } from '@/components/ClientScopeField';
 import { LibraryPicker } from '@/components/LibraryPicker';
@@ -89,6 +94,8 @@ export default function ComposerPage() {
   const [avatarTargetSeconds, setAvatarTargetSeconds] = useState(10);
   const [avatarWithMusic, setAvatarWithMusic] = useState(true);
   const [avatarWithSubtitles, setAvatarWithSubtitles] = useState(true);
+  /** Plantilla del video de avatar; por defecto la del cliente o Profesional. */
+  const [avatarTemplate, setAvatarTemplate] = useState<AvatarTemplateValue>('profesional');
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [publishAsReel, setPublishAsReel] = useState(false);
   const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(false);
@@ -135,6 +142,7 @@ export default function ComposerPage() {
         : null;
     setCharacterImageUrl(charUrl);
     if (!charUrl) setCharacterFileName(null);
+    setAvatarTemplate(readVideoTemplate(brand));
   }, [selectedClient?.id, selectedClient?.brand]);
 
   const loadPostIntoForm = useCallback(async (postId: string) => {
@@ -310,6 +318,7 @@ export default function ComposerPage() {
           targetSeconds: avatarTargetSeconds,
           withMusic: avatarWithMusic,
           withSubtitles: avatarWithSubtitles,
+          template: avatarTemplate,
           ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
           ...placePayload(),
         }),
@@ -1511,6 +1520,27 @@ export default function ComposerPage() {
                   <option value={8}>~8 s</option>
                   <option value={10}>~10 s (máx.)</option>
                 </select>
+              </div>
+              <div>
+                <label htmlFor="avatar-template" className="mb-1 block text-xs text-muted">
+                  Plantilla
+                </label>
+                <select
+                  id="avatar-template"
+                  value={avatarTemplate}
+                  disabled={generatingAvatar || submitting}
+                  onChange={(e) => setAvatarTemplate(e.target.value as AvatarTemplateValue)}
+                  className={inputClass}
+                >
+                  {AVATAR_TEMPLATE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} — {opt.hint}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted">
+                  Usa los colores, logo, fuentes y web del Kit de marca del cliente (Administración).
+                </p>
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-muted">
                 <label className="inline-flex items-center gap-2">

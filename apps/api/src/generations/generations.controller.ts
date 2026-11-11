@@ -80,6 +80,8 @@ class GenerateAvatarFromBriefDto {
   withSubtitles?: boolean;
   placeId?: string | null;
   placeName?: string | null;
+  /** Plantilla del video: clasica | profesional | circulo | dividido. */
+  template?: string;
 }
 
 class GenerateCopyDto {
