@@ -88,6 +88,31 @@ function buildService(mocks: ReturnType<typeof createImageMocks>) {
 }
 
 describe('ContentGenerationService', () => {
+  it('asDraft: genera el media y deja el post en borrador sin aprobación pendiente', async () => {
+    const mocks = createImageMocks();
+    const service = buildService(mocks);
+
+    await service.generateFromBrief('agency-1', 'user-1', {
+      clientId: 'client-1',
+      brief: 'Promo verano visual',
+      caption: 'Mi texto de promo',
+      socialAccountIds: ['sa1'],
+      asDraft: true,
+    });
+
+    expect(mocks.posts.create).toHaveBeenCalledWith(
+      'agency-1',
+      'user-1',
+      expect.objectContaining({ socialAccountIds: ['sa1'] }),
+      'draft',
+    );
+    expect(mocks.approvals.createPending).not.toHaveBeenCalled();
+    expect(mocks.mediaAssets.create).toHaveBeenCalledWith(
+      'agency-1',
+      expect.objectContaining({ type: 'image', source: 'ai_generated' }),
+    );
+  });
+
   it('genera imagen y post pending_approval con caption del usuario (sin LLM mock)', async () => {
     const mocks = createImageMocks();
     const service = buildService(mocks);
@@ -424,6 +449,100 @@ describe('ContentGenerationService', () => {
       expect.objectContaining({ videoFormat: 'reel' }),
       'pending_approval',
     );
+    expect(mocks.generations.updateStatus).toHaveBeenCalledWith(
+      'agency-1',
+      'gen-avatar',
+      'completed',
+      expect.objectContaining({
+        output: expect.objectContaining({
+          videoUrl: 'https://storage.local/avatar.mp4',
+          postIds: ['post-avatar'],
+        }),
+      }),
+    );
+  });
+
+  it('avatar async con asDraft: el job deja el post en borrador (lo envía el botón de abajo)', async () => {
+    const mocks = createImageMocks();
+    mocks.posts.create.mockResolvedValue({ id: 'post-avatar', status: 'pending_approval' });
+    mocks.posts.findById.mockResolvedValue({
+      id: 'post-avatar',
+      status: 'pending_approval',
+      video_format: 'reel',
+      post_targets: [{ id: 't1' }],
+    });
+    mocks.generations.create.mockResolvedValue({ id: 'gen-avatar', status: 'pending' });
+    mocks.generations.findById = vi.fn().mockResolvedValue({
+      id: 'gen-avatar',
+      kind: 'avatar_video',
+      status: 'processing',
+      model: 'pending-avatar',
+      output: {
+        job: {
+          clientId: 'client-1',
+          brief: 'Saludo del personaje',
+          caption: 'Hola comunidad',
+          socialAccountIds: ['sa-ig'],
+          characterImageUrl: 'https://cdn.example/char.png',
+          userId: 'user-1',
+          asDraft: true,
+        },
+      },
+    });
+    mocks.generations.findByPost.mockResolvedValue([
+      { id: 'gen-avatar', kind: 'avatar_video', status: 'completed' },
+    ]);
+    mocks.mediaAssets.create.mockResolvedValue({
+      id: 'media-a',
+      storage_url: 'https://storage.local/avatar.mp4',
+      type: 'video',
+    });
+    mocks.mediaAssets.findByPost.mockResolvedValue([
+      { id: 'media-a', type: 'video', source: 'ai_generated' },
+    ]);
+    mocks.socialAccounts.findByAgency.mockResolvedValue([
+      { id: 'sa-ig', platform: 'instagram', is_active: true },
+    ]);
+    mocks.avatarPipeline.generate.mockResolvedValue({
+      url: 'https://storage.local/avatar.mp4',
+      width: 1080,
+      height: 1920,
+      model: 'fal-ai/sadtalker',
+      ttsProvider: 'elevenlabs',
+      lipsyncProvider: 'fal',
+      usedMock: false,
+      burnedSubtitles: true,
+      durationSeconds: 12,
+      spokenTextPreview: 'Hola',
+    });
+
+    const service = buildService(mocks);
+
+    const started = await service.startAvatarFromBrief('agency-1', 'user-1', {
+      clientId: 'client-1',
+      brief: 'Saludo del personaje',
+      caption: 'Hola comunidad',
+      socialAccountIds: ['sa-ig'],
+      characterImageUrl: 'https://cdn.example/char.png',
+    });
+    expect(started.generationId).toBe('gen-avatar');
+    expect(started.status).toBe('processing');
+
+    await service.processAvatarJob('agency-1', 'gen-avatar');
+
+    expect(mocks.avatarPipeline.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brief: 'Saludo del personaje',
+        characterImageUrl: 'https://cdn.example/char.png',
+      }),
+    );
+    expect(mocks.posts.create).toHaveBeenCalledWith(
+      'agency-1',
+      'user-1',
+      expect.objectContaining({ videoFormat: 'reel' }),
+      'draft',
+    );
+    expect(mocks.approvals.createPending).not.toHaveBeenCalled();
     expect(mocks.generations.updateStatus).toHaveBeenCalledWith(
       'agency-1',
       'gen-avatar',

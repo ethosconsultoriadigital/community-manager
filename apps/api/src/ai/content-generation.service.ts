@@ -41,7 +41,11 @@ export type GenerateFromBriefInput = {
   /** Si true, compone logo/texto de marca sobre el fondo generado. */
   composeWithBrand?: boolean;
   layoutKey?: string;
-  composeFields?: Record<string, string>;
+  composeFields?: Record<string, string>;  /**
+   * Si true, los posts quedan en borrador (sin aprobación pendiente): el Composer
+   * solo genera y adjunta el media; el envío a aprobación lo hace el botón de abajo.
+   */
+  asDraft?: boolean;
 };
 
 export type GenerateReelFromBriefInput = GenerateFromBriefInput & {
@@ -95,7 +99,11 @@ export type GenerateAvatarFromBriefInput = {
   placeId?: string | null;
   placeName?: string | null;
   /** clasica | profesional | circulo | dividido (default: brand.videoTemplate o profesional). */
-  template?: string;
+  template?: string;  /**
+   * Si true, los posts quedan en borrador (sin aprobación pendiente): el Composer
+   * solo genera y adjunta el media; el envío a aprobación lo hace el botón de abajo.
+   */
+  asDraft?: boolean;
 };
 
 export type GenerateAvatarFromBriefResult = {
@@ -251,10 +259,10 @@ export class ContentGenerationService {
           placeId: input.placeId ?? null,
           placeName: input.placeName ?? null,
         },
-        'pending_approval',
+        input.asDraft ? 'draft' : 'pending_approval',
       );
 
-      await this.approvals.createPending(post.id);
+      if (!input.asDraft) await this.approvals.createPending(post.id);
 
       const media = await this.mediaAssets.create(agencyId, {
         postId: post.id,
@@ -477,10 +485,10 @@ export class ContentGenerationService {
           placeId: input.placeId ?? null,
           placeName: input.placeName ?? null,
         },
-        'pending_approval',
+        input.asDraft ? 'draft' : 'pending_approval',
       );
 
-      await this.approvals.createPending(post.id);
+      if (!input.asDraft) await this.approvals.createPending(post.id);
 
       const media = await this.mediaAssets.create(agencyId, {
         postId: post.id,
@@ -708,10 +716,10 @@ export class ContentGenerationService {
           placeId: input.placeId ?? null,
           placeName: input.placeName ?? null,
         },
-        'pending_approval',
+        input.asDraft ? 'draft' : 'pending_approval',
       );
 
-      await this.approvals.createPending(post.id);
+      if (!input.asDraft) await this.approvals.createPending(post.id);
 
       const media = await this.mediaAssets.create(agencyId, {
         postId: post.id,

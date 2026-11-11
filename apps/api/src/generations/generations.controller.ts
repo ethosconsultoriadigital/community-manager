@@ -43,6 +43,8 @@ class GenerateFromBriefDto {
   composeWithBrand?: boolean;
   layoutKey?: string;
   composeFields?: Record<string, string>;
+  /** Solo generar y adjuntar: posts en borrador, sin enviar a aprobación. */
+  asDraft?: boolean;
 }
 
 class GenerateReelFromBriefDto {
@@ -63,6 +65,8 @@ class GenerateReelFromBriefDto {
   withSubtitles?: boolean;
   placeId?: string | null;
   placeName?: string | null;
+  /** Solo generar y adjuntar: posts en borrador, sin enviar a aprobación. */
+  asDraft?: boolean;
 }
 
 class GenerateAvatarFromBriefDto {
@@ -82,6 +86,8 @@ class GenerateAvatarFromBriefDto {
   placeName?: string | null;
   /** Plantilla del video: clasica | profesional | circulo | dividido. */
   template?: string;
+  /** Solo generar y adjuntar: posts en borrador, sin enviar a aprobación. */
+  asDraft?: boolean;
 }
 
 class GenerateCopyDto {

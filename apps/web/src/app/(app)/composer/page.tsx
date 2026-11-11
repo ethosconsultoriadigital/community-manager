@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   ApiError,
@@ -46,6 +46,12 @@ const ACCEPT_REEL_STILL = 'image/jpeg,image/png,image/webp,image/gif';
 const ACCEPT_CHARACTER = 'image/png,image/jpeg,image/webp,image/gif';
 
 type MediaMode = 'ai' | 'upload' | 'reel' | 'avatar';
+
+/** Borradores (uno por red) que dejó una generación IA con el media adjunto. */
+type GeneratedDrafts = {
+  kind: 'image' | 'reel' | 'avatar';
+  posts: { postId: string; accountId: string }[];
+};
 
 export default function ComposerPage() {
   const searchParams = useSearchParams();
@@ -101,7 +107,6 @@ export default function ComposerPage() {
   const [alsoPublishAsStory, setAlsoPublishAsStory] = useState(false);
   const [placeId, setPlaceId] = useState<string | null>(null);
   const [placeName, setPlaceName] = useState<string | null>(null);
-  const [placeQuery, setPlaceQuery] = useState('');
   const [placeResults, setPlaceResults] = useState<
     Array<{
       id: string;
@@ -111,7 +116,6 @@ export default function ComposerPage() {
       verified?: boolean;
     }>
   >([]);
-  const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [placeLink, setPlaceLink] = useState('');
   const [resolvingPlace, setResolvingPlace] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -119,6 +123,15 @@ export default function ComposerPage() {
   const [libraryPicker, setLibraryPicker] = useState<'text' | 'media' | null>(null);
   const [libraryMediaItemId, setLibraryMediaItemId] = useState<string | null>(null);
   const [savingLibrary, setSavingLibrary] = useState(false);
+  /**
+   * Media generado con IA (foto, Reel o avatar): la API dejó un borrador por red con
+   * el media ya adjunto. El único «Enviar a aprobación» (abajo) los actualiza y envía.
+   */
+  const [generatedDrafts, setGeneratedDrafts] = useState<GeneratedDrafts | null>(null);
+  const generatingMedia = generatingAi || generatingReel || generatingAvatar;
+  const waitingMediaLabel = generatingAi
+    ? 'Esperando a que termine la imagen…'
+    : 'Esperando a que termine el video…';
 
   useEffect(() => {
     if (!clientsLoading) setLoading(false);
@@ -147,6 +160,7 @@ export default function ComposerPage() {
 
   const loadPostIntoForm = useCallback(async (postId: string) => {
     const post = await apiFetch<Post>(`/posts/${postId}`);
+    setGeneratedDrafts(null);
     setEditingPostId(post.id);
     setClientId(post.client_id);
     setCaption(post.caption ?? '');
@@ -156,7 +170,6 @@ export default function ComposerPage() {
     setAlsoPublishAsStory(Boolean(post.also_publish_as_story));
     setPlaceId(post.place_id ?? null);
     setPlaceName(post.place_name ?? null);
-    setPlaceQuery(post.place_name ?? '');
     setPlaceResults([]);
 
     const image = post.media_assets?.find((m) => m.type === 'image');
@@ -194,18 +207,66 @@ export default function ComposerPage() {
     }
   }, [searchParams, loadPostIntoForm]);
 
+  // Los borradores generados son del cliente anterior: no se mezclan con otro cliente.
+  const draftsClientRef = useRef(clientId);
+  useEffect(() => {
+    if (draftsClientRef.current !== clientId) {
+      draftsClientRef.current = clientId;
+      if (generatedDrafts && !editingPostId) {
+        discardGeneratedDrafts();
+        setAiPreviewUrl(null);
+        setReelPreviewUrl(null);
+      }
+    }
+  }, [clientId]);
+
   useEffect(() => {
     if (!clientId) return;
     apiFetch<SocialAccount[]>(`/social-accounts?clientId=${clientId}`)
       .then((data) => {
         const active = data.filter((a) => a.is_active !== false);
         setAccounts(active);
-        if (!editingPostId) {
-          setSelectedAccounts(active.map((a) => a.id));
-        }
+        // Ninguna red marcada por defecto: el usuario elige. Al editar/duplicar se
+        // conservan las redes del post (solo se quitan las que ya no están activas).
+        setSelectedAccounts((prev) => prev.filter((id) => active.some((a) => a.id === id)));
       })
       .catch(() => setError('No se pudieron cargar las cuentas sociales'));
   }, [clientId, editingPostId]);
+
+  function selectAllAccounts() {
+    setSelectedAccounts(accounts.map((a) => a.id));
+  }
+
+  function clearAllAccounts() {
+    setSelectedAccounts([]);
+  }
+
+  /** Borra los borradores que dejó una generación IA que ya no se va a usar. */
+  function discardGeneratedDrafts() {
+    if (!generatedDrafts) return;
+    const ids = generatedDrafts.posts.map((p) => p.postId);
+    setGeneratedDrafts(null);
+    for (const id of ids) {
+      void apiFetch(`/posts/${id}`, { method: 'DELETE' }).catch(() => undefined);
+    }
+  }
+
+  function removeGeneratedMedia() {
+    discardGeneratedDrafts();
+    setAiPreviewUrl(null);
+    setReelPreviewUrl(null);
+    setMessage('Media generado quitado del post.');
+  }
+
+  function rememberGeneratedDrafts(kind: GeneratedDrafts['kind'], posts: Post[] | undefined, primary: Post) {
+    const list = posts?.length ? posts : [primary];
+    setGeneratedDrafts({
+      kind,
+      posts: list
+        .map((p) => ({ postId: p.id, accountId: p.post_targets?.[0]?.social_accounts?.id ?? '' }))
+        .filter((p) => p.accountId),
+    });
+  }
 
   function toggleAccount(id: string) {
     setSelectedAccounts((prev) =>
@@ -214,6 +275,10 @@ export default function ComposerPage() {
   }
 
   function handleMediaChange(file: File | null) {
+    if (file) {
+      discardGeneratedDrafts();
+      setReelPreviewUrl(null);
+    }
     if (mediaPreview?.startsWith('blob:')) URL.revokeObjectURL(mediaPreview);
     setMediaFile(file);
     setAiPreviewUrl(null);
@@ -236,6 +301,13 @@ export default function ComposerPage() {
   }
 
   function selectMediaMode(mode: MediaMode) {
+    if (mode === mediaMode) return;
+    if (generatedDrafts) {
+      // Cambiar de tipo de media descarta lo generado (no se mezcla con el nuevo).
+      discardGeneratedDrafts();
+      setReelPreviewUrl(null);
+      setAiPreviewUrl(null);
+    }
     setMediaMode(mode);
     setError(null);
     setMessage(null);
@@ -294,7 +366,7 @@ export default function ComposerPage() {
       return;
     }
     if (selectedAccounts.length === 0) {
-      setError('Selecciona al menos un destino');
+      setError('Selecciona al menos una red social en «Cliente y redes».');
       return;
     }
     if (!characterImageUrl) {
@@ -304,6 +376,8 @@ export default function ComposerPage() {
 
     setError(null);
     setMessage(null);
+    if (generatedDrafts) setReelPreviewUrl(null);
+    discardGeneratedDrafts();
     setGeneratingAvatar(true);
     try {
       const started = await apiFetch<VideoJobStartResult>('/generations/from-brief-avatar', {
@@ -319,6 +393,7 @@ export default function ComposerPage() {
           withMusic: avatarWithMusic,
           withSubtitles: avatarWithSubtitles,
           template: avatarTemplate,
+          asDraft: true,
           ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
           ...placePayload(),
         }),
@@ -336,16 +411,12 @@ export default function ComposerPage() {
         handleMediaChange(null);
       }
 
-      const createdCount = result.posts?.length ?? 1;
-      const firstId = result.post.id;
+      rememberGeneratedDrafts('avatar', result.posts, result.post);
       setMessage(
         result.usedMock
-          ? `Avatar de prueba enviado a aprobación (${firstId.slice(0, 8)}…). Configura ELEVENLABS_API_KEY y FAL_KEY para producción.`
-          : createdCount > 1
-            ? `Avatar generado: ${createdCount} posts a aprobación.`
-            : `Avatar generado (${result.videoModel ?? 'tts+lipsync'}) → aprobación (${firstId.slice(0, 8)}…)`,
+          ? `Avatar de prueba listo y adjunto al post. Pulsa «Enviar a aprobación» abajo. Configura ELEVENLABS_API_KEY y FAL_KEY para producción.`
+          : `Avatar listo (${result.videoModel ?? 'tts+lipsync'}) y adjunto al post. Revisa y pulsa «Enviar a aprobación» abajo.`,
       );
-      clearForm();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar el avatar');
     } finally {
@@ -354,6 +425,7 @@ export default function ComposerPage() {
   }
 
   function clearForm() {
+    setGeneratedDrafts(null);
     setCaption('');
     setHashtags('');
     setAiBrief('');
@@ -367,7 +439,6 @@ export default function ComposerPage() {
     setAlsoPublishAsStory(false);
     setPlaceId(null);
     setPlaceName(null);
-    setPlaceQuery('');
     setPlaceResults([]);
     setLibraryMediaItemId(null);
     handleMediaChange(null);
@@ -381,6 +452,8 @@ export default function ComposerPage() {
 
   function applyLibraryMedia(item: LibraryItem) {
     if (!item.storage_url) return;
+    discardGeneratedDrafts();
+    setReelPreviewUrl(null);
     if (mediaPreview?.startsWith('blob:')) URL.revokeObjectURL(mediaPreview);
     setMediaFile(null);
     setLibraryMediaItemId(item.id);
@@ -475,41 +548,6 @@ export default function ComposerPage() {
     };
   }
 
-  async function searchPlaces() {
-    if (!clientId || !placeQuery.trim()) {
-      setPlaceResults([]);
-      return;
-    }
-    setSearchingPlaces(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const data = await apiFetch<{
-        places: Array<{
-          id: string;
-          name: string;
-          locationLabel?: string;
-          taggableOnInstagram?: boolean;
-        }>;
-      }>(
-        `/platforms/meta/places?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(placeQuery.trim())}`,
-      );
-      setPlaceResults(data.places ?? []);
-      if (!(data.places?.length)) {
-        setMessage(
-          'No se encontraron lugares con ubicación. Prueba el nombre de un negocio o ciudad.',
-        );
-      } else {
-        setMessage('Elige un resultado de la lista para etiquetar la ubicación.');
-      }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo buscar ubicaciones');
-      setPlaceResults([]);
-    } finally {
-      setSearchingPlaces(false);
-    }
-  }
-
   function choosePlace(p: {
     id: string;
     name: string;
@@ -518,7 +556,6 @@ export default function ComposerPage() {
   }) {
     setPlaceId(p.id);
     setPlaceName(p.name);
-    setPlaceQuery(p.name);
     setPlaceResults([]);
     const notes: string[] = [];
     if (p.verified === false) {
@@ -718,12 +755,14 @@ export default function ComposerPage() {
       return;
     }
     if (selectedAccounts.length === 0) {
-      setError('Selecciona al menos un destino');
+      setError('Selecciona al menos una red social en «Cliente y redes».');
       return;
     }
 
     setError(null);
     setMessage(null);
+    if (generatedDrafts) setAiPreviewUrl(null);
+    discardGeneratedDrafts();
     setGeneratingAi(true);
 
     try {
@@ -744,6 +783,7 @@ export default function ComposerPage() {
               }
             : {}),
           videoFormat: mediaMode === 'reel' ? 'reel' : 'feed',
+          asDraft: true,
           ...placePayload(),
         }),
       });
@@ -754,22 +794,12 @@ export default function ComposerPage() {
         handleMediaChange(null);
       }
 
-      const createdCount = result.posts?.length ?? 1;
-      const firstId = result.post.id;
-      if (result.usedMock || result.imageProvider === 'mock') {
-        setMessage(
-          createdCount > 1
-            ? `Visual de prueba: ${createdCount} posts enviados a aprobación (uno por red).`
-            : `Visual de prueba enviado a aprobación (${firstId.slice(0, 8)}…).`,
-        );
-      } else {
-        setMessage(
-          createdCount > 1
-            ? `Imagen IA generada: ${createdCount} posts enviados a aprobación (uno por red).`
-            : `Imagen generada con IA (${result.imageModel ?? 'openai'}) y enviada a aprobación (${firstId.slice(0, 8)}…)`,
-        );
-      }
-      clearForm();
+      rememberGeneratedDrafts('image', result.posts, result.post);
+      setMessage(
+        result.usedMock || result.imageProvider === 'mock'
+          ? 'Visual de prueba listo y adjunto al post. Pulsa «Enviar a aprobación» abajo.'
+          : `Imagen generada con IA (${result.imageModel ?? 'openai'}) y adjunta al post. Revisa y pulsa «Enviar a aprobación» abajo.`,
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar con IA');
     } finally {
@@ -787,12 +817,14 @@ export default function ComposerPage() {
       return;
     }
     if (selectedAccounts.length === 0) {
-      setError('Selecciona al menos un destino');
+      setError('Selecciona al menos una red social en «Cliente y redes».');
       return;
     }
 
     setError(null);
     setMessage(null);
+    if (generatedDrafts) setReelPreviewUrl(null);
+    discardGeneratedDrafts();
     setGeneratingReel(true);
 
     try {
@@ -816,6 +848,7 @@ export default function ComposerPage() {
           sceneCount: reelSceneCount,
           withMusic: reelWithMusic,
           withSubtitles: reelWithSubtitles,
+          asDraft: true,
           ...(referenceText.trim() ? { referenceText: referenceText.trim() } : {}),
           ...(referenceImageUrl ? { referenceImageUrl } : {}),
           ...placePayload(),
@@ -834,22 +867,12 @@ export default function ComposerPage() {
         handleMediaChange(null);
       }
 
-      const createdCount = result.posts?.length ?? 1;
-      const firstId = result.post.id;
-      if (result.usedMock || result.videoProvider === 'mock') {
-        setMessage(
-          createdCount > 1
-            ? `Reel de prueba: ${createdCount} posts enviados a aprobación (uno por red). Configura FAL_KEY para video real.`
-            : `Reel de prueba enviado a aprobación (${firstId.slice(0, 8)}…). Configura FAL_KEY para video real.`,
-        );
-      } else {
-        setMessage(
-          createdCount > 1
-            ? `Reel IA generado: ${createdCount} posts enviados a aprobación (uno por red).`
-            : `Reel generado con IA (${result.videoModel ?? 'fal'}) y enviado a aprobación (${firstId.slice(0, 8)}…)`,
-        );
-      }
-      clearForm();
+      rememberGeneratedDrafts('reel', result.posts, result.post);
+      setMessage(
+        result.usedMock || result.videoProvider === 'mock'
+          ? 'Reel de prueba listo y adjunto al post. Pulsa «Enviar a aprobación» abajo. Configura FAL_KEY para video real.'
+          : `Reel generado con IA (${result.videoModel ?? 'fal'}) y adjunto al post. Revisa y pulsa «Enviar a aprobación» abajo.`,
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al generar el Reel');
     } finally {
@@ -861,7 +884,7 @@ export default function ComposerPage() {
     return (
       alsoPublishAsStory &&
       (platform === 'facebook' || platform === 'instagram') &&
-      Boolean(mediaFile || aiPreviewUrl || mediaPreview)
+      Boolean(mediaFile || aiPreviewUrl || mediaPreview || generatedDrafts)
     );
   }
 
@@ -891,18 +914,91 @@ export default function ComposerPage() {
     return post.id;
   }
 
+  /**
+   * Media generado con IA: cada red ya tiene su borrador con el media. Se actualiza
+   * con el texto/opciones actuales; una red marcada después se cubre duplicando un
+   * borrador (copia el media) y las redes desmarcadas borran su borrador.
+   */
+  async function submitGeneratedDrafts(drafts: GeneratedDrafts, sendToApproval: boolean, tagList: string[]) {
+    const byAccount = new Map(drafts.posts.map((p) => [p.accountId, p.postId]));
+    const sourceId = drafts.posts[0]?.postId;
+    const kept: GeneratedDrafts['posts'] = [];
+    for (const accountId of selectedAccounts) {
+      let postId = byAccount.get(accountId);
+      if (!postId) {
+        if (!sourceId) throw new ApiError('Vuelve a generar el media', 400);
+        const copy = await apiFetch<Post>(`/posts/${sourceId}/duplicate`, { method: 'POST' });
+        postId = copy.id;
+      }
+      const platform = accounts.find((a) => a.id === accountId)?.platform ?? '';
+      await apiFetch<Post>(`/posts/${postId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          caption,
+          hashtags: tagList,
+          socialAccountIds: [accountId],
+          alsoPublishAsStory: storyEnabledForPlatform(platform),
+          ...placePayload(),
+        }),
+      });
+      kept.push({ postId, accountId });
+    }
+    const keptIds = new Set(kept.map((p) => p.postId));
+    for (const p of drafts.posts) {
+      if (!keptIds.has(p.postId)) {
+        await apiFetch(`/posts/${p.postId}`, { method: 'DELETE' }).catch(() => undefined);
+      }
+    }
+    if (sendToApproval) {
+      for (const p of kept) {
+        await apiFetch(`/posts/${p.postId}/submit-for-approval`, { method: 'POST' });
+      }
+      setMessage(
+        kept.length > 1
+          ? `${kept.length} posts enviados a aprobación con el media generado (uno por red).`
+          : `Post enviado a aprobación con el media generado (${kept[0]!.postId.slice(0, 8)}…)`,
+      );
+      clearForm();
+    } else {
+      setGeneratedDrafts({ ...drafts, posts: kept });
+      setMessage(
+        kept.length > 1
+          ? `${kept.length} borradores guardados con el media generado (uno por red).`
+          : `Borrador guardado con el media generado (${kept[0]!.postId.slice(0, 8)}…)`,
+      );
+    }
+  }
+
   async function handleSubmit(e: FormEvent, sendToApproval: boolean) {
     e.preventDefault();
     setError(null);
     setMessage(null);
 
-    if (selectedAccounts.length === 0) {
-      setError('Selecciona al menos un destino');
+    if (generatingMedia) {
+      setError(waitingMediaLabel);
       return;
     }
-    if (mediaMode === 'reel' && !hasVideoAttachment() && !mediaFile) {
-      setError('Para Reel adjunta un video');
+    if (selectedAccounts.length === 0) {
+      setError('Selecciona al menos una red social en «Cliente y redes».');
       return;
+    }
+    if (generatedDrafts && !caption.trim()) {
+      setError('Escribe el texto de publicación antes de enviar.');
+      return;
+    }
+    if (!generatedDrafts) {
+      if (mediaMode === 'ai') {
+        setError('Primero pulsa «Generar foto» (o elige otro tipo de media).');
+        return;
+      }
+      if (mediaMode === 'avatar') {
+        setError('Primero pulsa «Generar avatar» para crear el video.');
+        return;
+      }
+      if (mediaMode === 'reel' && !hasVideoAttachment() && !mediaFile) {
+        setError('Para Reel genera el video con «Generar Reel» o sube uno propio.');
+        return;
+      }
     }
     if (mediaMode === 'upload' && !mediaFile && !aiPreviewUrl && !mediaPreview) {
       // adjunto opcional en upload/feed
@@ -913,6 +1009,11 @@ export default function ComposerPage() {
     const tagList = parseHashtags();
 
     try {
+      if (generatedDrafts) {
+        await submitGeneratedDrafts(generatedDrafts, sendToApproval, tagList);
+        return;
+      }
+
       // Editar un post existente: se mantiene un solo post (no se parte en varios).
       if (editingPostId) {
         const primaryAccountId = selectedAccounts[0];
@@ -1041,6 +1142,31 @@ export default function ComposerPage() {
           />
           <fieldset>
             <legend className="mb-2 text-sm text-muted">Destinos</legend>
+            {accounts.length > 0 && (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllAccounts}
+                  disabled={submitting || selectedAccounts.length === accounts.length}
+                  className={btnSecondary}
+                >
+                  Marcar todas
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAllAccounts}
+                  disabled={submitting || selectedAccounts.length === 0}
+                  className={btnSecondary}
+                >
+                  Desmarcar todas
+                </button>
+                <span className="text-xs text-muted">
+                  {selectedAccounts.length === 0
+                    ? 'Marca las redes donde se publicará.'
+                    : `${selectedAccounts.length} de ${accounts.length} seleccionada(s)`}
+                </span>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {accounts.length === 0 ? (
                 <p className="text-xs text-muted">No hay cuentas conectadas para este cliente.</p>
@@ -1318,20 +1444,21 @@ export default function ComposerPage() {
               </div>
               <button
                 type="button"
-                title="Genera la imagen y envía el post a aprobación (uno por red)"
+                title="Genera la imagen y la adjunta al post; luego envíalo con «Enviar a aprobación» (abajo)"
                 disabled={
-                  generatingAi ||
+                  generatingMedia ||
                   submitting ||
                   parsingReference ||
-                  uploadingLogo ||
-                  selectedAccounts.length === 0
+                  uploadingLogo
                 }
                 onClick={handleGenerateWithAi}
                 className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
               >
                 {generatingAi
                   ? 'Generando contenido visual…'
-                  : 'Generar foto y enviar a aprobación'}
+                  : aiPreviewUrl && generatedDrafts
+                    ? 'Volver a generar foto'
+                    : 'Generar foto'}
               </button>
               {aiPreviewUrl && (
                 <div className="rounded-md border border-line-strong bg-surface p-2">
@@ -1340,6 +1467,16 @@ export default function ComposerPage() {
                     alt="Vista previa generada"
                     className="max-h-48 w-full rounded object-contain"
                   />
+                  {generatedDrafts && (
+                    <button
+                      type="button"
+                      title="Quitar el media generado del post"
+                      onClick={removeGeneratedMedia}
+                      className="mt-2 text-xs text-red-600 hover:text-red-700"
+                    >
+                      Quitar media generado
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1426,21 +1563,35 @@ export default function ComposerPage() {
                 </div>
                 <button
                   type="button"
-                  title="Genera el Reel y lo envía a aprobación (varios minutos; corre en segundo plano)"
-                  disabled={generatingReel || submitting || selectedAccounts.length === 0}
+                  title="Genera el Reel y lo adjunta al post (varios minutos; corre en segundo plano). Luego «Enviar a aprobación» (abajo)"
+                  disabled={generatingMedia || submitting}
                   onClick={() => void handleGenerateReel()}
                   className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
                   {generatingReel
                     ? 'Generando Reel en segundo plano (puede tardar varios minutos)…'
-                    : 'Generar Reel y enviar a aprobación'}
+                    : reelPreviewUrl && generatedDrafts
+                      ? 'Volver a generar Reel'
+                      : 'Generar Reel'}
                 </button>
                 {reelPreviewUrl && (
-                  <video
-                    src={reelPreviewUrl}
-                    controls
-                    className="max-h-48 w-full rounded object-contain"
-                  />
+                  <div>
+                    <video
+                      src={reelPreviewUrl}
+                      controls
+                      className="max-h-48 w-full rounded object-contain"
+                    />
+                    {generatedDrafts && (
+                      <button
+                        type="button"
+                        title="Quitar el media generado del post"
+                        onClick={removeGeneratedMedia}
+                        className="mt-2 text-xs text-red-600 hover:text-red-700"
+                      >
+                        Quitar media generado
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="space-y-2 rounded-lg border border-line p-4">
@@ -1566,12 +1717,11 @@ export default function ComposerPage() {
               </div>
               <button
                 type="button"
-                title="Genera el video del personaje y lo envía a aprobación"
+                title="Genera el video del personaje y lo adjunta al post. Luego «Enviar a aprobación» (abajo)"
                 disabled={
-                  generatingAvatar ||
+                  generatingMedia ||
                   uploadingCharacter ||
                   submitting ||
-                  selectedAccounts.length === 0 ||
                   !characterImageUrl
                 }
                 onClick={() => void handleGenerateAvatar()}
@@ -1579,14 +1729,28 @@ export default function ComposerPage() {
               >
                 {generatingAvatar
                   ? 'Generando avatar (puede tardar varios minutos)…'
-                  : 'Generar avatar y enviar a aprobación'}
+                  : reelPreviewUrl && generatedDrafts
+                    ? 'Volver a generar avatar'
+                    : 'Generar avatar'}
               </button>
               {reelPreviewUrl && mediaMode === 'avatar' && (
-                <video
-                  src={reelPreviewUrl}
-                  controls
-                  className="max-h-48 w-full rounded object-contain"
-                />
+                <div>
+                  <video
+                    src={reelPreviewUrl}
+                    controls
+                    className="max-h-48 w-full rounded object-contain"
+                  />
+                  {generatedDrafts && (
+                    <button
+                      type="button"
+                      title="Quitar el media generado del post"
+                      onClick={removeGeneratedMedia}
+                      className="mt-2 text-xs text-red-600 hover:text-red-700"
+                    >
+                      Quitar media generado
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -1691,13 +1855,12 @@ export default function ComposerPage() {
             Opciones
           </SectionHeading>
           <div>
-            <label htmlFor="place" className="mb-1 block text-sm text-muted">
+            <label htmlFor="place-link" className="mb-1 block text-sm text-muted">
               Ubicación (Facebook / Instagram, opcional)
             </label>
             <p className="mb-1 text-xs text-muted">
-              Usa la ubicación de la página del cliente, pega el enlace de la página de Facebook
-              del lugar, o busca y <strong>elige un resultado</strong> de la lista. Solo escribir
-              el nombre no etiqueta la publicación.
+              Usa la ubicación de la página del cliente o pega el enlace (o ID) de la página de
+              Facebook del lugar.
             </p>
             <div className="mb-2 flex flex-wrap gap-2">
               <button
@@ -1733,52 +1896,21 @@ export default function ComposerPage() {
                 Usar
               </button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <input
-                id="place"
-                value={placeQuery}
-                onChange={(e) => {
-                  setPlaceQuery(e.target.value);
-                  if (placeId) {
-                    setPlaceId(null);
-                    setPlaceName(null);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void searchPlaces();
-                  }
-                }}
-                className="min-w-[12rem] flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
-                placeholder="Ej: Ciudad de México, café…"
-              />
-              <button
-                type="button"
-                title="Buscar lugares en Meta"
-                onClick={() => void searchPlaces()}
-                disabled={searchingPlaces || !clientId || !placeQuery.trim()}
-                className={btnSecondary + ' px-3 py-2 text-sm'}
-              >
-                {searchingPlaces ? 'Buscando…' : 'Buscar'}
-              </button>
-              {placeId && (
+            {placeId && placeName && (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-emerald-600">
+                Seleccionada: {placeName}
                 <button
                   type="button"
                   onClick={() => {
                     setPlaceId(null);
                     setPlaceName(null);
-                    setPlaceQuery('');
                     setPlaceResults([]);
                   }}
-                  className="rounded-md border border-line px-3 py-2 text-xs text-muted hover:bg-canvas"
+                  className="rounded-md border border-line px-2 py-0.5 text-xs text-muted hover:bg-canvas"
                 >
                   Quitar
                 </button>
-              )}
-            </div>
-            {placeId && placeName && (
-              <p className="mt-1 text-xs text-emerald-600">Seleccionada: {placeName}</p>
+              </p>
             )}
             {placeResults.length > 0 && (
               <ul className="mt-2 max-h-40 overflow-auto rounded-md border border-line bg-surface text-sm">
@@ -1802,7 +1934,7 @@ export default function ComposerPage() {
               </ul>
             )}
           </div>
-          {(mediaFile || aiPreviewUrl || mediaPreview) && (
+          {(mediaFile || aiPreviewUrl || mediaPreview || generatedDrafts) && (
             <StoryPublishCheckbox
               checked={alsoPublishAsStory}
               onChange={setAlsoPublishAsStory}
@@ -1814,28 +1946,30 @@ export default function ComposerPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-emerald-600">{message}</p>}
 
-        {mediaMode !== 'ai' && (
-          <div className="flex flex-wrap gap-2 border-t border-line pt-5">
-            <button
-              type="button"
-              title="Guarda el post como borrador sin enviar a aprobación"
-              disabled={submitting || selectedAccounts.length === 0}
-              onClick={(e) => handleSubmit(e, false)}
-              className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
-            >
-              Guardar borrador
-            </button>
-            <button
-              type="button"
-              title="Envía el post a la bandeja de Aprobaciones"
-              disabled={submitting || selectedAccounts.length === 0}
-              onClick={(e) => handleSubmit(e, true)}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-            >
-              Enviar a aprobación
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-5">
+          <button
+            type="button"
+            title="Guarda el post como borrador sin enviar a aprobación"
+            disabled={submitting || generatingMedia}
+            onClick={(e) => handleSubmit(e, false)}
+            className="rounded-md border border-line-strong px-4 py-2 text-sm text-ink hover:bg-canvas disabled:opacity-50"
+          >
+            Guardar borrador
+          </button>
+          <button
+            type="button"
+            title="Envía el post a la bandeja de Aprobaciones (un post por red)"
+            disabled={submitting || generatingMedia}
+            onClick={(e) => handleSubmit(e, true)}
+            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+          >
+            {submitting ? 'Enviando…' : 'Enviar a aprobación'}
+          </button>
+          {generatingMedia && <span className="text-xs text-brand">{waitingMediaLabel}</span>}
+          {!generatingMedia && selectedAccounts.length === 0 && accounts.length > 0 && (
+            <span className="text-xs text-muted">Marca al menos una red arriba.</span>
+          )}
+        </div>
       </form>
 
       {clientId && (
