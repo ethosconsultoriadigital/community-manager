@@ -16,6 +16,23 @@ type FalQueueStatus = {
   payload?: unknown;
 };
 
+/** Mensaje claro cuando la cuenta de fal.ai no tiene saldo. */
+export const FAL_BALANCE_MESSAGE =
+  'fal.ai se quedó sin saldo y no se pudo generar el video. Recarga la cuenta en fal.ai/dashboard/billing y vuelve a intentarlo.';
+
+/** fal responde "User is locked. Reason: Exhausted balance" o "Reason: TOP_UP". */
+export function isFalBalanceError(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return /exhausted balance|user is locked|reason:\s*top_?up|top up your balance|insufficient (balance|credits?)/i.test(
+    message,
+  );
+}
+
+/** Sustituye el error crudo de saldo de fal por el mensaje en español. */
+export function friendlyFalError(message: string): string {
+  return isFalBalanceError(message) ? FAL_BALANCE_MESSAGE : message;
+}
+
 /** Intervalo entre polls (ms). Override: FAL_QUEUE_POLL_MS */
 const DEFAULT_POLL_MS = 3000;
 /** Espera máxima por job fal (ms). Default 20 min. Override: FAL_QUEUE_MAX_WAIT_MS */
@@ -69,6 +86,7 @@ export async function runFalQueueJob(input: {
       formatFalError(submitted.error) ||
       `fal queue HTTP ${submitRes.status}`;
     logger?.warn(`${label} submit failed: ${message}`);
+    if (isFalBalanceError(message)) throw new BadRequestException(FAL_BALANCE_MESSAGE);
     throw new BadRequestException(`No se pudo iniciar ${label}: ${message}`);
   }
 
@@ -97,8 +115,10 @@ export async function runFalQueueJob(input: {
     });
     const statusBody = (await readFalJson(statusRes)) as FalQueueStatus;
     if (!statusRes.ok) {
+      const statusError = formatFalError(statusBody.error) || formatFalError(statusBody.detail);
+      if (isFalBalanceError(statusError)) throw new BadRequestException(FAL_BALANCE_MESSAGE);
       throw new BadRequestException(
-        `Error consultando fal: ${formatFalError(statusBody.error) || statusRes.status}`,
+        `Error consultando fal: ${statusError || statusRes.status}`,
       );
     }
 
@@ -116,9 +136,11 @@ export async function runFalQueueJob(input: {
       };
       if (!resultRes.ok) {
         throw new BadRequestException(
-          formatFalError(result.detail) ||
-            formatFalError(result.error) ||
-            `fal result HTTP ${resultRes.status}`,
+          friendlyFalError(
+            formatFalError(result.detail) ||
+              formatFalError(result.error) ||
+              `fal result HTTP ${resultRes.status}`,
+          ),
         );
       }
       return result;
@@ -128,6 +150,7 @@ export async function runFalQueueJob(input: {
         formatFalError(statusBody.error) ||
         formatFalError(statusBody.detail) ||
         formatFalError(statusBody.payload);
+      if (isFalBalanceError(detail)) throw new BadRequestException(FAL_BALANCE_MESSAGE);
       throw new BadRequestException(
         detail ? `${label} falló en fal: ${detail}` : `${label} falló en fal (${st})`,
       );

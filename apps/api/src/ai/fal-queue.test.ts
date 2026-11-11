@@ -81,7 +81,7 @@ describe('runFalQueueJob', () => {
           text: async () =>
             JSON.stringify({
               status: 'FAILED',
-              error: { message: 'Exhausted balance' },
+              error: { message: 'Invalid prompt: too long' },
             }),
         }),
     );
@@ -99,6 +99,6 @@ describe('runFalQueueJob', () => {
       (err: Error) => err.message,
     );
     await vi.runAllTimersAsync();
-    await expect(assertion).resolves.toMatch(/Exhausted balance/);
+    await expect(assertion).resolves.toMatch(/Invalid prompt: too long/);
   });
 });

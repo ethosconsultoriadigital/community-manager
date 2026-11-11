@@ -20,6 +20,7 @@ import { DEFAULT_LAYOUT_KEY, parseClientBrand } from './composition/brand-layout
 import { ReelPipelineService } from './reel-pipeline.service';
 import { AvatarPipelineService } from './avatar-pipeline.service';
 import { STALE_VIDEO_JOB_MS } from '../jobs/video-job-options';
+import { friendlyFalError } from './fal-queue';
 
 export type GenerateFromBriefInput = {
   clientId: string;
@@ -373,7 +374,7 @@ export class ContentGenerationService {
         ? (gen.output as Record<string, unknown>)
         : {};
     await this.generations.updateStatus(agencyId, generationId, 'failed', {
-      output: { ...previous, error: message.slice(0, 500) },
+      output: { ...previous, error: friendlyFalError(message).slice(0, 500) },
     });
   }
 
@@ -550,7 +551,7 @@ export class ContentGenerationService {
       return {
         generationId: gen.id,
         status: 'failed',
-        error: output.error ?? 'Error al generar el Reel',
+        error: output.error ? friendlyFalError(output.error) : 'Error al generar el Reel',
       };
     }
 
@@ -779,7 +780,7 @@ export class ContentGenerationService {
       return {
         generationId: gen.id,
         status: 'failed',
-        error: output.error ?? 'Error al generar el avatar',
+        error: output.error ? friendlyFalError(output.error) : 'Error al generar el avatar',
       };
     }
 
