@@ -54,4 +54,42 @@ export class PlatformsController {
       throw new BadRequestException(message);
     }
   }
+
+  /** La Page de Facebook del cliente como ubicación (no necesita permisos extra). */
+  @Get('meta/places/own')
+  @UseGuards(JwtAuthGuard)
+  async ownPagePlace(@CurrentUser() user: AuthUser, @Query('clientId') clientId: string) {
+    if (!clientId) throw new BadRequestException('clientId es obligatorio');
+    await this.clientAccess.assertClientAccess(user, clientId);
+    try {
+      return await this.places.ownPagePlaces(user.agencyId, clientId);
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'No se pudo leer la ubicación de la página',
+      );
+    }
+  }
+
+  /** Resuelve un enlace o ID de Page de Facebook pegado por el usuario. */
+  @Get('meta/places/resolve')
+  @UseGuards(JwtAuthGuard)
+  async resolvePlace(
+    @CurrentUser() user: AuthUser,
+    @Query('clientId') clientId: string,
+    @Query('input') input: string,
+  ) {
+    if (!clientId) throw new BadRequestException('clientId es obligatorio');
+    if (!input?.trim()) throw new BadRequestException('Pega el enlace o el ID de la página');
+    await this.clientAccess.assertClientAccess(user, clientId);
+    try {
+      const place = await this.places.resolvePlace(user.agencyId, clientId, input.trim());
+      return { place };
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'No se pudo leer esa página',
+      );
+    }
+  }
 }

@@ -100,9 +100,12 @@ export default function ComposerPage() {
       name: string;
       locationLabel?: string;
       taggableOnInstagram?: boolean;
+      verified?: boolean;
     }>
   >([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
+  const [placeLink, setPlaceLink] = useState('');
+  const [resolvingPlace, setResolvingPlace] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [libraryPicker, setLibraryPicker] = useState<'text' | 'media' | null>(null);
@@ -494,6 +497,85 @@ export default function ComposerPage() {
       setPlaceResults([]);
     } finally {
       setSearchingPlaces(false);
+    }
+  }
+
+  function choosePlace(p: {
+    id: string;
+    name: string;
+    taggableOnInstagram?: boolean;
+    verified?: boolean;
+  }) {
+    setPlaceId(p.id);
+    setPlaceName(p.name);
+    setPlaceQuery(p.name);
+    setPlaceResults([]);
+    const notes: string[] = [];
+    if (p.verified === false) {
+      notes.push('No se pudo verificar su dirección en Meta; si Meta la rechaza, el post sale sin ubicación.');
+    } else if (p.taggableOnInstagram === false) {
+      notes.push('Instagram no la acepta (la página no tiene coordenadas); en Instagram saldrá sin ubicación.');
+    }
+    setMessage(`Ubicación lista: ${p.name}${notes.length ? `. ${notes.join(' ')}` : ''}`);
+  }
+
+  async function applyOwnPagePlace() {
+    if (!clientId) return;
+    setResolvingPlace(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const data = await apiFetch<{
+        places: Array<{
+          id: string;
+          name: string;
+          locationLabel?: string;
+          taggableOnInstagram?: boolean;
+          verified?: boolean;
+        }>;
+        message?: string;
+      }>(`/platforms/meta/places/own?clientId=${encodeURIComponent(clientId)}`);
+      const places = data.places ?? [];
+      if (places.length === 1) {
+        choosePlace(places[0]!);
+      } else if (places.length > 1) {
+        setPlaceResults(places);
+        setMessage('Elige cuál de tus páginas usar como ubicación.');
+      } else {
+        setError(data.message ?? 'La página del cliente no tiene dirección en Facebook.');
+      }
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'No se pudo leer la ubicación de la página',
+      );
+    } finally {
+      setResolvingPlace(false);
+    }
+  }
+
+  async function resolvePastedPlace() {
+    if (!clientId || !placeLink.trim()) return;
+    setResolvingPlace(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const data = await apiFetch<{
+        place: {
+          id: string;
+          name: string;
+          locationLabel?: string;
+          taggableOnInstagram?: boolean;
+          verified?: boolean;
+        };
+      }>(
+        `/platforms/meta/places/resolve?clientId=${encodeURIComponent(clientId)}&input=${encodeURIComponent(placeLink.trim())}`,
+      );
+      choosePlace(data.place);
+      setPlaceLink('');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo leer esa página');
+    } finally {
+      setResolvingPlace(false);
     }
   }
 
@@ -1583,9 +1665,44 @@ export default function ComposerPage() {
               Ubicación (Facebook / Instagram, opcional)
             </label>
             <p className="mb-1 text-xs text-muted">
-              Busca y <strong>elige un resultado</strong> de la lista. Solo escribir el nombre no
-              etiqueta la publicación.
+              Usa la ubicación de la página del cliente, pega el enlace de la página de Facebook
+              del lugar, o busca y <strong>elige un resultado</strong> de la lista. Solo escribir
+              el nombre no etiqueta la publicación.
             </p>
+            <div className="mb-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                title="Usar la dirección de la página de Facebook del cliente"
+                onClick={() => void applyOwnPagePlace()}
+                disabled={resolvingPlace || !clientId}
+                className={btnSecondary + ' px-3 py-2 text-sm'}
+              >
+                {resolvingPlace ? 'Leyendo…' : 'Ubicación de mi página'}
+              </button>
+              <input
+                id="place-link"
+                aria-label="Enlace o ID de la página de Facebook del lugar"
+                value={placeLink}
+                onChange={(e) => setPlaceLink(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void resolvePastedPlace();
+                  }
+                }}
+                className="min-w-[12rem] flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
+                placeholder="Enlace o ID de una página de Facebook (facebook.com/…)"
+              />
+              <button
+                type="button"
+                title="Usar esa página como ubicación"
+                onClick={() => void resolvePastedPlace()}
+                disabled={resolvingPlace || !clientId || !placeLink.trim()}
+                className={btnSecondary + ' px-3 py-2 text-sm'}
+              >
+                Usar
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2">
               <input
                 id="place"
@@ -1640,13 +1757,7 @@ export default function ComposerPage() {
                     <button
                       type="button"
                       className="w-full px-3 py-2 text-left hover:bg-canvas"
-                      onClick={() => {
-                        setPlaceId(p.id);
-                        setPlaceName(p.name);
-                        setPlaceQuery(p.name);
-                        setPlaceResults([]);
-                        setMessage(`Ubicación lista: ${p.name}`);
-                      }}
+                      onClick={() => choosePlace(p)}
                     >
                       <span className="text-ink">{p.name}</span>
                       {p.locationLabel ? (

@@ -144,7 +144,8 @@ export class PublishPostService {
       await this.posts.updateTargetStatus(agencyId, postId, targetId, {
         status: 'published',
         platformPostId: result.platformPostId,
-        errorMessage: null,
+        // Publicado: solo queda un aviso si la ubicación no se pudo poner.
+        errorMessage: result.locationNote ?? null,
         storyPlatformPostId: result.storyPlatformPostId ?? null,
         storyStatus: aabStoryBlocked ? 'skipped' : (result.storyStatus ?? null),
         storyErrorMessage: aabStoryBlocked

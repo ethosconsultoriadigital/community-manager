@@ -7,6 +7,9 @@ import type {
 import { MetaGraphClient } from './meta-graph.client';
 import { StoryMediaComposerService } from './story-media-composer.service';
 
+export const FB_VIDEO_NO_PLACE_NOTE =
+  'Publicado sin ubicación: la API de Facebook no permite ubicación en videos (solo en fotos y textos).';
+
 @Injectable()
 export class MetaPublishService implements PlatformPublisher {
   private readonly logger = new Logger(MetaPublishService.name);
@@ -44,9 +47,9 @@ export class MetaPublishService implements PlatformPublisher {
   private async publishFeedOnly(input: PublishTargetInput): Promise<PublishResult> {
     switch (input.platform) {
       case 'facebook':
-        return { platformPostId: (await this.publishFacebookFeedOnly(input)).platformPostId };
+        return this.publishFacebookFeedOnly(input);
       case 'instagram':
-        return { platformPostId: (await this.publishInstagramFeedOnly(input)).platformPostId };
+        return this.publishInstagramFeedOnly(input);
       default:
         throw new Error(`MetaPublishService no soporta plataforma ${input.platform}`);
     }
@@ -72,6 +75,7 @@ export class MetaPublishService implements PlatformPublisher {
 
     return {
       platformPostId: feed.platformPostId,
+      ...(feed.locationNote ? { locationNote: feed.locationNote } : {}),
       storyPlatformPostId,
       storyStatus,
       storyErrorMessage,
@@ -176,60 +180,93 @@ export class MetaPublishService implements PlatformPublisher {
   private async publishFacebookFeedOnly(
     input: PublishTargetInput,
   ): Promise<PublishResult> {
-    const placeId = input.placeId;
+    const placeId = input.placeId?.trim() || undefined;
     if (input.videoUrl) {
+      // /{page-id}/videos no documenta `place`: el video sale sin ubicación.
       const result = await this.meta.publishFacebookVideo(
         input.externalAccountId,
         input.accessToken,
         input.videoUrl,
         input.message,
-        placeId,
       );
-      return { platformPostId: result.id };
+      return {
+        platformPostId: result.id,
+        ...(placeId ? { locationNote: FB_VIDEO_NO_PLACE_NOTE } : {}),
+      };
     }
 
-    if (input.imageUrl) {
-      const result = await this.meta.publishFacebookPhoto(
-        input.externalAccountId,
-        input.accessToken,
-        input.imageUrl,
-        input.message,
-        placeId,
-      );
-      return { platformPostId: result.id };
-    }
+    const send = (place: string | undefined) =>
+      input.imageUrl
+        ? this.meta.publishFacebookPhoto(
+            input.externalAccountId,
+            input.accessToken,
+            input.imageUrl,
+            input.message,
+            place,
+          )
+        : this.meta.publishFacebookFeed(
+            input.externalAccountId,
+            input.accessToken,
+            input.message,
+            place,
+          );
 
-    const result = await this.meta.publishFacebookFeed(
-      input.externalAccountId,
-      input.accessToken,
-      input.message,
-      placeId,
-    );
-    return { platformPostId: result.id };
+    if (!placeId) {
+      return { platformPostId: (await send(undefined)).id };
+    }
+    try {
+      return { platformPostId: (await send(placeId)).id };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Facebook rechazó place=${placeId} (${msg}); se reintenta sin ubicación`,
+      );
+      const result = await send(undefined);
+      return {
+        platformPostId: result.id,
+        locationNote: `Publicado sin ubicación: Facebook no aceptó el lugar (${msg}).`,
+      };
+    }
   }
 
+  /**
+   * Instagram exige que location_id sea una Page con coordenadas. Si Meta la
+   * rechaza al crear el contenedor, se crea otro sin ubicación y el post sale
+   * igual, con una nota. El paso de publicar no se repite.
+   */
   private async publishInstagramFeedOnly(
     input: PublishTargetInput,
   ): Promise<PublishResult> {
-    try {
-      return await this.publishInstagramFeedWithLocation(input, input.placeId);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : '';
-      // Si el Page ID no es válido como location de IG, publica sin ubicación
-      if (input.placeId && /location|LOCATION/i.test(msg)) {
+    const locationId = input.placeId?.trim() || undefined;
+    let containerId: string;
+    let locationNote: string | undefined;
+    if (!locationId) {
+      containerId = await this.createInstagramFeedContainer(input, undefined);
+    } else {
+      try {
+        containerId = await this.createInstagramFeedContainer(input, locationId);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
         this.logger.warn(
-          `Instagram rechazó location_id=${input.placeId}; se publica sin ubicación`,
+          `Instagram rechazó location_id=${locationId} (${msg}); se publica sin ubicación`,
         );
-        return this.publishInstagramFeedWithLocation(input, undefined);
+        containerId = await this.createInstagramFeedContainer(input, undefined);
+        locationNote = `Publicado sin ubicación: Instagram no aceptó el lugar (${msg}). Instagram solo acepta páginas con coordenadas.`;
       }
-      throw error;
     }
+    const published = await this.meta.publishInstagramMedia(
+      input.externalAccountId,
+      input.accessToken,
+      containerId,
+    );
+    return { platformPostId: published.id, ...(locationNote ? { locationNote } : {}) };
   }
 
-  private async publishInstagramFeedWithLocation(
+  /** Crea el contenedor de feed/Reel y espera a que esté listo. Devuelve su id. */
+  private async createInstagramFeedContainer(
     input: PublishTargetInput,
     locationId: string | undefined,
-  ): Promise<PublishResult> {
+  ): Promise<string> {
     if (input.videoUrl) {
       const asReelOnly = input.videoFormat === 'reel';
       const container = await this.meta.createInstagramReelsMedia(
@@ -241,12 +278,7 @@ export class MetaPublishService implements PlatformPublisher {
         locationId,
       );
       await this.meta.waitForInstagramContainer(container.id, input.accessToken);
-      const published = await this.meta.publishInstagramMedia(
-        input.externalAccountId,
-        input.accessToken,
-        container.id,
-      );
-      return { platformPostId: published.id };
+      return container.id;
     }
 
     if (!input.imageUrl) {
@@ -261,12 +293,7 @@ export class MetaPublishService implements PlatformPublisher {
       locationId,
     );
     await this.meta.waitForInstagramContainer(container.id, input.accessToken);
-    const published = await this.meta.publishInstagramMedia(
-      input.externalAccountId,
-      input.accessToken,
-      container.id,
-    );
-    return { platformPostId: published.id };
+    return container.id;
   }
 
   private async resolveStoryImageUrl(input: PublishTargetInput): Promise<string | undefined> {

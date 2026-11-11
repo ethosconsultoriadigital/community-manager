@@ -35,6 +35,8 @@ export type PublishResult = {
   storyPlatformPostId?: string;
   storyStatus?: 'published' | 'failed' | 'skipped';
   storyErrorMessage?: string;
+  /** Aviso cuando la publicación salió pero sin la ubicación pedida. */
+  locationNote?: string;
 };
 
 export interface PlatformPublisher {

@@ -102,6 +102,46 @@ describe('PublishPostService', () => {
     expect(posts.refreshAggregateStatus).toHaveBeenCalledWith('a1', 'post-1');
   });
 
+  it('pasa place_id y guarda la nota si salió sin ubicación', async () => {
+    const { service, posts, socialAccounts, metaPublish } = createService();
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Hola',
+      hashtags: [],
+      place_id: 'page-9',
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [{ type: 'image', storage_url: 'https://x/i.png', position: 0 }],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa1' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa1',
+      platform: 'instagram',
+      external_account_id: 'ig-1',
+      access_token_enc: encryptedToken(),
+      is_active: true,
+    });
+    metaPublish.publish.mockResolvedValue({
+      platformPostId: 'ig-1',
+      locationNote: 'Publicado sin ubicación: Instagram no aceptó el lugar.',
+    });
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(metaPublish.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ placeId: 'page-9' }),
+    );
+    expect(posts.updateTargetStatus).toHaveBeenCalledWith(
+      'a1',
+      'post-1',
+      't1',
+      expect.objectContaining({
+        status: 'published',
+        errorMessage: 'Publicado sin ubicación: Instagram no aceptó el lugar.',
+      }),
+    );
+  });
+
   it('omite destinos ya publicados en reintento', async () => {
     const { service, posts, socialAccounts, metaPublish } = createService();
     posts.findForPublish.mockResolvedValue({

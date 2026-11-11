@@ -497,6 +497,50 @@ export class MetaGraphClient {
       .slice(0, 12);
   }
 
+  /**
+   * Lee nombre y dirección de una Page por ID o nombre de usuario.
+   * Con el token de la propia Page siempre funciona; para otras Pages Meta puede
+   * pedir Page Public Metadata Access (en ese caso lanza el error de Graph).
+   */
+  async getPagePlace(
+    accessToken: string,
+    pageIdOrUsername: string,
+  ): Promise<{
+    id: string;
+    name: string;
+    hasLocation: boolean;
+    locationLabel?: string;
+    taggableOnInstagram: boolean;
+  }> {
+    const params = new URLSearchParams({
+      fields: 'id,name,location{city,country,street,latitude,longitude,zip}',
+      access_token: accessToken,
+    });
+    const row = await this.getJson<{
+      id: string;
+      name?: string;
+      location?: {
+        city?: string;
+        country?: string;
+        street?: string;
+        latitude?: number;
+        longitude?: number;
+        zip?: string;
+      };
+    }>(`${this.graphBase}/${encodeURIComponent(pageIdOrUsername)}?${params}`);
+    const loc = row.location;
+    const hasCoords =
+      typeof loc?.latitude === 'number' && typeof loc?.longitude === 'number';
+    const parts = [loc?.street, loc?.city, loc?.country].filter(Boolean);
+    return {
+      id: row.id,
+      name: row.name?.trim() || row.id,
+      hasLocation: Boolean(loc && (hasCoords || parts.length)),
+      locationLabel: parts.length ? parts.join(', ') : undefined,
+      taggableOnInstagram: hasCoords,
+    };
+  }
+
   private requireConfig(key: string): string {
     const value = this.config.get<string>(key);
     if (!value) throw new Error(`${key} no está definida`);

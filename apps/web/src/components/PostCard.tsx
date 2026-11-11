@@ -109,7 +109,13 @@ export function PostCard({
                 <span className="ml-1 text-muted">({t.platform_post_id})</span>
               )}
               {t.error_message && (
-                <p className="mt-0.5 text-red-600">{t.error_message}</p>
+                <p
+                  className={`mt-0.5 ${
+                    t.status === 'published' ? 'text-amber-700' : 'text-red-600'
+                  }`}
+                >
+                  {t.error_message}
+                </p>
               )}
               {t.story_status && t.story_status !== 'published' && (
                 <p
