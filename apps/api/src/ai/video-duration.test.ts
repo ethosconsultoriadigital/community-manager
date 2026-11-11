@@ -2,45 +2,63 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   capVideoSeconds,
   clipSecondsForScenes,
+  clipSecondsPlan,
   maxScenesForDuration,
   maxSpokenWords,
   trimSpokenText,
   videoMaxSeconds,
 } from './video-duration';
 
-describe('video-duration (tope de 10 s)', () => {
+describe('video-duration (tope de 15 s)', () => {
   const prev = process.env.VIDEO_MAX_SECONDS;
   afterEach(() => {
     if (prev === undefined) delete process.env.VIDEO_MAX_SECONDS;
     else process.env.VIDEO_MAX_SECONDS = prev;
   });
 
-  it('default 10 s; VIDEO_MAX_SECONDS solo lo baja (4–10)', () => {
-    expect(videoMaxSeconds(undefined)).toBe(10);
-    expect(videoMaxSeconds('')).toBe(10);
-    expect(videoMaxSeconds('abc')).toBe(10);
-    expect(videoMaxSeconds('30')).toBe(10);
+  it('default 15 s; VIDEO_MAX_SECONDS solo lo baja (4–15)', () => {
+    expect(videoMaxSeconds(undefined)).toBe(15);
+    expect(videoMaxSeconds('')).toBe(15);
+    expect(videoMaxSeconds('abc')).toBe(15);
+    expect(videoMaxSeconds('30')).toBe(15);
+    expect(videoMaxSeconds('10')).toBe(10);
     expect(videoMaxSeconds('8')).toBe(8);
     expect(videoMaxSeconds('2')).toBe(4);
   });
 
-  it('una duración pedida de 15/20/30 s se queda en 10', () => {
+  it('una duración pedida de 20/30 s se queda en 15', () => {
     delete process.env.VIDEO_MAX_SECONDS;
-    expect(capVideoSeconds(20)).toBe(10);
-    expect(capVideoSeconds(30)).toBe(10);
-    expect(capVideoSeconds(undefined)).toBe(10);
+    expect(capVideoSeconds(20)).toBe(15);
+    expect(capVideoSeconds(30)).toBe(15);
+    expect(capVideoSeconds(undefined)).toBe(15);
+    expect(capVideoSeconds(15)).toBe(15);
     expect(capVideoSeconds(6)).toBe(6);
   });
 
-  it('reparte el total entre escenas: 1×10 s o 2×5 s', () => {
+  it('reparte el total entre escenas (clips de Seedance 2–12 s)', () => {
+    expect(clipSecondsForScenes(1, 15)).toBe(12);
+    expect(clipSecondsForScenes(2, 15)).toBe(7);
     expect(clipSecondsForScenes(1, 10)).toBe(10);
     expect(clipSecondsForScenes(2, 10)).toBe(5);
-    expect(clipSecondsForScenes(3, 10)).toBe(3);
+    expect(maxScenesForDuration(15)).toBe(3);
     expect(maxScenesForDuration(10)).toBe(2);
     expect(maxScenesForDuration(8)).toBe(1);
   });
 
-  it('10 s de voz ≈ 26 palabras en español', () => {
+  it('plan por escena: suma el total sin pasar 12 s por clip', () => {
+    expect(clipSecondsPlan(1, 15)).toEqual([12]);
+    expect(clipSecondsPlan(2, 15)).toEqual([8, 7]);
+    expect(clipSecondsPlan(3, 15)).toEqual([5, 5, 5]);
+    expect(clipSecondsPlan(2, 10)).toEqual([5, 5]);
+    expect(clipSecondsPlan(1, 10)).toEqual([10]);
+    expect(clipSecondsPlan(4, 6)).toEqual([2, 2, 2, 2]);
+    for (const n of [1, 2, 3]) {
+      expect(clipSecondsPlan(n, 15).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it('15 s de voz ≈ 39 palabras en español; 10 s ≈ 26', () => {
+    expect(maxSpokenWords(15)).toBe(39);
     expect(maxSpokenWords(10)).toBe(26);
   });
 

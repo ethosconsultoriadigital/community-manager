@@ -1,9 +1,12 @@
 /**
  * Tope de duración de todos los videos generados (Reel y avatar).
- * Default 10 s: videos cortos con buena intención. VIDEO_MAX_SECONDS solo
- * sirve para bajarlo (mínimo 4 s); nunca sube de 10.
+ * Default 15 s: videos cortos con buena intención. VIDEO_MAX_SECONDS solo
+ * sirve para bajarlo (mínimo 4 s); nunca sube de 15.
  */
-export const VIDEO_MAX_SECONDS_DEFAULT = 10;
+export const VIDEO_MAX_SECONDS_DEFAULT = 15;
+/** Seedance genera clips de 2 a 12 s (se cobra por segundo). */
+export const SEEDANCE_MIN_CLIP_SECONDS = 2;
+export const SEEDANCE_MAX_CLIP_SECONDS = 12;
 const VIDEO_MIN_SECONDS = 4;
 
 /** Ritmo de habla en español para TTS (~2.6 palabras/segundo). */
@@ -30,10 +33,33 @@ export function maxScenesForDuration(max = videoMaxSeconds()): number {
 /** Segundos por clip para repartir el total entre las escenas (2–12, límites de Seedance). */
 export function clipSecondsForScenes(sceneCount: number, total = videoMaxSeconds()): number {
   const scenes = Math.max(1, Math.round(sceneCount) || 1);
-  return Math.min(12, Math.max(2, Math.floor(total / scenes)));
+  return Math.min(
+    SEEDANCE_MAX_CLIP_SECONDS,
+    Math.max(SEEDANCE_MIN_CLIP_SECONDS, Math.floor(total / scenes)),
+  );
 }
 
-/** Palabras máximas para que el monólogo quepa en `seconds`. 10 s → 26 palabras. */
+/**
+ * Segundos de cada escena para llenar el total (cada clip 2–12 s).
+ * 15 s: 1 escena → [12] (Seedance no da más), 2 → [8, 7], 3 → [5, 5, 5].
+ * La suma nunca pasa del total.
+ */
+export function clipSecondsPlan(sceneCount: number, total = videoMaxSeconds()): number[] {
+  const scenes = Math.max(1, Math.round(sceneCount) || 1);
+  const target = Math.min(total, scenes * SEEDANCE_MAX_CLIP_SECONDS);
+  const base = Math.floor(target / scenes);
+  let extra = Math.round(target - base * scenes);
+  return Array.from({ length: scenes }, () => {
+    const add = extra > 0 ? 1 : 0;
+    extra -= add;
+    return Math.min(
+      SEEDANCE_MAX_CLIP_SECONDS,
+      Math.max(SEEDANCE_MIN_CLIP_SECONDS, base + add),
+    );
+  });
+}
+
+/** Palabras máximas para que el monólogo quepa en `seconds`. 15 s → 39 palabras. */
 export function maxSpokenWords(seconds = videoMaxSeconds()): number {
   return Math.max(8, Math.floor(seconds * SPANISH_WORDS_PER_SECOND));
 }

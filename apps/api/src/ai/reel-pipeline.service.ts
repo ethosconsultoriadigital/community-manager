@@ -10,7 +10,8 @@ import type { VideoProvider } from './interfaces/video-provider.interface';
 import { ScriptService } from './script/script.service';
 import {
   capVideoSeconds,
-  clipSecondsForScenes,
+  clipSecondsPlan,
+  SEEDANCE_MAX_CLIP_SECONDS,
   maxScenesForDuration,
 } from './video-duration';
 import {
@@ -26,9 +27,9 @@ export type ReelPipelineInput = {
   referenceText?: string;
   /** Foto manual: keyframe de la primera escena (estilo/ancla). */
   referenceImageUrl?: string;
-  /** 1 escena de 10 s (default, más barato) o 2 de 5 s. */
+  /** 1 escena (12 s, Seedance no da más) o 2 escenas (8 + 7 s = 15 s, default). */
   sceneCount?: number;
-  /** Duración total en segundos; nunca pasa de VIDEO_MAX_SECONDS (10). */
+  /** Duración total en segundos; nunca pasa de VIDEO_MAX_SECONDS (15). */
   targetDurationSeconds?: number;
   musicTrackId?: string;
   withMusic?: boolean;
@@ -84,7 +85,10 @@ export class ReelPipelineService {
     return Math.min(fromEnv, maxScenesForDuration());
   }
 
-  /** Default 1 escena (un solo keyframe + un clip = lo más barato), o REEL_SCENE_COUNT. */
+  /**
+   * Escenas: lo que pida el Composer, si no REEL_SCENE_COUNT, y si no las
+   * mínimas para llenar el tope con clips de Seedance (≤12 s): 15 s → 2.
+   */
   resolveSceneCount(input: ReelPipelineInput): number {
     const max = this.maxScenes();
     const fromEnv = Number(this.config.get<string>('REEL_SCENE_COUNT') ?? '');
@@ -93,7 +97,7 @@ export class ReelPipelineService {
         ? input.sceneCount
         : Number.isFinite(fromEnv) && fromEnv > 0
           ? fromEnv
-          : 1;
+          : Math.ceil(this.totalSeconds(input) / SEEDANCE_MAX_CLIP_SECONDS);
     return Math.min(max, Math.max(1, Math.round(requested)));
   }
 
@@ -198,9 +202,9 @@ export class ReelPipelineService {
       sceneCount: this.resolveSceneCount(input),
     });
 
-    const clipSeconds = clipSecondsForScenes(script.scenes.length, total);
+    const plan = clipSecondsPlan(script.scenes.length, total);
     this.logger.log(
-      `Guion Reel: ${script.scenes.length} escenas x ${clipSeconds}s (max=${this.maxScenes()}, tope ${total}s)`,
+      `Guion Reel: ${script.scenes.length} escenas (${plan.join('+')} s) (max=${this.maxScenes()}, tope ${total}s)`,
     );
 
     const workDir = await mkdtemp(join(tmpdir(), 'cm-reel-pipe-'));
@@ -213,6 +217,7 @@ export class ReelPipelineService {
     try {
       for (let i = 0; i < script.scenes.length; i++) {
         const scene = script.scenes[i];
+        const clipSeconds = plan[i] ?? plan[plan.length - 1]!;
         let keyframeUrl: string | undefined;
 
         if (i === 0 && input.referenceImageUrl?.trim()) {

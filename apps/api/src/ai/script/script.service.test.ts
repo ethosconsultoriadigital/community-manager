@@ -47,8 +47,8 @@ describe('ScriptService', () => {
   });
 });
 
-describe('ScriptService avatar (máx. 10 s)', () => {
-  it('pide ≤10 s al LLM aunque lleguen 30 y recorta el monólogo a ~26 palabras', async () => {
+describe('ScriptService avatar (máx. 15 s)', () => {
+  it('pide ≤15 s al LLM aunque lleguen 30 y recorta el monólogo a ~39 palabras', async () => {
     const longText = Array.from({ length: 60 }, (_, i) => `palabra${i}`).join(' ');
     const llm = {
       generateAvatarScript: vi.fn().mockResolvedValue({
@@ -60,12 +60,12 @@ describe('ScriptService avatar (máx. 10 s)', () => {
     const service = new ScriptService({ get: () => undefined } as never, llm as never);
     const out = await service.buildAvatarScript({ brief: 'Promo', targetSeconds: 30 });
     expect(llm.generateAvatarScript).toHaveBeenCalledWith(
-      expect.objectContaining({ targetSeconds: 10 }),
+      expect.objectContaining({ targetSeconds: 15 }),
     );
-    expect(out.spokenText.split(/\s+/).length).toBeLessThanOrEqual(26);
+    expect(out.spokenText.split(/\s+/).length).toBeLessThanOrEqual(39);
     // Subtítulos rehechos con el texto recortado (no los del texto largo).
     expect(out.subtitleLines.join(' ')).not.toContain('línea larga');
-    expect(out.subtitleLines.length).toBeLessThanOrEqual(4);
+    expect(out.subtitleLines.length).toBeLessThanOrEqual(5);
   });
 
   it('respeta un monólogo corto y sus subtítulos', async () => {

@@ -62,7 +62,7 @@ export function buildFalVideoBody(
   model: string,
   prompt: string,
   imageUrl?: string,
-  /** Segundos del clip (tope global VIDEO_MAX_SECONDS=10). Default 5. */
+  /** Segundos del clip (Seedance 2–12 s; tope global VIDEO_MAX_SECONDS=15). Default 5. */
   durationSeconds?: number,
 ): Record<string, unknown> {
   const text = prompt.trim().slice(0, 2000);

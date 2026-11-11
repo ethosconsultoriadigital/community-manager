@@ -22,7 +22,7 @@ import { fitTextLines } from '../composition/overlay-text';
 
 export const TEMPLATE_W = 720;
 export const TEMPLATE_H = 1280;
-/** Tarjeta final con logo + CTA + web; solo si cabe dentro del tope de 10 s. */
+/** Tarjeta final con logo + CTA + web; solo si cabe dentro del tope (VIDEO_MAX_SECONDS, 15 s). */
 export const END_CARD_SECONDS = 1.6;
 export const END_CARD_MIN_SECONDS = 0.6;
 

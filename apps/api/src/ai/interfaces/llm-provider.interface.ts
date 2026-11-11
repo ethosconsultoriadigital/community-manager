@@ -48,7 +48,7 @@ export type GenerateAvatarScriptInput = {
   brief: string;
   caption?: string;
   referenceText?: string;
-  /** Segundos máximos de habla (tope VIDEO_MAX_SECONDS, 10). */
+  /** Segundos máximos de habla (tope VIDEO_MAX_SECONDS, 15). */
   targetSeconds?: number;
 };
 

@@ -47,7 +47,7 @@ describe('VideoCompositionService.composeAvatarTemplate', () => {
     'circulo',
     'dividido',
   ] as DesignedAvatarTemplate[]) {
-    it(`${template}: 720x1280, voz conservada, tarjeta final y ≤ 10 s`, async () => {
+    it(`${template}: 720x1280, voz conservada, tarjeta final y ≤ 15 s`, async () => {
       const ffmpeg = await resolveFfmpeg();
       if (!ffmpeg) {
         console.warn('ffmpeg-static no disponible; se omite');
@@ -56,17 +56,17 @@ describe('VideoCompositionService.composeAvatarTemplate', () => {
       const dir = await mkdtemp(join(tmpdir(), 'cm-tpl-test-'));
       try {
         const clip = join(dir, 'avatar.mp4');
-        // Clip "lip-sync" cuadrado de 7 s con voz (tono).
+        // Clip "lip-sync" cuadrado de 14 s con voz (tono).
         await run(ffmpeg, [
           '-y',
           '-f',
           'lavfi',
           '-i',
-          'testsrc=s=512x512:d=7:r=24',
+          'testsrc=s=512x512:d=14:r=24',
           '-f',
           'lavfi',
           '-i',
-          'sine=frequency=440:duration=7',
+          'sine=frequency=440:duration=14',
           '-c:v',
           'libx264',
           '-pix_fmt',
@@ -90,8 +90,8 @@ describe('VideoCompositionService.composeAvatarTemplate', () => {
           fontTitle: 'Montserrat',
           fontBody: 'Montserrat',
         });
-        const mainSeconds = 7;
-        const endCardSeconds = endCardSecondsFor(mainSeconds, 10);
+        const mainSeconds = 14;
+        const endCardSeconds = endCardSecondsFor(mainSeconds, 15);
         const ass = buildAvatarAss({
           template,
           colors: COLORS,
@@ -102,7 +102,8 @@ describe('VideoCompositionService.composeAvatarTemplate', () => {
           website: 'aabsolucionesinformaticas.com.mx',
           words: wordCuesFromLines([
             { startSeconds: 0.1, endSeconds: 3.4, text: 'Hola, somos AAB Soluciones.' },
-            { startSeconds: 3.5, endSeconds: 6.8, text: 'Escríbenos hoy mismo.' },
+            { startSeconds: 3.5, endSeconds: 9.8, text: 'Escríbenos hoy mismo.' },
+            { startSeconds: 10, endSeconds: 13.8, text: 'Visita nuestro sitio web.' },
           ]),
           mainSeconds,
           endCardSeconds,
@@ -122,8 +123,8 @@ describe('VideoCompositionService.composeAvatarTemplate', () => {
           expect(result.width).toBe(720);
           expect(result.height).toBe(1280);
           expect(result.burnedSubtitles).toBe(true);
-          expect(result.durationSeconds!).toBeLessThanOrEqual(10);
-          expect(result.durationSeconds!).toBeGreaterThan(8);
+          expect(result.durationSeconds!).toBeLessThanOrEqual(15);
+          expect(result.durationSeconds!).toBeGreaterThan(14);
           const probe = await run(ffmpeg, ['-i', result.outPath!]);
           expect(probe).toMatch(/720x1280/);
           expect(probe).toMatch(/Audio:/);

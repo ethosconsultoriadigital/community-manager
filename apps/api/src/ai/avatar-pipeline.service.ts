@@ -45,7 +45,7 @@ export type AvatarPipelineInput = {
   /** Override del personaje (si no, clients.brand.characterImageUrl). */
   characterImageUrl?: string;
   voiceId?: string;
-  /** Segundos máximos del monólogo; nunca pasa de VIDEO_MAX_SECONDS (10). */
+  /** Segundos máximos del monólogo; nunca pasa de VIDEO_MAX_SECONDS (15). */
   targetSeconds?: number;
   musicTrackId?: string;
   withMusic?: boolean;

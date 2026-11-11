@@ -102,13 +102,13 @@ export class ScriptService {
         input.caption?.trim() ?? ''
       }`.trim();
     }
-    // Tope duro: el monólogo cabe en ~10 s aunque el LLM se pase.
+    // Tope duro: el monólogo cabe en el tope (15 s ≈ 39 palabras) aunque el LLM se pase.
     const trimmed = trimSpokenText(spokenText, maxWords);
     const wasTrimmed = trimmed !== spokenText.split(/\s+/).filter(Boolean).join(' ');
     spokenText = trimmed;
     const subtitleLines =
       !wasTrimmed && result.subtitleLines?.length > 0
-        ? result.subtitleLines.slice(0, 4)
+        ? result.subtitleLines.slice(0, 5)
         : splitSubtitleLines(spokenText);
     return {
       spokenText,
@@ -130,7 +130,7 @@ export class ScriptService {
   }
 }
 
-/** Frases del monólogo para subtítulos (≤8 palabras por línea, máx. 4 líneas). */
+/** Frases del monólogo para subtítulos (≤8 palabras por línea, máx. 5 líneas ≈ 15 s). */
 export function splitSubtitleLines(text: string): string[] {
   const lines: string[] = [];
   for (const sentence of text.split(/(?<=[.!?…])\s+/)) {
@@ -139,5 +139,5 @@ export function splitSubtitleLines(text: string): string[] {
       lines.push(words.slice(i, i + 8).join(' '));
     }
   }
-  return lines.filter(Boolean).slice(0, 4);
+  return lines.filter(Boolean).slice(0, 5);
 }

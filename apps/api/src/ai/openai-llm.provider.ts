@@ -13,7 +13,7 @@ import type {
 } from './interfaces/llm-provider.interface';
 import {
   capVideoSeconds,
-  clipSecondsForScenes,
+  clipSecondsPlan,
   maxSpokenWords,
   videoMaxSeconds,
 } from './video-duration';
@@ -55,7 +55,8 @@ export class OpenAiLlmProvider implements LlmProvider {
   ): Promise<GenerateReelScriptResult> {
     const n = Math.min(4, Math.max(1, Math.round(input.sceneCount) || 1));
     const total = videoMaxSeconds();
-    const perScene = clipSecondsForScenes(n, total);
+    const plan = clipSecondsPlan(n, total);
+    const perScene = plan[0]!;
     const prompt = [
       'Eres guionista de Reels verticales 9:16 para redes sociales.',
       `El video completo dura como máximo ${total} segundos: una sola idea clara con buena intención, sin relleno.`,
@@ -64,7 +65,7 @@ export class OpenAiLlmProvider implements LlmProvider {
       input.referenceText
         ? `Material de referencia (resumir en escenas, NO inventar logos): ${input.referenceText.slice(0, 2000)}`
         : '',
-      `Genera exactamente ${n} ${n === 1 ? 'escena' : 'escenas'} de ~${perScene}s cada una.`,
+      `Genera exactamente ${n} ${n === 1 ? 'escena' : 'escenas'} (${plan.join(' + ')} s).`,
       `Cada escena necesita: visualPrompt (keyframe fotográfico sin texto ni logos), motionPrompt (movimiento de cámara/sujeto para image-to-video), subtitle (frase corta opcional, máx. 8 palabras), durationHintSeconds (${perScene}).`,
       'Responde JSON estricto:',
       `{"scenes":[{"id":"1","visualPrompt":"...","motionPrompt":"...","subtitle":"...","durationHintSeconds":${perScene}}],"musicSuggestion":"estilo musical breve"}`,
@@ -98,8 +99,8 @@ export class OpenAiLlmProvider implements LlmProvider {
       input.referenceText
         ? `Material de referencia (resumir, no citar logos): ${input.referenceText.slice(0, 1500)}`
         : '',
-      `El monólogo dura como máximo ${seconds} segundos al hablar: máximo ${maxWords} palabras en total, 1 o 2 frases con un mensaje claro y una llamada a la acción breve.`,
-      'subtitleLines: 2 o 3 frases cortas que juntas repitan el monólogo.',
+      `El monólogo dura como máximo ${seconds} segundos al hablar: máximo ${maxWords} palabras en total, 1 a 3 frases con un mensaje claro y una llamada a la acción breve.`,
+      'subtitleLines: 2 a 4 frases cortas que juntas repitan el monólogo.',
       'Responde JSON estricto:',
       '{"spokenText":"monólogo completo para TTS","subtitleLines":["frase1","frase2"],"musicSuggestion":"estilo breve"}',
     ]

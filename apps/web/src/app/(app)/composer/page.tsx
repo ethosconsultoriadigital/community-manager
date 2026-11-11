@@ -83,15 +83,15 @@ export default function ComposerPage() {
   const [reelStillPreview, setReelStillPreview] = useState<string | null>(null);
   const [reelPreviewUrl, setReelPreviewUrl] = useState<string | null>(null);
   /** Duración objetivo del Reel IA (~5s por escena). */
-  /** Todos los videos duran máx. 10 s: 1 escena de 10 s (más barato) o 2 de 5 s. */
-  const [reelSceneCount, setReelSceneCount] = useState<1 | 2>(1);
+  /** Todos los videos duran máx. 15 s: 2 escenas (8 + 7 s = 15 s) o 1 escena de 12 s (más barato). */
+  const [reelSceneCount, setReelSceneCount] = useState<1 | 2>(2);
   const [reelWithMusic, setReelWithMusic] = useState(true);
   const [reelWithSubtitles, setReelWithSubtitles] = useState(true);
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(null);
   const [characterFileName, setCharacterFileName] = useState<string | null>(null);
   const [uploadingCharacter, setUploadingCharacter] = useState(false);
-  const [avatarTargetSeconds, setAvatarTargetSeconds] = useState(10);
+  const [avatarTargetSeconds, setAvatarTargetSeconds] = useState(15);
   const [avatarWithMusic, setAvatarWithMusic] = useState(true);
   const [avatarWithSubtitles, setAvatarWithSubtitles] = useState(true);
   /** Plantilla del video de avatar; por defecto la del cliente o Profesional. */
@@ -812,7 +812,7 @@ export default function ComposerPage() {
           caption: caption.trim(),
           hashtags: parseHashtags(),
           socialAccountIds: selectedAccounts,
-          targetDurationSeconds: 10,
+          targetDurationSeconds: 15,
           sceneCount: reelSceneCount,
           withMusic: reelWithMusic,
           withSubtitles: reelWithSubtitles,
@@ -1351,7 +1351,7 @@ export default function ComposerPage() {
                 <div>
                   <h3 className="text-sm font-medium text-brand">Video / Reel con IA</h3>
                   <p className="text-xs text-muted">
-                    Reel vertical 9:16 de máx. 10 s con subtítulos y música propia. Opcional:
+                    Reel vertical 9:16 de máx. 15 s con subtítulos y música propia. Opcional:
                     foto de la 1.ª escena. Requiere FAL_KEY y saldo en fal.ai.
                   </p>
                 </div>
@@ -1364,7 +1364,7 @@ export default function ComposerPage() {
                 />
                 <div>
                   <label htmlFor="reel-duration" className="mb-1 block text-xs text-muted">
-                    Duración (máx. 10 s)
+                    Duración (máx. 15 s)
                   </label>
                   <select
                     id="reel-duration"
@@ -1373,8 +1373,8 @@ export default function ComposerPage() {
                     onChange={(e) => setReelSceneCount(Number(e.target.value) as 1 | 2)}
                     className={inputClass}
                   >
-                    <option value={1}>10 s · 1 escena (más barato)</option>
-                    <option value={2}>10 s · 2 escenas de 5 s</option>
+                    <option value={2}>15 s · 2 escenas (8 + 7 s)</option>
+                    <option value={1}>12 s · 1 escena (más barato)</option>
                   </select>
                 </div>
                 <div className="flex flex-wrap gap-4 text-xs text-muted">
@@ -1507,7 +1507,7 @@ export default function ComposerPage() {
               </div>
               <div>
                 <label htmlFor="avatar-duration" className="mb-1 block text-xs text-muted">
-                  Duración del monólogo (máx. 10 s)
+                  Duración del monólogo (máx. 15 s)
                 </label>
                 <select
                   id="avatar-duration"
@@ -1518,7 +1518,9 @@ export default function ComposerPage() {
                 >
                   <option value={6}>~6 s</option>
                   <option value={8}>~8 s</option>
-                  <option value={10}>~10 s (máx.)</option>
+                  <option value={10}>~10 s</option>
+                  <option value={12}>~12 s</option>
+                  <option value={15}>~15 s (máx.)</option>
                 </select>
               </div>
               <div>

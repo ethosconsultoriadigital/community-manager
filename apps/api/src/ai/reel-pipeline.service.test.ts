@@ -174,7 +174,7 @@ describe('ReelPipelineService', () => {
     expect(video.generateVideo).toHaveBeenCalledTimes(1);
   });
 
-  describe('tope de 10 s', () => {
+  describe('tope de 15 s', () => {
     function build(configValues: Record<string, string> = {}) {
       const config = {
         get: (key: string) => ({ REEL_MULTI_SCENE: 'true', ...configValues })[key],
@@ -223,21 +223,39 @@ describe('ReelPipelineService', () => {
       return { service, script, composition, image, video };
     }
 
-    it('por defecto: 1 escena de 10 s (1 keyframe + 1 clip)', async () => {
+    it('por defecto: 2 escenas (8 + 7 s) llenan el tope de 15 s', async () => {
       const { service, image, video, composition } = build();
+      const result = await service.generate({ agencyId: 'a', brief: 'b', caption: 'c' });
+      expect(result.sceneCount).toBe(2);
+      expect(image.generateImage).toHaveBeenCalledTimes(2);
+      expect(video.generateVideo.mock.calls.map((c) => c[0].durationSeconds)).toEqual([8, 7]);
+      expect(composition.concatClips).toHaveBeenCalledWith(
+        expect.objectContaining({ maxDurationSeconds: 15 }),
+      );
+    });
+
+    it('REEL_SCENE_COUNT=1 de Render: 1 escena de 12 s (máx. de Seedance, lo más barato)', async () => {
+      const { service, image, video, composition } = build({ REEL_SCENE_COUNT: '1' });
       const result = await service.generate({ agencyId: 'a', brief: 'b', caption: 'c' });
       expect(result.sceneCount).toBe(1);
       expect(image.generateImage).toHaveBeenCalledTimes(1);
       expect(video.generateVideo).toHaveBeenCalledTimes(1);
       expect(video.generateVideo).toHaveBeenCalledWith(
-        expect.objectContaining({ durationSeconds: 10 }),
+        expect.objectContaining({ durationSeconds: 12 }),
       );
       expect(composition.concatClips).toHaveBeenCalledWith(
-        expect.objectContaining({ maxDurationSeconds: 10 }),
+        expect.objectContaining({ maxDurationSeconds: 15 }),
       );
     });
 
-    it('2 escenas → 2 clips de 5 s; pedir 20 s o 4 escenas no pasa de 10 s', async () => {
+    it('el sceneCount del Composer gana a REEL_SCENE_COUNT', () => {
+      const { service } = build({ REEL_SCENE_COUNT: '1' });
+      expect(
+        service.resolveSceneCount({ agencyId: 'a', brief: 'b', caption: 'c', sceneCount: 2 }),
+      ).toBe(2);
+    });
+
+    it('pedir 20 s o 4 escenas no pasa de 15 s (3 × 5 s)', async () => {
       const { service, video, composition } = build({ REEL_MAX_SCENES: '4' });
       const result = await service.generate({
         agencyId: 'a',
@@ -246,29 +264,42 @@ describe('ReelPipelineService', () => {
         sceneCount: 4,
         targetDurationSeconds: 20,
       });
-      expect(result.sceneCount).toBe(2);
-      expect(video.generateVideo).toHaveBeenCalledTimes(2);
-      for (const call of video.generateVideo.mock.calls) {
-        expect(call[0].durationSeconds).toBe(5);
-      }
+      expect(result.sceneCount).toBe(3);
+      expect(video.generateVideo.mock.calls.map((c) => c[0].durationSeconds)).toEqual([5, 5, 5]);
       expect(composition.concatClips).toHaveBeenCalledWith(
-        expect.objectContaining({ maxDurationSeconds: 10 }),
+        expect.objectContaining({ maxDurationSeconds: 15 }),
       );
     });
 
-    it('REEL_SCENE_COUNT=2 de Render se respeta como default (2×5 s)', async () => {
+    it('REEL_SCENE_COUNT=2 de Render se respeta como default', async () => {
       const { service } = build({ REEL_SCENE_COUNT: '2' });
       expect(service.resolveSceneCount({ agencyId: 'a', brief: 'b', caption: 'c' })).toBe(2);
     });
 
-    it('modo single clip pide 10 s y recorta a 10 s', async () => {
+    it('con VIDEO_MAX_SECONDS=10 el default vuelve a 1 escena de 10 s', async () => {
+      const prev = process.env.VIDEO_MAX_SECONDS;
+      process.env.VIDEO_MAX_SECONDS = '10';
+      try {
+        const { service, video } = build();
+        const result = await service.generate({ agencyId: 'a', brief: 'b', caption: 'c' });
+        expect(result.sceneCount).toBe(1);
+        expect(video.generateVideo).toHaveBeenCalledWith(
+          expect.objectContaining({ durationSeconds: 10 }),
+        );
+      } finally {
+        if (prev === undefined) delete process.env.VIDEO_MAX_SECONDS;
+        else process.env.VIDEO_MAX_SECONDS = prev;
+      }
+    });
+
+    it('modo single clip pide 15 s (Seedance lo deja en 12) y recorta a 15 s', async () => {
       const { service, video, composition } = build({ REEL_MULTI_SCENE: 'false' });
-      await service.generate({ agencyId: 'a', brief: 'b', caption: 'c', targetDurationSeconds: 15 });
+      await service.generate({ agencyId: 'a', brief: 'b', caption: 'c', targetDurationSeconds: 20 });
       expect(video.generateVideo).toHaveBeenCalledWith(
-        expect.objectContaining({ durationSeconds: 10 }),
+        expect.objectContaining({ durationSeconds: 15 }),
       );
       expect(composition.concatClips).toHaveBeenCalledWith(
-        expect.objectContaining({ maxDurationSeconds: 10 }),
+        expect.objectContaining({ maxDurationSeconds: 15 }),
       );
     });
 

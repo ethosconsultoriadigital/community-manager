@@ -42,7 +42,7 @@ export type ConcatClipsInput = {
   musicVolume?: number;
   /**
    * Tope duro de duración (s): ffmpeg recorta video y audio aquí.
-   * Los pipelines pasan VIDEO_MAX_SECONDS (10).
+   * Los pipelines pasan VIDEO_MAX_SECONDS (15).
    */
   maxDurationSeconds?: number;
   /**

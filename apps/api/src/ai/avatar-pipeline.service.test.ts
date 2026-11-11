@@ -85,10 +85,10 @@ describe('AvatarPipelineService', () => {
       }),
     );
     expect(composition.concatClips).toHaveBeenCalledWith(
-      expect.objectContaining({ keepOnDisk: true, keepClipAudio: true, maxDurationSeconds: 10 }),
+      expect.objectContaining({ keepOnDisk: true, keepClipAudio: true, maxDurationSeconds: 15 }),
     );
     expect(script.buildAvatarScript).toHaveBeenCalledWith(
-      expect.objectContaining({ targetSeconds: 10 }),
+      expect.objectContaining({ targetSeconds: 15 }),
     );
     expect(mediaStorage.saveFromFile).toHaveBeenCalled();
     expect(result.url).toBe('https://storage.local/avatar.mp4');
@@ -227,7 +227,7 @@ describe('AvatarPipelineService', () => {
     });
     expect(composition.composeAvatarTemplate).toHaveBeenCalled();
     expect(composition.concatClips).toHaveBeenCalledWith(
-      expect.objectContaining({ keepClipAudio: true, maxDurationSeconds: 10, keepOnDisk: true }),
+      expect.objectContaining({ keepClipAudio: true, maxDurationSeconds: 15, keepOnDisk: true }),
     );
     expect(result.template).toBe('clasica');
     expect(result.url).toBe('https://storage.local/avatar.mp4');
