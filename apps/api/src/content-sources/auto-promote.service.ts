@@ -27,7 +27,17 @@ export type AutoPromoteResult = {
   skippedNoCopy: number;
   errors: string[];
   postIds: string[];
+  /** Aviso cuando la fuente no tiene cuentas asignadas y no se creó nada. */
+  warning?: string;
 };
+
+/**
+ * Sin lista de cuentas no se elige ninguna cuenta automáticamente: el cliente puede
+ * tener varias marcas (p. ej. RadarMex y AAB) y la «primera cuenta activa» de cada
+ * red podría ser de otra marca.
+ */
+export const NO_ALLOWLIST_WARNING =
+  'Esta fuente no tiene cuentas asignadas: no se crearon posts para no publicar en cuentas de otra marca. Elige las cuentas en Conectar fuente y vuelve a sincronizar.';
 
 
 function buildCaption(parts: {
@@ -43,7 +53,7 @@ function readConfig(config: unknown): Record<string, unknown> {
   return config as Record<string, unknown>;
 }
 
-/** null = sin lista (primera cuenta activa de cada red, como RadarMex). */
+/** null = la fuente no tiene lista (ya no se eligen cuentas por defecto). */
 export function readSocialAccountAllowlist(config: Record<string, unknown>): string[] | null {
   if (!Object.prototype.hasOwnProperty.call(config, 'socialAccountIds')) return null;
   if (!Array.isArray(config.socialAccountIds)) return null;
@@ -102,6 +112,18 @@ export class AutoPromoteService {
       postIds: [],
     };
 
+    if (!allowlist?.length) {
+      // Los items quedan sin promover: salen en cuanto la fuente tenga cuentas asignadas.
+      if (items.length > 0) {
+        this.logger.warn(
+          `Fuente ${sourceId} sin socialAccountIds: ${items.length} item(s) sin promover (no se eligen cuentas por defecto)`,
+        );
+      }
+      result.skippedNoAccount = items.length;
+      result.warning = NO_ALLOWLIST_WARNING;
+      return result;
+    }
+
     for (const item of items) {
       try {
         const created = await this.promoteItemPlatforms(
@@ -130,7 +152,7 @@ export class AutoPromoteService {
     userId: string | null,
     item: Awaited<ReturnType<SourceItemsRepository['findPromotable']>>[number],
     columnMap: SheetProfile,
-    allowlist: string[] | null,
+    allowlist: string[],
   ) {
     const accounts = await this.socialAccounts.findByAgency(agencyId, item.client_id);
     const active = accounts.filter((a) => a.is_active);
@@ -183,7 +205,7 @@ export class AutoPromoteService {
         continue;
       }
       const account = active.find(
-        (a) => a.platform === platform && (allowlist === null || allowlist.includes(a.id)),
+        (a) => a.platform === platform && allowlist.includes(a.id),
       );
       if (!account) {
         skippedNoAccount += 1;

@@ -29,6 +29,15 @@ Formato: fecha · sección de la guía · qué cambió (en lenguaje sencillo).
   Botones «Marcar todas» y «Desmarcar todas». Al editar o duplicar un post se conservan
   sus redes.
 
+## Desde 2026-11-12
+
+- **Conectar fuente: cada fuente debe tener sus cuentas.** Al guardar una fuente de Google
+  Sheets hay que marcar al menos una cuenta (red); si no, aparece «Elige al menos una cuenta
+  (red) para esta fuente…». Si una fuente antigua no tiene cuentas, al sincronizar no se crea
+  ningún post (aviso «Esta fuente no tiene cuentas asignadas…») y las noticias esperan hasta
+  que se asignen. Antes el sistema elegía la primera cuenta activa de cada red, que podía ser
+  de otra marca del mismo cliente (p. ej. RadarMex en lugar de AAB).
+
 ## Pendientes ya conocidos (ver auditoría 2026-11-11)
 
 - Conexión paso a paso de cada red (Meta, Threads con evaluador/tester, X, TikTok sandbox).

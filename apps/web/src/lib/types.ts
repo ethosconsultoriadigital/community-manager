@@ -270,6 +270,8 @@ export type RadarSyncResult = {
     skippedNoAccount: number;
     skippedNoCopy: number;
     errors: string[];
+    /** La fuente no tiene cuentas asignadas: no se creó nada. */
+    warning?: string;
   };
 };
 

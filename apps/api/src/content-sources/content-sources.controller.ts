@@ -47,6 +47,23 @@ class UpdateContentSourceDto {
   isActive?: boolean;
 }
 
+/** Mensaje cuando una fuente de Sheet se guarda sin cuentas. */
+export const SOURCE_ACCOUNTS_REQUIRED_MESSAGE =
+  'Elige al menos una cuenta (red) para esta fuente. Así sus noticias nunca se publican en cuentas de otra marca.';
+
+/** Fuentes que se auto-promueven (Sheets): exigen lista de cuentas al guardar la config. */
+export function assertSourceAccounts(
+  type: string | null | undefined,
+  config: Record<string, unknown> | undefined,
+): void {
+  if (config === undefined) return;
+  if (type !== 'news_radar' && type !== 'sheet') return;
+  const ids = Array.isArray(config.socialAccountIds)
+    ? config.socialAccountIds.filter((id) => typeof id === 'string' && id.trim())
+    : [];
+  if (ids.length === 0) throw new BadRequestException(SOURCE_ACCOUNTS_REQUIRED_MESSAGE);
+}
+
 class PromoteItemDto {
   socialAccountIds!: string[];
 }
@@ -128,6 +145,7 @@ export class ContentSourcesController {
   @Roles('manager', 'admin', 'owner')
   async create(@CurrentUser() user: AuthUser, @Body() body: CreateContentSourceDto) {
     await this.clientAccess.assertClientAccess(user, body.clientId);
+    assertSourceAccounts(body.type, body.config ?? {});
     try {
       return await this.contentSources.create(user.agencyId, {
         ...body,
@@ -160,7 +178,8 @@ export class ContentSourcesController {
     @Param('id') id: string,
     @Body() body: UpdateContentSourceDto,
   ) {
-    await this.getSourceOrThrow(user, id);
+    const source = await this.getSourceOrThrow(user, id);
+    assertSourceAccounts(source.type, body.config);
     const updated = await this.contentSources.update(user.agencyId, id, body);
     if (!updated) throw new NotFoundException('Fuente no encontrada');
     return updated;

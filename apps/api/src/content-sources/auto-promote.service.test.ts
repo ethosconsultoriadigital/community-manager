@@ -36,7 +36,7 @@ describe('AutoPromoteService', () => {
     };
     const mediaStorage = { save: vi.fn() };
     const contentSources = {
-      findById: vi.fn().mockResolvedValue({ config: {} }),
+      findById: vi.fn().mockResolvedValue({ config: { socialAccountIds: ['sa-fb', 'sa-ig'] } }),
     };
 
     const service = new AutoPromoteService(
@@ -95,7 +95,7 @@ describe('AutoPromoteService', () => {
     };
     const mediaStorage = { save: vi.fn() };
     const contentSources = {
-      findById: vi.fn().mockResolvedValue({ config: {} }),
+      findById: vi.fn().mockResolvedValue({ config: { socialAccountIds: ['sa-th'] } }),
     };
 
     const service = new AutoPromoteService(
@@ -149,7 +149,7 @@ describe('AutoPromoteService', () => {
     };
     const mediaStorage = { save: vi.fn() };
     const contentSources = {
-      findById: vi.fn().mockResolvedValue({ config: {} }),
+      findById: vi.fn().mockResolvedValue({ config: { socialAccountIds: ['sa-x'] } }),
     };
 
     const service = new AutoPromoteService(
@@ -202,7 +202,7 @@ describe('AutoPromoteService', () => {
       { createPending: vi.fn() } as never,
       socialAccounts as never,
       { save: vi.fn() } as never,
-      { findById: vi.fn().mockResolvedValue({ config: {} }) } as never,
+      { findById: vi.fn().mockResolvedValue({ config: { socialAccountIds: ['sa-tt'] } }) } as never,
       { get: vi.fn() } as never,
     );
 
@@ -437,7 +437,7 @@ describe('AutoPromoteService', () => {
         ]),
       } as never,
       { save: vi.fn() } as never,
-      { findById: vi.fn().mockResolvedValue({ config: { columnMap: 'aab' } }) } as never,
+      { findById: vi.fn().mockResolvedValue({ config: { columnMap: 'aab', socialAccountIds: ['sa-fb'] } }) } as never,
       { get: vi.fn() } as never,
     );
 
@@ -445,5 +445,103 @@ describe('AutoPromoteService', () => {
 
     expect(posts.create.mock.calls[0][2].alsoPublishAsStory).toBeUndefined();
     expect(mediaAssets.create).not.toHaveBeenCalled();
+  });
+  it('sin lista de cuentas no crea posts ni elige cuentas por defecto (otra marca)', async () => {
+    const item = {
+      id: 'item-1',
+      client_id: 'client-1',
+      source_id: 'source-1',
+      external_id: 'noticia_1',
+      copy_facebook: 'Hola FB',
+      copy_instagram: 'Hola IG',
+      copy_x: 'Hola X',
+      hashtags: [],
+      source_url: 'https://radarmex.example/n1',
+      image_url: 'https://img.example/n1.png',
+      post_id: null,
+    };
+    const sourceItems = {
+      findPromotable: vi.fn().mockResolvedValue([item]),
+      linkPost: vi.fn(),
+      linkPosts: vi.fn(),
+    };
+    const posts = { create: vi.fn() };
+    const mediaStorage = { save: vi.fn() };
+    const socialAccounts = {
+      findByAgency: vi.fn().mockResolvedValue([
+        { id: 'sa-aab-fb', platform: 'facebook', is_active: true },
+        { id: 'sa-radar-fb', platform: 'facebook', is_active: true },
+      ]),
+    };
+    for (const config of [{}, { socialAccountIds: [] }, { socialAccountIds: 'x' }]) {
+      const service = new AutoPromoteService(
+        sourceItems as never,
+        posts as never,
+        { create: vi.fn() } as never,
+        { createPending: vi.fn() } as never,
+        socialAccounts as never,
+        mediaStorage as never,
+        { findById: vi.fn().mockResolvedValue({ config }) } as never,
+        { get: vi.fn() } as never,
+      );
+      const result = await service.promoteSource('agency-1', 'user-1', 'source-1');
+      expect(result.postsCreated).toBe(0);
+      expect(result.skippedNoAccount).toBe(1);
+      expect(result.warning).toMatch(/no tiene cuentas asignadas/);
+    }
+    expect(posts.create).not.toHaveBeenCalled();
+    expect(socialAccounts.findByAgency).not.toHaveBeenCalled();
+    expect(mediaStorage.save).not.toHaveBeenCalled();
+    expect(sourceItems.linkPost).not.toHaveBeenCalled();
+    expect(sourceItems.linkPosts).not.toHaveBeenCalled();
+  });
+
+  it('la lista de una marca nunca usa la cuenta de otra marca de la misma red', async () => {
+    const item = {
+      id: 'item-1',
+      client_id: 'client-1',
+      source_id: 'source-1',
+      external_id: 'aab-1',
+      copy_facebook: 'FB AAB',
+      copy_instagram: null,
+      copy_threads: 'Hilo AAB',
+      copy_x: null,
+      hashtags: [],
+      source_url: 'https://blog.example/nota',
+      image_url: null,
+      post_id: null,
+    };
+    const posts = { create: vi.fn().mockResolvedValueOnce({ id: 'post-fb' }) };
+    const service = new AutoPromoteService(
+      {
+        findPromotable: vi.fn().mockResolvedValue([item]),
+        linkPost: vi.fn(),
+        linkPosts: vi.fn().mockResolvedValue(true),
+        readStoryImageUrl: vi.fn().mockResolvedValue(null),
+      } as never,
+      posts as never,
+      { create: vi.fn() } as never,
+      { createPending: vi.fn().mockResolvedValue({}) } as never,
+      {
+        findByAgency: vi.fn().mockResolvedValue([
+          { id: 'sa-radar-fb', platform: 'facebook', is_active: true },
+          { id: 'sa-aab-fb', platform: 'facebook', is_active: true },
+          { id: 'sa-radar-th', platform: 'threads', is_active: true },
+        ]),
+      } as never,
+      { save: vi.fn() } as never,
+      {
+        findById: vi.fn().mockResolvedValue({
+          config: { columnMap: 'aab', socialAccountIds: ['sa-aab-fb'] },
+        }),
+      } as never,
+      { get: vi.fn() } as never,
+    );
+    const result = await service.promoteSource('agency-1', 'user-1', 'source-1');
+    expect(result.postsCreated).toBe(1);
+    expect(posts.create.mock.calls.map((c) => c[2].socialAccountIds)).toEqual([['sa-aab-fb']]);
+    // Threads de RadarMex no está en la lista de AAB: se omite.
+    expect(result.skippedNoAccount).toBe(1);
+    expect(result.warning).toBeUndefined();
   });
 });

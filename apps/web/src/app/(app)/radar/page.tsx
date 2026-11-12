@@ -222,9 +222,15 @@ export default function RadarPage() {
   async function handleSaveSource(e: FormEvent) {
     e.preventDefault();
     if (!clientId) return;
-    setBusy(true);
     setError(null);
     setMessage(null);
+    if (accountIds.length === 0) {
+      setError(
+        'Elige al menos una cuenta (red) para esta fuente. Así sus noticias nunca se publican en cuentas de otra marca.',
+      );
+      return;
+    }
+    setBusy(true);
     try {
       const score = Number(minScore);
       const config = buildConfig();
@@ -282,6 +288,7 @@ export default function RadarPage() {
           `fuera de fechas ${result.ingest.skippedOutOfDateRange ?? 0}, ` +
           `posts creados ${result.promote.postsCreated}. Revisa Aprobaciones.`,
       );
+      if (result.promote.warning) setError(result.promote.warning);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al sincronizar');
@@ -320,13 +327,16 @@ export default function RadarPage() {
     setMessage(null);
     try {
       let posts = 0;
+      const warnings: string[] = [];
       for (const s of clientSources) {
         const result = await apiFetch<RadarSyncResult>(`/content-sources/${s.id}/sync`, {
           method: 'POST',
         });
         posts += result.promote.postsCreated;
+        if (result.promote.warning) warnings.push(`${s.name}: ${result.promote.warning}`);
       }
       setMessage(`Sync de ${clientSources.length} sheet(s) OK. Posts creados: ${posts}.`);
+      if (warnings.length) setError(warnings.join(' '));
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Error al sincronizar');
