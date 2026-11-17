@@ -61,6 +61,7 @@ export default function InicioPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        helpSection="inicio"
         title="Inicio"
         description={
           <>

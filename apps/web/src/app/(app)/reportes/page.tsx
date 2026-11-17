@@ -167,6 +167,7 @@ export default function ReportesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        helpSection="reportes"
         title="Reportes"
         description="Métricas de posts publicados en Meta. Gráficos por red y export PDF con análisis IA."
       />

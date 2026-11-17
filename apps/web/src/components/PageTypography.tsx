@@ -1,20 +1,36 @@
 'use client';
 
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 /** Título principal de módulo — tipografía display, borde inferior. */
 export function PageHeader({
   title,
   description,
+  helpSection,
 }: {
   title: string;
   description?: ReactNode;
+  /** Ancla de la Guía (p. ej. «composer») — muestra un botón «?» que lleva a /guia#ancla. */
+  helpSection?: string;
 }) {
   return (
     <header className="border-b border-line pb-4">
-      <h1 className="font-[family-name:var(--font-landing-display)] text-2xl font-semibold tracking-tight text-ink">
-        {title}
-      </h1>
+      <div className="flex items-center gap-2">
+        <h1 className="font-[family-name:var(--font-landing-display)] text-2xl font-semibold tracking-tight text-ink">
+          {title}
+        </h1>
+        {helpSection ? (
+          <Link
+            href={`/guia#${helpSection}`}
+            title="Ayuda: cómo usar esta pantalla"
+            aria-label={`Ayuda sobre ${title} en la Guía`}
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-line text-xs font-bold text-muted hover:border-brand hover:text-brand"
+          >
+            ?
+          </Link>
+        ) : null}
+      </div>
       {description ? (
         <div className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">
           {description}

@@ -1,7 +1,10 @@
 # Guía — cambios pendientes de documentar
 
-Notas para la Guía del usuario (`/guia` y `docs/Manual de usuario.md`). La guía completa
-quedó pospuesta; aquí se apunta cada cambio de comportamiento para incluirlo después.
+> **Estado (2026-11-17): APLICADO.** Todo lo de abajo ya está incorporado en la Guía completa
+> (`apps/web/content/guia.md`, página `/guia` y PDF). Se conserva como historial. A partir de
+> ahora cada cambio de comportamiento actualiza la Guía en el mismo commit (ver `AGENTS.md`);
+> usa este archivo solo para lo que no se pueda documentar todavía.
+
 Formato: fecha · sección de la guía · qué cambió (en lenguaje sencillo).
 
 ## Desde 2026-11-11
@@ -38,7 +41,7 @@ Formato: fecha · sección de la guía · qué cambió (en lenguaje sencillo).
   que se asignen. Antes el sistema elegía la primera cuenta activa de cada red, que podía ser
   de otra marca del mismo cliente (p. ej. RadarMex en lugar de AAB).
 
-## Pendientes ya conocidos (ver auditoría 2026-11-11)
+## Pendientes ya conocidos (ver auditoría 2026-11-11) — aplicados el 2026-11-17
 
 - Conexión paso a paso de cada red (Meta, Threads con evaluador/tester, X, TikTok sandbox).
 - Mensaje de saldo de fal.ai («fal.ai se quedó sin saldo…»).

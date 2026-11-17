@@ -265,6 +265,7 @@ export default function CalendarPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        helpSection="calendario"
         title="Calendario"
         description="Vista en cuadrícula de programados y publicados. Filtra por red y fecha. Puedes editar o eliminar programados y posts con error; en publicados verás likes y comentarios cuando estén sincronizados."
       />

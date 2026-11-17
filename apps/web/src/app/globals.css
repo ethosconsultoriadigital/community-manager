@@ -260,3 +260,81 @@ html.dark .ethos-tagline {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Guía (/guia): contenido renderizado desde apps/web/content/guia.md */
+.guia-content {
+  color: var(--cm-ink);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+.guia-content h2 {
+  font-family: var(--font-landing-display), inherit;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  scroll-margin-top: 1rem;
+}
+.guia-content h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+  scroll-margin-top: 1rem;
+}
+.guia-content h4 {
+  font-weight: 600;
+  margin: 1rem 0 0.4rem;
+}
+.guia-content p {
+  margin: 0.5rem 0;
+}
+.guia-content ul,
+.guia-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+.guia-content ul {
+  list-style: disc;
+}
+.guia-content ol {
+  list-style: decimal;
+}
+.guia-content li {
+  margin: 0.2rem 0;
+}
+.guia-content a {
+  color: var(--cm-brand);
+  text-decoration: underline;
+}
+.guia-content code {
+  font-size: 0.85em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--cm-line) 60%, transparent);
+}
+.guia-content blockquote {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 3px solid var(--cm-brand);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--cm-brand) 8%, transparent);
+}
+.guia-content .guia-table {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.guia-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.guia-content th,
+.guia-content td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--cm-line);
+}
+.guia-content th {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--cm-line) 40%, transparent);
+}

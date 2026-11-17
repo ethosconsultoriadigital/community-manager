@@ -208,6 +208,7 @@ export default function CuentasPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        helpSection="cuentas"
         title="Cuentas sociales"
         description="Conecta o desconecta cuentas por cliente (Meta y, si están habilitadas, Threads, X y TikTok)."
       />

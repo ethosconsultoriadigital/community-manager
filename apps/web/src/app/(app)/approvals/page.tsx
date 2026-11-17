@@ -269,6 +269,7 @@ export default function ApprovalsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        helpSection="aprobaciones"
         title="Bandeja de aprobación"
         description="Aprueba aquí mismo y programa la fecha sin que el post se mueva a otra sección. También puedes exportar una parrilla PDF para revisión offline."
       />

@@ -200,7 +200,7 @@ export default function RadarPage() {
     if (!gid && !tab) throw new ApiError('Indica el gid o el nombre de la pestaña', 400);
     if (columnMap === 'aab' && accountIds.length === 0) {
       throw new ApiError(
-        'Marca las cuentas de AAB. Sin marcas se usaría la primera cuenta de cada red (puede ser RadarMex).',
+        'Marca las cuentas de AAB. Una fuente sin cuentas marcadas no crea publicaciones.',
         400,
       );
     }
@@ -379,6 +379,7 @@ export default function RadarPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        helpSection="fuentes"
         title="Conectar fuente"
         description={
           <>
@@ -563,13 +564,13 @@ export default function RadarPage() {
               Cuentas que puede usar esta fuente
             </legend>
             <p className="text-xs text-muted">
-              Sin marcas se usa la primera cuenta activa de cada red. En AAB hay que marcar solo
-              las cuentas de AAB: una red sin cuenta marcada no genera post.
+              Marca al menos una cuenta (obligatorio): la fuente solo publica en las cuentas
+              marcadas. Marca solo las de esta marca; una red sin cuenta marcada no genera post.
             </p>
             {columnMap === 'aab' && accountIds.length === 0 && (
               <p className="text-xs text-amber-700">
-                Marca las cuentas de AAB antes de guardar. Si no, Facebook e Instagram de este
-                cliente podrían salir en las cuentas de RadarMex.
+                Marca las cuentas de AAB antes de guardar. Sin cuentas marcadas la fuente no se
+                puede guardar ni crea publicaciones.
               </p>
             )}
             {accounts.length === 0 ? (

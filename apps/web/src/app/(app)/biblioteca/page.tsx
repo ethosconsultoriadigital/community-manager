@@ -77,6 +77,7 @@ export default function BibliotecaPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        helpSection="biblioteca"
         title="Biblioteca"
         description="Textos, imágenes y videos guardados para reutilizar en nuevas publicaciones."
       />

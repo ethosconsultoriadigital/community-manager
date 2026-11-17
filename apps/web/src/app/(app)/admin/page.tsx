@@ -377,6 +377,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        helpSection="admin"
         title="Administración"
         description="Crea clientes (negocios), usuarios de acceso y conecta sus cuentas Meta."
       />

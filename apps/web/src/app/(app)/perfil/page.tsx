@@ -41,7 +41,7 @@ export default function PerfilPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6">
-      <PageHeader title="Mi perfil" description={<>Cuenta: {user?.email}</>} />
+      <PageHeader title="Mi perfil" helpSection="perfil" description={<>Cuenta: {user?.email}</>} />
 
       <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
         <h2 className="text-sm font-medium text-ink">Cambiar contraseña</h2>

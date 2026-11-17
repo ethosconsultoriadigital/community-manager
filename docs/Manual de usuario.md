@@ -1,3 +1,5 @@
+> **Documento histórico (sep. 2026).** La guía vigente está en `apps/web/content/guia.md` (página «Guía» de la plataforma y PDF descargable).
+
 # Manual de usuario — Community Manager
 
 > Guía operativa para el cliente final.  

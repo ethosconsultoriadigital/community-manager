@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r test",
     "db:pull": "pnpm --filter @cm/db db:pull",
-    "db:generate": "pnpm --filter @cm/db db:generate"
+    "db:generate": "pnpm --filter @cm/db db:generate",
+    "guia:pdf": "tsx scripts/guia-pdf.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

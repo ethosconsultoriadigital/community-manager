@@ -1116,6 +1116,7 @@ export default function ComposerPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        helpSection="composer"
         title="Generar Contenido"
         description={
           <>
