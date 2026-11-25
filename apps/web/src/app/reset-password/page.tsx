@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useState } from 'react';
 import { EthosCredit } from '@/components/EthosCredit';
+import { PasswordInput } from '@/components/PasswordInput';
 import { EthosLogo } from '@/components/EthosLogo';
 import { ApiError, apiFetch } from '@/lib/api';
 
@@ -53,8 +54,7 @@ function ResetPasswordForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-ink">Nueva contraseña</span>
-        <input
-          type="password"
+        <PasswordInput
           required
           minLength={8}
           value={newPassword}
@@ -64,8 +64,7 @@ function ResetPasswordForm() {
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-ink">Confirmar contraseña</span>
-        <input
-          type="password"
+        <PasswordInput
           required
           minLength={8}
           value={confirmPassword}

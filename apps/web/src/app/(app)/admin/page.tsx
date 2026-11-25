@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BrandKitEditor } from '@/components/BrandKitEditor';
 import { PageHeader } from '@/components/PageTypography';
+import { PasswordInput } from '@/components/PasswordInput';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { AdminUserListItem, Client, UserRole } from '@/lib/types';
@@ -526,13 +527,13 @@ export default function AdminPage() {
           </label>
           <label className="block text-sm">
             <span className="text-muted">Contraseña temporal</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={userPassword}
               onChange={(e) => setUserPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
+              wrapperClassName="mt-1"
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
             />
           </label>
           <label className="block text-sm">

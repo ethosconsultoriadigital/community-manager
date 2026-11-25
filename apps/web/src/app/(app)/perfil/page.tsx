@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { PageHeader } from '@/components/PageTypography';
+import { PasswordInput } from '@/components/PasswordInput';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -48,34 +49,34 @@ export default function PerfilPage() {
         <form onSubmit={handleSubmit} className="space-y-3">
           <label className="block text-sm">
             <span className="text-muted">Contraseña actual</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
+              wrapperClassName="mt-1"
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
             />
           </label>
           <label className="block text-sm">
             <span className="text-muted">Nueva contraseña</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
+              wrapperClassName="mt-1"
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
             />
           </label>
           <label className="block text-sm">
             <span className="text-muted">Confirmar nueva contraseña</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-1 w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
+              wrapperClassName="mt-1"
+              className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-ink"
             />
           </label>
           {message && <p className="text-sm text-emerald-600">{message}</p>}

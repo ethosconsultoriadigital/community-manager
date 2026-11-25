@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useState } from 'react';
+import { PasswordInput } from '@/components/PasswordInput';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -59,9 +60,8 @@ function LoginFormInner() {
             ¿Olvidaste tu contraseña?
           </Link>
         </div>
-        <input
+        <PasswordInput
           id="password"
-          type="password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}

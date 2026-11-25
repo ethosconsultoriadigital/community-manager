@@ -38,14 +38,14 @@ El recorrido completo es siempre el mismo:
 ### Entrar a la plataforma {#entrar}
 
 1. Abre la dirección de la plataforma que te dio Ethos y pulsa **Iniciar sesión**.
-2. Escribe tu **email** y tu **contraseña**.
+2. Escribe tu **email** y tu **contraseña**. Si quieres ver lo que escribes, pulsa el icono del **ojo** junto al campo (**Mostrar contraseña** / **Ocultar contraseña**).
 3. Al entrar llegas a **Inicio**.
 
 ### Si olvidaste tu contraseña {#olvide-contrasena}
 
 1. En la pantalla de inicio de sesión pulsa **«Olvidé mi contraseña»**.
 2. Escribe tu email y envía. Si la cuenta existe, te llegará un correo con un enlace.
-3. Abre el enlace y elige tu nueva contraseña.
+3. Abre el enlace y elige tu nueva contraseña. También aquí puedes usar el icono del ojo para verla.
 
 > Si tu usuario aparece desactivado, pide a un administrador que lo active (ver [Roles y usuarios](#roles)).
 
@@ -89,7 +89,7 @@ Cada persona entra con su propio usuario y un **rol** que define qué puede hace
 ### Crear y administrar usuarios (Admin) {#usuarios}
 
 1. Ve a **Admin** → **Nuevo usuario de acceso**.
-2. Escribe email, nombre (opcional) y una **contraseña temporal** (mínimo 8 caracteres). Compártela con la persona para que la cambie en **Perfil**.
+2. Escribe email, nombre (opcional) y una **contraseña temporal** (mínimo 8 caracteres). Puedes pulsar el icono del ojo para verla mientras la escribes. Compártela con la persona para que la cambie en **Perfil**.
 3. Elige el **rol**. Para **Manager** y **Viewer** marca **uno o varios clientes**; es obligatorio.
 4. Pulsa **Crear usuario**.
 
@@ -349,7 +349,7 @@ Métricas de lo publicado en **Facebook e Instagram**.
 
 ## Perfil {#perfil}
 
-En **Perfil** cambias tu contraseña: escribe la **actual**, la **nueva** y **confírmala**. El tema claro/oscuro se cambia con el botón **Tema** del menú.
+En **Perfil** cambias tu contraseña: escribe la **actual**, la **nueva** y **confírmala**. En cada campo puedes pulsar el icono del ojo para ver u ocultar lo que escribes. El tema claro/oscuro se cambia con el botón **Tema** del menú.
 
 ## Problemas frecuentes {#problemas}
 
@@ -377,6 +377,10 @@ En **Perfil** cambias tu contraseña: escribe la **actual**, la **nueva** y **co
 - Una vez por semana: **Reportes** → **Sincronizar ahora** y descargar el PDF si hace falta.
 
 ## Novedades {#novedades}
+
+**25 de noviembre de 2026**
+
+- **Inicio de sesión**: puedes mostrar u ocultar la contraseña con el icono del ojo. Lo mismo al restablecerla, al cambiarla en **Perfil** y al crear un usuario en **Admin**.
 
 **12 de noviembre de 2026**
 
