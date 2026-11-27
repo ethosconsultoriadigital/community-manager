@@ -17,7 +17,11 @@ import { bullRedisConnection } from './redis.connection';
 import { ReelGenerationQueueService } from './reel-generation-queue.service';
 import { REEL_GENERATION_QUEUE } from './reel-generation.constants';
 import { ReelGenerationProcessor } from './reel-generation.processor';
-import { TOKEN_REFRESH_QUEUE, TokenRefreshProcessor } from './token-refresh.processor';
+import {
+  META_TOKEN_HEALTH_JOB,
+  TOKEN_REFRESH_QUEUE,
+  TokenRefreshProcessor,
+} from './token-refresh.processor';
 
 @Module({
   imports: [
@@ -70,6 +74,14 @@ export class JobsModule implements OnModuleInit {
       {
         repeat: { pattern: '0 * * * *' },
         jobId: 'meta-token-refresh-hourly',
+      },
+    );
+    await tokenQueue.add(
+      META_TOKEN_HEALTH_JOB,
+      {},
+      {
+        repeat: { pattern: '0 */8 * * *' },
+        jobId: 'meta-token-health-8h',
       },
     );
     await tokenQueue.close();

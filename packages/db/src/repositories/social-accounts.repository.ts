@@ -74,6 +74,44 @@ export class SocialAccountsRepository {
     });
   }
 
+  findByPlatformExternalId(platform: social_platform, externalAccountId: string) {
+    return this.prisma.social_accounts.findUnique({
+      where: {
+        platform_external_account_id: {
+          platform,
+          external_account_id: externalAccountId,
+        },
+      },
+      select: publicSelect,
+    });
+  }
+
+  findActiveByClientAndPlatforms(
+    agencyId: string,
+    clientId: string,
+    platforms: social_platform[],
+  ) {
+    return this.prisma.social_accounts.findMany({
+      where: scopedWhere(agencyId, {
+        client_id: clientId,
+        is_active: true,
+        platform: { in: platforms },
+      }),
+      select: publicSelect,
+    });
+  }
+
+  /** FB e IG activas, con token, para la revisión periódica de acceso. */
+  findActiveMetaWithToken() {
+    return this.prisma.social_accounts.findMany({
+      where: {
+        is_active: true,
+        platform: { in: ['facebook', 'instagram'] },
+      },
+      orderBy: { connected_at: 'asc' },
+    });
+  }
+
   upsert(data: UpsertSocialAccountData) {
     return this.prisma.social_accounts.upsert({
       where: {

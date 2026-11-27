@@ -10,6 +10,10 @@ import {
   stripHtmlTags,
 } from '../platforms/meta/story-asset';
 import type { PublishPlatform } from '../platforms/platform-publisher.interface';
+import {
+  isMetaTokenOrPermissionError,
+  REQUIERE_RECONEXION,
+} from '../platforms/meta/meta-auth-error';
 
 export type PublishPostJobData = {
   agencyId: string;
@@ -82,8 +86,12 @@ export class PublishPostService {
       status: 'publishing',
     });
 
+    let account: Awaited<
+      ReturnType<SocialAccountsRepository['findByIdWithToken']>
+    > = null;
+
     try {
-      const account = await this.socialAccounts.findByIdWithToken(
+      account = await this.socialAccounts.findByIdWithToken(
         agencyId,
         target.social_account_id,
       );
@@ -161,6 +169,18 @@ export class PublishPostService {
         errorMessage: message,
         incrementAttempts: true,
       });
+
+      if (
+        account &&
+        (account.platform === 'facebook' || account.platform === 'instagram') &&
+        isMetaTokenOrPermissionError(error)
+      ) {
+        await this.socialAccounts.updateConnectionStatus(
+          agencyId,
+          account.id,
+          REQUIERE_RECONEXION,
+        );
+      }
     }
   }
 

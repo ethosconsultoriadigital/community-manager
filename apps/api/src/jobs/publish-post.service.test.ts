@@ -13,7 +13,10 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
     refreshAggregateStatus: vi.fn(),
   };
   const approvals = { hasApproved: vi.fn() };
-  const socialAccounts = { findByIdWithToken: vi.fn() };
+  const socialAccounts = {
+    findByIdWithToken: vi.fn(),
+    updateConnectionStatus: vi.fn().mockResolvedValue({ count: 1 }),
+  };
   const metaPublish = { publish: vi.fn() };
   const publishers = {
     getPublisher: vi.fn().mockReturnValue(metaPublish),
@@ -473,4 +476,44 @@ describe('PublishPostService', () => {
       expect(input.message).toContain('<strong>');
     });
   });
+
+  it('marca Requiere reconexión si Meta rechaza el token al publicar', async () => {
+    const { service, posts, socialAccounts, metaPublish } = createService();
+    posts.findForPublish.mockResolvedValue({
+      id: 'post-1',
+      status: 'scheduled',
+      caption: 'Hola',
+      hashtags: [],
+      approvals: [{ id: 'ap1', status: 'approved' }],
+      media_assets: [],
+      post_targets: [{ id: 't1', status: 'pending', social_account_id: 'sa1' }],
+    });
+    socialAccounts.findByIdWithToken.mockResolvedValue({
+      id: 'sa1',
+      platform: 'facebook',
+      is_active: true,
+      external_account_id: 'page-1',
+      access_token_enc: encryptedToken(),
+    });
+    metaPublish.publish.mockRejectedValue(
+      new Error(
+        'Any of the pages_show_list permission(s) must be granted before impersonating a user\'s page.',
+      ),
+    );
+
+    await service.publishPost({ agencyId: 'a1', postId: 'post-1' });
+
+    expect(posts.updateTargetStatus).toHaveBeenCalledWith(
+      'a1',
+      'post-1',
+      't1',
+      expect.objectContaining({ status: 'failed' }),
+    );
+    expect(socialAccounts.updateConnectionStatus).toHaveBeenCalledWith(
+      'a1',
+      'sa1',
+      'requiere_reconexion',
+    );
+  });
+
 });

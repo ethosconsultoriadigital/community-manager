@@ -70,8 +70,8 @@ export class OauthController {
     if (!code || !state) {
       throw new UnauthorizedException('Parámetros OAuth incompletos');
     }
-    await this.metaOAuth.handleCallback(code, state);
-    return res.redirect(this.metaOAuth.getSuccessRedirectUrl());
+    const result = await this.metaOAuth.handleCallback(code, state);
+    return res.redirect(this.metaOAuth.getSuccessRedirectUrl(result));
   }
 
   @Get('threads/connect-url')

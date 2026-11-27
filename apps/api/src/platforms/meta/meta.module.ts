@@ -6,6 +6,7 @@ import { MetaMetricsService } from './meta-metrics.service';
 import { MetaOAuthService } from './meta-oauth.service';
 import { MetaPlacesService } from './meta-places.service';
 import { MetaPublishService } from './meta-publish.service';
+import { MetaTokenHealthService } from './meta-token-health.service';
 import { MetaTokenRefreshService } from './meta-token-refresh.service';
 import { StoryMediaComposerService } from './story-media-composer.service';
 
@@ -15,6 +16,7 @@ import { StoryMediaComposerService } from './story-media-composer.service';
     MetaGraphClient,
     MetaOAuthService,
     MetaTokenRefreshService,
+    MetaTokenHealthService,
     MetaPublishService,
     MetaMetricsService,
     MetaPlacesService,
@@ -24,6 +26,7 @@ import { StoryMediaComposerService } from './story-media-composer.service';
     MetaGraphClient,
     MetaOAuthService,
     MetaTokenRefreshService,
+    MetaTokenHealthService,
     MetaPublishService,
     MetaMetricsService,
     MetaPlacesService,

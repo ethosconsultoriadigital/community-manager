@@ -49,6 +49,7 @@ export default function CuentasPage() {
   >(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const canManage = useMemo(
@@ -85,7 +86,11 @@ export default function CuentasPage() {
     const connected = searchParams.get('connected');
     const oauthError = searchParams.get('error');
     if (connected === 'meta') {
-      setMessage('Cuenta Meta conectada correctamente.');
+      const skipped = searchParams.get('metaSkipped');
+      if (searchParams.get('metaSaved') !== '0') {
+        setMessage('Cuenta Meta conectada correctamente.');
+      }
+      if (skipped) setNotice(skipped);
     } else if (connected === 'threads') {
       setMessage('Cuenta Threads conectada correctamente.');
     } else if (connected === 'x') {
@@ -110,6 +115,7 @@ export default function CuentasPage() {
     if (!clientId) return;
     setConnecting('meta');
     setError(null);
+    setNotice(null);
     try {
       const { url } = await apiFetch<{ url: string }>(
         `/oauth/meta/connect-url?clientId=${encodeURIComponent(clientId)}`,
@@ -214,6 +220,9 @@ export default function CuentasPage() {
       />
 
       {message && <p className="text-sm text-emerald-600">{message}</p>}
+      {notice && (
+        <p className="whitespace-pre-line text-sm text-amber-700">{notice}</p>
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap items-end gap-3">

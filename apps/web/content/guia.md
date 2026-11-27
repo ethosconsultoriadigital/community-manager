@@ -143,11 +143,13 @@ Pasos:
 
 1. Ve a **Cuentas** y elige el cliente.
 2. Pulsa **Conectar Meta** (también existe el mismo botón en **Admin**, junto a cada cliente).
-3. Se abre Facebook: inicia sesión con la cuenta administradora.
-4. Elige la **Página** (y su Instagram) del negocio y acepta los permisos que pide Meta.
+3. Se abre Facebook: inicia sesión con el **perfil de Facebook que administra las páginas de esa marca** (no uses el perfil de otra marca).
+4. En la ventana de Meta marca **solo las páginas de ese cliente** (y su Instagram) y acepta los permisos. Si usas el mismo perfil para varias marcas y desmarcas las páginas de otra, Meta le quita el acceso a la app y esas publicaciones pueden fallar.
 5. Vuelves a la plataforma con el mensaje **«Cuenta Meta conectada correctamente»** y ves las cuentas **Facebook** e **Instagram** en la lista.
 
-> Si un mismo cliente maneja varias marcas, revisa bien qué Páginas autorizas: cada Página conectada aparece como una cuenta distinta y luego eliges en cuál publicar.
+> Cada marca se conecta con el perfil de Facebook que administra sus propias páginas, y en Meta se marcan solo las de esa marca.
+>
+> Si una página (o un Instagram) ya está conectada a otro cliente, la plataforma **no la mueve**: verás el aviso «La página X ya está conectada al cliente Y; no se movió».
 
 ### Threads {#conectar-threads}
 
@@ -176,7 +178,8 @@ Threads usa tu perfil de Instagram. Mientras la app de Meta de la plataforma est
 
 ### Reconectar y desconectar {#reconectar}
 
-- Si una cuenta muestra **«Permisos incompletos — vuelve a conectar»** o **«Requiere reconexión»**, vuelve a pulsar el botón de conectar de esa red (por ejemplo, tras cambiar la contraseña de Facebook o quitar permisos).
+- Si una cuenta muestra **«Permisos incompletos — vuelve a conectar»** o **«Requiere reconexión»**, vuelve a pulsar el botón de conectar de esa red. En Facebook e Instagram esto aparece si Meta ya no deja publicar en esa página (por ejemplo, si se reconectó otra marca con el mismo perfil y no se marcaron estas páginas). Vuelve a **Conectar Meta** desde ese cliente, con el perfil correcto, y marca sus páginas.
+- El sistema también revisa de vez en cuando el acceso a Facebook e Instagram, y lo marca solo si detecta un problema. Si una publicación falla por un permiso o un token de Meta, verás el mismo aviso.
 - Para **desconectar**, pulsa **Desconectar** en la cuenta y confirma. Ya no se podrá publicar en ella hasta volver a conectarla, y deja de aparecer como destino.
 - Los accesos de las redes se renuevan solos; solo hace falta reconectar si la plataforma lo pide.
 
@@ -358,7 +361,7 @@ En **Perfil** cambias tu contraseña: escribe la **actual**, la **nueva** y **co
 | **«fal.ai se quedó sin saldo…»** al generar un Reel o avatar | La cuenta de video con IA no tiene saldo. Avisa a Ethos para recargar y vuelve a generar. |
 | **«No face detected…»** al generar un avatar | La imagen del personaje no tiene una cara clara. Usa un retrato de frente con ojos, nariz y boca visibles. |
 | Un Reel o avatar tarda muchísimo | Normalmente tarda unos minutos. Si pasa cerca de una hora se marca como fallido: vuelve a generar. |
-| **«Permisos incompletos»** o **«Requiere reconexión»** en Cuentas | El acceso a esa red caducó o se quitaron permisos. Vuelve a conectar la red. |
+| **«Permisos incompletos»** o **«Requiere reconexión»** en Cuentas | El acceso a esa red caducó o se quitaron permisos. En Facebook e Instagram, vuelve a **Conectar Meta** desde ese cliente con el perfil que administra sus páginas y marca solo las de esa marca. |
 | Error **1349245** al conectar Threads | El perfil no aceptó la invitación de evaluador (ver [Threads](#conectar-threads)). |
 | **«Token sin media.write: reconectar cuenta X»** | Desconecta y vuelve a conectar X. |
 | La publicación salió **sin ubicación** | Instagram no acepta ese lugar o es un video en Facebook (ver [Ubicación](#ubicacion)). |
@@ -367,6 +370,7 @@ En **Perfil** cambias tu contraseña: escribe la **actual**, la **nueva** y **co
 | La fuente de Sheets **no crea publicaciones** | Revisa que la hoja esté compartida con la cuenta de servicio, que las filas cumplan las reglas y que la fuente tenga **cuentas marcadas**. |
 | Una publicación aparece **Con errores** en Calendario | Abre el detalle, lee el motivo, corrige y usa **Reprogramar**. |
 | Facebook muestra «Publicado por …» con otro nombre | Es el nombre de la app de Meta de la plataforma, no la cuenta que publicó. La publicación sí sale en la Página correcta. |
+| **«La página X ya está conectada al cliente Y; no se movió»** | Esa página ya pertenece a otro cliente y el sistema no la cambia de lugar. Conéctala desde el cliente correcto, o quita la palomita en la ventana de Meta. |
 
 ## Checklist diario {#checklist}
 
@@ -377,6 +381,10 @@ En **Perfil** cambias tu contraseña: escribe la **actual**, la **nueva** y **co
 - Una vez por semana: **Reportes** → **Sincronizar ahora** y descargar el PDF si hace falta.
 
 ## Novedades {#novedades}
+
+**27 de noviembre de 2026**
+
+- **Cuentas / Meta:** si al conectar marcas una página que ya pertenece a otro cliente, ya no se mueve: aparece el aviso «La página X ya está conectada al cliente Y; no se movió». Si Meta quita el acceso a una página, en Cuentas verás **«Requiere reconexión»**. Cada marca se conecta con el perfil de Facebook que administra sus páginas, y en la ventana de Meta se marcan solo las de esa marca.
 
 **25 de noviembre de 2026**
 

@@ -541,6 +541,17 @@ export class MetaGraphClient {
     };
   }
 
+  /** Llamada barata para comprobar que el token de página o IG sigue siendo válido. */
+  async probeAccount(externalId: string, accessToken: string): Promise<{ id: string }> {
+    const params = new URLSearchParams({
+      access_token: accessToken,
+      fields: 'id',
+    });
+    return this.getJson<{ id: string }>(
+      `${this.graphBase}/${encodeURIComponent(externalId)}?${params}`,
+    );
+  }
+
   private requireConfig(key: string): string {
     const value = this.config.get<string>(key);
     if (!value) throw new Error(`${key} no está definida`);
